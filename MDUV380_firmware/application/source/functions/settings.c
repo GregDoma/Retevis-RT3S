@@ -35,6 +35,7 @@
 #include "user_interface/uiLocalisation.h"
 #include "functions/ticks.h"
 #include "functions/rxPowerSaving.h"
+#include "functions/blackout.h"
 #if defined(HAS_GPS)
 #include "interfaces/gps.h"
 #endif
@@ -104,7 +105,9 @@ bool settingsSaveSettings(bool includeVFOs)
 	nonVolatileSettings.audioPromptMode = AUDIO_PROMPT_MODE_VOICE_LEVEL_3;
 #endif
 
+	blackoutSettingsForSave(true); // Fork: the user backlight values, not the blackout ones
 	bool ret = settingsStorageWrite((uint8_t *)&nonVolatileSettings, sizeof(settingsStruct_t));
+	blackoutSettingsForSave(false);
 
 	if (ret)
 	{

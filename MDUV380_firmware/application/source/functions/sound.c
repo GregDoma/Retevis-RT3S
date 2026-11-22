@@ -35,6 +35,7 @@
 #include "functions/rxPowerSaving.h"
 #include "interfaces/interrupts.h"
 #include "interfaces/i2s.h"
+#include "functions/blackout.h"
 
 
 #define MIC_AVERAGE_COUNTER_RELOAD     10
@@ -207,6 +208,12 @@ void soundSetMelody(const int16_t *melody)
 	if ((melody == MELODY_ERROR_BEEP) || (melody == MELODY_ACK_BEEP))
 	{
 		voicePromptsTerminate();
+	}
+
+	// Fork: blackout, no local beeps (the 1750 Hz burst and DTMF are transmitted)
+	if (blackoutActive() && (melody != NULL) && (melody != MELODY_1750) && (melody != MELODY_DTMF))
+	{
+		return;
 	}
 
 	if ((melody == NULL) ||

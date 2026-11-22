@@ -27,6 +27,7 @@
  */
 #include "user_interface/uiGlobals.h"
 #include "functions/trx.h"
+#include "functions/blackout.h"
 #include "user_interface/menuSystem.h"
 #include "user_interface/uiUtilities.h"
 #include "user_interface/uiEmcom.h"
@@ -1897,6 +1898,10 @@ static void handleEvent(uiEvent_t *ev)
 					emcomSosRequest(); // Fork: EMCOM SOS (press twice)
 				}
 #endif
+				else if (keyval == 5)
+				{
+					blackoutToggle(); // Fork: blackout / silent mode
+				}
 				else if (keyval == 2)
 				{
 					switch (aprsBeaconingGetMode())

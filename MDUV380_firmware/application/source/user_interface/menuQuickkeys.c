@@ -7,6 +7,7 @@
  */
 #include "functions/codeplug.h"
 #include "functions/settings.h"
+#include "functions/blackout.h"
 #if !defined(PLATFORM_GD77S)
 #include "functions/aprs.h"
 #endif
@@ -61,6 +62,7 @@ static const uint16_t quickkeyChoices[] =
 #if defined(HAS_EMCOM_UI)
 	QUICKKEY_ACTIONVALUE(QUICKKEY_ACTION_SOS),
 #endif
+	QUICKKEY_ACTIONVALUE(QUICKKEY_ACTION_BLACKOUT),
 	QUICKKEY_MENUVALUE_CHECKED(MENU_RSSI_SCREEN, 0, 0),
 	QUICKKEY_MENUVALUE_CHECKED(MENU_LAST_HEARD, 0, 0),
 	QUICKKEY_MENULONGVALUE(MENU_ZONE_LIST, 0),
@@ -111,6 +113,8 @@ const char *quickkeyActionGetName(quickkeyAction_t action)
 			return "APRS RX on/off";
 		case QUICKKEY_ACTION_SOS:
 			return "SOS (press x2)";
+		case QUICKKEY_ACTION_BLACKOUT:
+			return "Blackout";
 #if defined(HAS_SSTV_MENU)
 		case QUICKKEY_ACTION_MENU_POSITION:
 			return currentLanguage->position;
@@ -231,6 +235,10 @@ bool quickkeyActionExecute(quickkeyAction_t action, bool isChannelMode)
 			emcomSosRequest();
 			return true;
 #endif
+		case QUICKKEY_ACTION_BLACKOUT:
+			// Same as SK1 + 5
+			blackoutToggle();
+			return true;
 #if defined(HAS_SSTV_MENU)
 		case QUICKKEY_ACTION_MENU_POSITION:
 		case QUICKKEY_ACTION_MENU_COVERAGE:

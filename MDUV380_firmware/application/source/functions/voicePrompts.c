@@ -31,6 +31,7 @@
 #include "functions/settings.h"
 #include "user_interface/uiLocalisation.h"
 #include "functions/rxPowerSaving.h"
+#include "functions/blackout.h"
 #include "hardware/radioHardwareInterface.h"
 
 const uint32_t VOICE_PROMPTS_DATA_MAGIC = 0x5056;//'VP'
@@ -226,7 +227,7 @@ void voicePromptsTerminateNoTail(void)
 
 void voicePromptsInit(void)
 {
-	if ((nonVolatileSettings.audioPromptMode < AUDIO_PROMPT_MODE_VOICE_THRESHOLD) && !temporaryOverride)
+	if (((nonVolatileSettings.audioPromptMode < AUDIO_PROMPT_MODE_VOICE_THRESHOLD) && !temporaryOverride) || blackoutActive()) // Fork: blackout
 	{
 		return;
 	}
