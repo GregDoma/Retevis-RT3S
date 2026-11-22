@@ -122,7 +122,7 @@ PACE = [('P', 'green', 'SR7TM AU Tomaszo', '438.6750 FM', True),
 PACE_NAMES = ['PRIMARY', 'ALTERNATE', 'CONTINGENCY', 'EMERGENCY']
 
 
-def pace(T, sel=1, confirm_clear=False):
+def pace(T, sel=1, confirm_clear=False, sked=None):
     s = R.Screen(T['bg'])
     title(s, T, 'PACE PLAN', f'{sel + 1}/4')
     rh = (KEYBAR_Y - BODY_Y + 1) // 4
@@ -150,13 +150,18 @@ def pace(T, sel=1, confirm_clear=False):
             txt(s, T, 24, y + 12, '* stores the channel', 1, mc)
             chip(s, T, W - 2, y + 3, 'EMPTY', T['bg'] if isSel else T['deco'], outline=True, right=True)
     strip(s, T)
+    if sked:  # the next sked count-down (menuPACE.c skedText()), the slot name only when it fits
+        rw = txt(s, T, W - 3, STRIP_Y + 2, sked, 1, T['amber'], True)
+        rw += txt(s, T, W - 3 - rw - 4, STRIP_Y + 2, 'SKED', 1, T['deco'], True) + 4
+    else:
+        rw = txt(s, T, W - 3, STRIP_Y + 2, '3/4 SET', 1, T['deco'], True)
     x = 2 + chip(s, T, 2, STRIP_Y + 2, 'ON P', T['green']) + 4
-    txt(s, T, x, STRIP_Y + 2, 'PRIMARY', 1, T['hfg'])
-    txt(s, T, W - 3, STRIP_Y + 2, '3/4 SET', 1, T['deco'], True)
+    if x + len('PRIMARY') * 6 + 10 <= W - 3 - rw:
+        txt(s, T, x, STRIP_Y + 2, 'PRIMARY', 1, T['hfg'])
     if confirm_clear:
         confirm(s, T, f'CLEAR {PACE[sel][0]}?')
     else:
-        keybar(s, T, '1-4 GO  * STORE  0 CLEAR')
+        keybar(s, T, '1-4 GO * STO 0 CLR # SKED')
     return s
 
 

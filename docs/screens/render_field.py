@@ -45,7 +45,7 @@ def pace():
         else:
             s.text(24, y + 1, names[i], '1b', c)
             s.text(24, y + 11, 'empty - * stores', 1, P['mut'])
-    keybar(s, '1-4 GO  * STORE  0 CLEAR')
+    keybar(s, '1-4 GO * STO 0 CLR # SKED')
     return s
 
 
