@@ -1,10 +1,10 @@
-# Host tests for the RX audio decoders (APRS, DTMF, CW, SSTV), the APRS parser, net roster and battery estimate (no hardware needed).
+# Host tests for the RX audio decoders (APRS, DTMF, CW, SSTV), the APRS parser, net roster, battery estimate and sked timing (no hardware needed).
 #   make -C MDUV380_firmware/tests/aprs_rx
 APP    := ../../application
 CFLAGS := -O2 -Wall -Wno-misleading-indentation -I$(APP)/include
 
 .PHONY: all clean
-all: test_decoder test_parse test_tones test_sstv test_text test_sstv_store test_net test_batt
+all: test_decoder test_parse test_tones test_sstv test_text test_sstv_store test_net test_batt test_sked
 	./test_decoder
 	./test_parse
 	./test_tones
@@ -13,6 +13,7 @@ all: test_decoder test_parse test_tones test_sstv test_text test_sstv_store test
 	./test_sstv_store
 	./test_net
 	./test_batt
+	./test_sked
 
 test_decoder: test_decoder.c $(APP)/source/functions/aprsRxDecoder.c
 	$(CC) $(CFLAGS) -o $@ $^ -lm
@@ -38,5 +39,8 @@ test_net: test_net.c $(APP)/source/functions/netRoster.c
 test_batt: test_batt.c $(APP)/source/functions/batteryRuntime.c
 	$(CC) $(CFLAGS) -o $@ $^ -lm
 
+test_sked: test_sked.c $(APP)/source/functions/skedMath.c
+	$(CC) $(CFLAGS) -o $@ $^
+
 clean:
-	rm -f test_decoder test_parse test_tones test_sstv test_text test_sstv_store test_net test_batt
+	rm -f test_decoder test_parse test_tones test_sstv test_text test_sstv_store test_net test_batt test_sked
