@@ -7,6 +7,10 @@ marked *(untested)* build and pass host tests but still need on-air checking.
 
 ## Unreleased
 
+* **Accessibility display styles** *(untested)*: *Options → Display → Screen* now steps through Classic / EMCOM / **EMCOM mono** / **EMCOM contr**. Existing settings keep their style (two formerly unused option bits, no settings reset).
+  * **EMCOM mono** (colour-blind safe): grey shades (night: reds); state by word and shape — outlined idle chip, solid `RX` / `SCAN` chip, inverse status bar on TX, hollow S-meter segments above S9 (main and RSSI screens), `!` + inverse chip for a low battery, thin `GPS` without a fix, inverse `SOS` / `TX OFF` / `TX` in the footer; grey menu preset with a white selection block; band scope waterfall as a brightness ramp.
+  * **EMCOM contr** (low vision): white / yellow on black (night: amber / red-orange), bold small text, the channel frequency in 8x16, a thicker S-meter, the selected row as a yellow block, same shape cues.
+  * Cancelling *Options → Display* now also re-applies a screen style that was changed and then reverted.
 * **SSTV++** (GitHub issue #13) *(untested)*:
   * `UP` / `DOWN` on the SSTV screen: channel / VFO, ISS 145.800, 437.800 (RX only presets; leaving restores the channel).
   * Satellite screen, selected satellite, `9`: SSTV with the Doppler retune of that satellite kept running.

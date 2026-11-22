@@ -48,10 +48,23 @@ Status legend: **done**, **in progress**, *idea*.
 | 13 | Unify MD2017 / MD9600 trees | *idea* | `unify_sourcecodes.md` |
 | 14 | Host-side unit tests (AX.25 encoder, Maidenhead, satellite maths, roaming sort, quickkey encoding) in CI | *idea* | |
 | 15 | Ship a binary named for the RT3S in releases + flashing notes in the README | *idea* | |
-| 18 | Colour-blind safe EMCOM style: `Opcje ekranu → Styl` = Classic / EMCOM / **EMCOM mono** | *planned* | see *EMCOM mono style* below |
+| 18 | Colour-blind safe EMCOM style: `Opcje ekranu → Styl` = Classic / EMCOM / **EMCOM mono** | **done** (2026-11-22) | see *EMCOM mono style* below; untested on hardware |
+| 18b | Low-vision EMCOM style **EMCOM contr**: white / yellow on black (night amber / red), bold text, 8x16 channel frequency, thick S-meter | **done** (2026-11-22) | same option row and shape cues as mono; untested on hardware |
 | 19 | SSTV++ (issue #13): frequency on the SSTV screen, Doppler from the satellite mode, pictures saved to flash + web download | *in progress* | see *SSTV++* below |
 
-## EMCOM mono style (planned, #18)
+## EMCOM mono style (done, #18)
+
+**Done (2026-11-22)**, with a second variant *EMCOM contr* for low vision.
+Notes on what differs from the plan below: option bits 2 and 10 of bank 0
+(`BIT_UI_EMCOM_MONO`, `BIT_UI_EMCOM_CONTRAST`; bank 1 is not allocated, so
+adding it would change the settings layout); the style names are hardcoded
+like "Classic" / "EMCOM" (no language strings); low battery is `!` + an inverse
+chip, no blink; the idle state chip is outlined, RX / SCAN solid, TX inverts the
+whole status bar; the RSSI screen meter and the band scope waterfall also
+follow; SSTV pictures keep their colours; the APRS radar already uses shapes
+(dots, ring, square). Contrast / CVD numbers: `docs/screens/palette_check.py`,
+mock-ups: `docs/screens/render_access.py`.
+
 
 **Why:** the EMCOM screen says what the radio is doing by colour alone. RX is
 green, TX red, scan amber and info blue, and the header uses the same colours

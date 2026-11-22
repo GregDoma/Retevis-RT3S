@@ -218,7 +218,7 @@ delete the corresponding Release in the GitHub UI.
 The RT3S has PTT, SK1, SK2, the channel knob and the keypad. There is no
 top/orange button. Firmware "ORANGE" events are emulated with **SK1 + GREEN**.
 
-### EMCOM main screen — *default; Options → Display → Screen: EMCOM / Classic*
+### EMCOM main screen — *default; Options → Display → Screen: Classic / EMCOM / EMCOM mono / EMCOM contr*
 
 The channel and VFO screens use a layout modelled on professional and
 military radios (`uiEmcom.c`). Everything has a fixed place and is left
@@ -247,6 +247,37 @@ screen.
 To give the menus the same colours: *Options → Theme → Day* (then *Night*),
 `*` loads the EMCOM colours (dark by day, red at night), `GREEN` applies,
 `SK2+GREEN` applies and saves.
+
+#### Accessibility styles: EMCOM mono and EMCOM contr *(untested)*
+
+Two more values of *Options → Display → Screen* (`◄` / `►` step through
+Classic, EMCOM, EMCOM mono, EMCOM contr). Both are the EMCOM layout on every
+screen (main, menus, APRS, SSTV, GPS, satellites, field tools) with another
+palette, and both follow the day / night switch.
+
+* **EMCOM mono**, for colour-blind users: white and grey shades on black
+  (night: the red shades of the night palette). No state is shown by hue
+  alone: idle is an outlined state chip, `RX` and `SCAN` a solid chip, `TX`
+  turns the whole status bar to inverse video (black text) with a black `TX`
+  chip; S-meter segments above S9 are hollow (main and RSSI screens); a low
+  battery shows `!` and the percentage in an inverse chip; no GPS fix draws
+  `GPS` thin and grey; `SOS`, `TX OFF` and `TX` in the footer are inverse
+  chips. Menus: grey preset, the selected row a white block. The band scope
+  waterfall uses a brightness ramp.
+* **EMCOM contr**, for low vision: white and yellow on black (night: amber and
+  red-orange), all small text in the bold font, the channel frequency in 8x16
+  under the name, a thicker S-meter, the selected row a solid yellow block,
+  and the same shape cues as mono.
+
+A theme saved in *Options → Theme* still wins in the menus. Contrast ratios
+(WCAG, text on its background): mono day 7.5–21, contrast day 19.6–21,
+contrast night 6.0–10.3, mono night as the EMCOM night palette (1.9–6.3, kept
+dim for night vision); `python3 docs/screens/palette_check.py` prints all of
+them, also with a protanopia / deuteranopia simulation.
+
+![EMCOM mono](docs/screens/emcom_mono.png)
+
+![EMCOM contr](docs/screens/emcom_contrast.png)
 
 **SOS:** `SK1+9` twice within 3 s (or the *SOS* quickkey action) starts APRS
 position beacons with the emergency symbol and `EMERGENCY SOS` (3 at one
