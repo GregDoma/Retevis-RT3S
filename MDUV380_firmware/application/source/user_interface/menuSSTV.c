@@ -30,6 +30,7 @@
 #include "functions/ticks.h"
 #include "functions/sstvStore.h"
 #include "functions/settings.h"
+#include "user_interface/uiEmcom.h"
 
 #if defined(HAS_SSTV_MENU) && defined(I2S_APRS_RX)
 
@@ -168,6 +169,11 @@ static void applyPreset(uint8_t newPreset)
 	preset = newPreset;
 }
 
+#if defined(HAS_EMCOM_UI)
+static void drawIdleEmcom(const sstvRxStatus_t *st, const aprsRxStatus_t *rx);
+static void drawPictureBarEmcom(const sstvRxStatus_t *st, const aprsRxStatus_t *rx);
+#endif
+
 // No picture yet: the full layout of the other screens (title, status strip, hint, key bar)
 static void drawIdle(const sstvRxStatus_t *st, const aprsRxStatus_t *rx)
 {
@@ -175,6 +181,14 @@ static void drawIdle(const sstvRxStatus_t *st, const aprsRxStatus_t *rx)
 	themeItem_t colour;
 	const char *state = rxStateText(rx, &colour);
 	int16_t sy = MENU_HEADER_HEIGHT;
+
+#if defined(HAS_EMCOM_UI)
+	if (emcomStyleEnabled())
+	{
+		drawIdleEmcom(st, rx);
+		return;
+	}
+#endif
 
 	displayClearBuf();
 	menuDisplayTitle("SSTV");
@@ -239,6 +253,14 @@ static void drawPictureBar(const sstvRxStatus_t *st, const aprsRxStatus_t *rx)
 	themeItem_t colour;
 	const char *state = rxStateText(rx, &colour);
 
+#if defined(HAS_EMCOM_UI)
+	if (emcomStyleEnabled())
+	{
+		drawPictureBarEmcom(st, rx);
+		return;
+	}
+#endif
+
 	if ((st->state == SSTV_RX_DONE) && (rx->state == APRS_RX_STATE_LISTENING))
 	{
 		state = "DONE";
@@ -274,6 +296,148 @@ static void drawPictureBar(const sstvRxStatus_t *st, const aprsRxStatus_t *rx)
 	displayPrintCore((DISPLAY_SIZE_X - 2 - (int16_t)(strlen(line) * 6)), ((SSTV_STATUS_H - FONT_SIZE_1_HEIGHT) / 2), line, FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
 	displayThemeResetToDefault();
 }
+
+#if defined(HAS_EMCOM_UI)
+// EMCOM style, no picture yet: title with the pictures saved, status strip (state, DOPPLER,
+// tone / VIS, level), the frequency big, the key bar
+static void drawIdleEmcom(const sstvRxStatus_t *st, const aprsRxStatus_t *rx)
+{
+	char line[SSTV_CHARS + 1];
+	themeItem_t colour;
+	const char *state = rxStateText(rx, &colour);
+	int16_t y = EMCOM_UI_BODY_Y;
+
+	displayClearBuf();
+#if defined(HAS_SSTV_STORE)
+	snprintf(line, sizeof(line), "%u/%u", (unsigned)sstvStoreCount(), (unsigned)SSTV_STORE_SLOTS);
+	emcomUiTitle("SSTV", line);
+#else
+	emcomUiTitle("SSTV", NULL);
+#endif
+
+	emcomUiStrip();
+	int16_t x = (int16_t)(2 + emcomUiChip(2, (EMCOM_UI_STRIP_Y + 2), state, colour, EMCOM_CHIP_SOLID, false) + 3);
+	if (doppler)
+	{
+		x = (int16_t)(x + emcomUiChip(x, (EMCOM_UI_STRIP_Y + 2), "DOPPLER", THEME_ITEM_FG_RX_FREQ, EMCOM_CHIP_OUTLINE, false) + 3);
+	}
+	if (st->lastVis)
+	{
+		snprintf(line, sizeof(line), "VIS %u ?", (unsigned)st->lastVis); // not a known mode
+	}
+	else if (st->freqHz)
+	{
+		snprintf(line, sizeof(line), "%uHz", (unsigned)st->freqHz);
+	}
+	else
+	{
+		line[0] = 0;
+	}
+	emcomUiText(x, (EMCOM_UI_STRIP_Y + 2), line, FONT_SIZE_1, THEME_ITEM_FG_HEADER_TEXT, false);
+	snprintf(line, sizeof(line), "%ddBm", trxGetRSSIdBm(RADIO_DEVICE_PRIMARY));
+	emcomUiText((DISPLAY_SIZE_X - 3), (EMCOM_UI_STRIP_Y + 2), line, FONT_SIZE_1, THEME_ITEM_FG_DECORATION, true);
+
+	if (trxGetMode() != RADIO_MODE_ANALOG)
+	{
+		displayThemeApply(THEME_ITEM_FG_RSSI_BAR_S9P, THEME_ITEM_BG);
+		displayPrintCentered((y + 14), "FM only", FONT_SIZE_3);
+		displayThemeResetToDefault();
+		emcomUiText(4, (y + 38), "Switch to an FM channel", FONT_SIZE_1, THEME_ITEM_FG_DEFAULT, false);
+		emcomUiText(4, (y + 48), "or UP/DOWN: FM preset", FONT_SIZE_1, THEME_ITEM_FG_DEFAULT, false);
+	}
+	else
+	{
+		displayThemeApply(THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
+		displayPrintCentered((y + 6), "Waiting for", FONT_SIZE_3);
+		displayPrintCentered((y + 22), "SSTV picture", FONT_SIZE_3);
+		emcomUiDivider(y + 42);
+		freqText(line, sizeof(line));
+		displayThemeApply(THEME_ITEM_FG_RX_FREQ, THEME_ITEM_BG);
+		if ((strlen(line) * 8) <= (DISPLAY_SIZE_X - 4))
+		{
+			displayPrintCentered((y + 47), line, FONT_SIZE_3);
+		}
+		else
+		{
+			displayPrintCentered((y + 51), line, (emcomUiLarge() ? FONT_SIZE_1_BOLD : FONT_SIZE_1));
+		}
+		displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+		displayPrintCentered((y + 68), "ROBOT MARTIN SCOTTIE PD", (emcomUiLarge() ? FONT_SIZE_1_BOLD : FONT_SIZE_1));
+		displayThemeResetToDefault();
+	}
+
+	emcomUiKeyBar(doppler ? "DOPPLER  0 CLEAR  RED EXIT" : "UP/DN QRG 0 CLEAR RED EXIT");
+}
+
+// EMCOM style, picture shown: the one line bar above it only (state, mode, frequency or DOPPLER,
+// progress / saved), the progress also as a line along the bottom of the bar
+static void drawPictureBarEmcom(const sstvRxStatus_t *st, const aprsRxStatus_t *rx)
+{
+	char right[SSTV_CHARS + 1];
+	char middle[SSTV_CHARS + 1];
+	themeItem_t colour;
+	themeItem_t middleColour = THEME_ITEM_FG_HEADER_TEXT;
+	const char *state = rxStateText(rx, &colour);
+	int16_t ty = ((SSTV_STATUS_H - FONT_SIZE_1_HEIGHT) / 2);
+
+	if ((st->state == SSTV_RX_DONE) && (rx->state == APRS_RX_STATE_LISTENING))
+	{
+		state = "DONE";
+		colour = THEME_ITEM_FG_RX_FREQ;
+	}
+
+	if (doppler)
+	{
+		snprintf(middle, sizeof(middle), "DOPPLER");
+		middleColour = THEME_ITEM_FG_RX_FREQ;
+	}
+	else
+	{
+		uint32_t f = currentChannelData->rxFreq; // 10 Hz units
+
+		snprintf(middle, sizeof(middle), "%u.%03u", (unsigned)(f / 100000U), (unsigned)((f % 100000U) / 100U));
+	}
+
+	if (st->state == SSTV_RX_RECEIVING)
+	{
+		snprintf(right, sizeof(right), "%u/%u", (unsigned)(st->row + 1), (unsigned)SSTV_RX_ROWS);
+	}
+#if defined(HAS_SSTV_STORE)
+	else if (sstvStoreBusy())
+	{
+		snprintf(right, sizeof(right), "SAVING");
+	}
+	else if (savedPicture)
+	{
+		snprintf(right, sizeof(right), "SAVED %u/%u", (unsigned)sstvStoreCount(), (unsigned)SSTV_STORE_SLOTS);
+		snprintf(middle, sizeof(middle), "0 NEW");
+		middleColour = THEME_ITEM_FG_DECORATION;
+	}
+#endif
+	else
+	{
+		snprintf(right, sizeof(right), "0 NEW");
+	}
+
+	displayThemeApply(THEME_ITEM_BG_HEADER_TEXT, THEME_ITEM_BG);
+	displayFillRect(0, 0, DISPLAY_SIZE_X, SSTV_STATUS_H, false);
+	int16_t x = (int16_t)(chip(0, 0, SSTV_STATUS_H, state, colour, THEME_ITEM_BG_HEADER_TEXT) + 4);
+	x = (int16_t)(x + emcomUiText(x, ty, st->modeName, FONT_SIZE_1, THEME_ITEM_FG_HEADER_TEXT, false) + 6);
+
+	int16_t rw = emcomUiText((DISPLAY_SIZE_X - 2), ty, right, FONT_SIZE_1, ((st->state == SSTV_RX_RECEIVING) ? THEME_ITEM_FG_HEADER_TEXT : THEME_ITEM_FG_DECORATION), true);
+	if ((x + (int16_t)(strlen(middle) * 6) + 6) <= (DISPLAY_SIZE_X - 2 - rw))
+	{
+		emcomUiText(x, ty, middle, FONT_SIZE_1, middleColour, false);
+	}
+
+	if (st->state == SSTV_RX_RECEIVING)
+	{
+		displayThemeApply(THEME_ITEM_FG_RSSI_BAR, THEME_ITEM_BG);
+		displayFillRect(0, (SSTV_STATUS_H - 1), (int16_t)(((st->row + 1U) * DISPLAY_SIZE_X) / SSTV_RX_ROWS), 1, false);
+	}
+	displayThemeResetToDefault();
+}
+#endif
 
 static void updateScreen(void)
 {
