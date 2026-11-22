@@ -15,6 +15,10 @@ marked *(untested)* build and pass host tests but still need on-air checking.
 * Python tools find the radio by its real USB IDs (1FC9:0094).
 * **Scan on a busy channel** (report: scan held on a DMR repeater with a continuous net could not be left) *(untested)*: `▲` / knob clockwise now skip on also while the signal is still being checked (they did nothing then), `▼` held on a signal stops the scan instead of silently reversing it, and a scan that had just skipped a nuisance-deleted channel no longer stalls on the old channel. RED, GREEN, digits, `#` and PTT stopped the scan before and still do.
 * GPS screen in the EMCOM style: the page number was drawn twice (top right).
+* **Satellite screen in the EMCOM style** *(untested)*: all four views (list, selected satellite, sky plot, pass details) with title bar + view number, status strip and key bar; classic style unchanged.
+  * The list shows where the observer position comes from (`GPS` fix / `MANUAL`) and the short lat / lon; `*` opens Radio infos → Location to change it, `RED` comes back and the passes are predicted again for the new position (the screen now re-reads the position every time it opens). `#` was not free on the list (it jumps to the next satellite in view).
+  * Selected satellite: AZ / EL, Doppler corrected RX / TX, `AOS in` / `LOS in` countdown, keys `1-3 QRG  9 SSTV` in the key bar.
+  * Radio infos → Location (EMCOM style): key bar with the entry keys (13 digits, `▲▼` N/S, `SK2` E/W, `GREEN` save, `RED` clear, `SK2`+`GREEN` GPS on); the title shows the right page number.
 
 ## R20260131-SP7TQ.4 — 2026-11-20
 

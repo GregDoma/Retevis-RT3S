@@ -56,7 +56,7 @@ layout, fonts and icons (`docs/screens/`, example data).
 | ![RSSI](docs/screens/rssi.png)<br>RSSI / fox hunt | ![Last heard](docs/screens/lastheard.png)<br>Last heard | ![Event log](docs/screens/eventlog.png)<br>Event log |
 | ![APRS frames](docs/screens/aprs_frames.png)<br>APRS frames | ![APRS radar](docs/screens/aprs_radar.png)<br>APRS radar | ![APRS messages](docs/screens/aprs_messages.png)<br>APRS messages |
 | ![TG entry](docs/screens/tg_entry.png)<br>TG / PC entry | ![Lock](docs/screens/lock.png)<br>Keypad lock | ![SSTV](docs/screens/sstv_pd120.png)<br>SSTV (PD 120) |
-| ![Power off](docs/screens/poweroff.png)<br>Power off | | |
+| ![Power off](docs/screens/poweroff.png)<br>Power off | ![Satellites](docs/screens/sat_list.png)<br>Satellite passes, observer position | ![Satellite](docs/screens/sat_selected.png)<br>Selected satellite, Doppler |
 
 ## Quick start
 
@@ -389,6 +389,32 @@ notification (`SP7ABC-9 12.3km`) per frame, DTMF sequences and APRS
 messages; the setting survives a power cycle. The decoders and the parser
 are hardware independent and have host tests
 (`make -C MDUV380_firmware/tests/aprs_rx`).
+
+### Satellites — *main menu → Satellite*
+
+Pass predictions from the TLEs in the codeplug (CPS), Doppler corrected RX /
+TX. In the EMCOM style the four views share the fork look (title with the
+view number, status strip, key bar):
+
+| ![Satellite list](docs/screens/sat_list.png) | ![Selected satellite](docs/screens/sat_selected.png) |
+|---|---|
+
+* **List (1/4)**: the strip shows **where the observer position comes
+  from** — `GPS` (GPS on with a fix; the fix is written to the location
+  setting) or `MANUAL` (typed in) — and the short lat / lon. Rows: name, AOS
+  time (`NOW` while in view), maximum elevation. `▲▼` scroll, `GREEN` opens
+  the top row (`SK2`+`GREEN`: wake-up alarm before AOS), **`*` edits the
+  position**: Radio infos → Location opens, type `DD.DDDD DDD.DDDD`
+  (13 digits; while typing `▲`/`▼` = N/S, with `SK2` E/W), `GREEN` saves,
+  `SK2`+`GREEN` turns the GPS on, `RED` comes back to the list and the
+  passes are predicted again for the new position. The Location page shows
+  these keys in its key bar.
+* **Selected satellite (2/4)**: AZ / EL, Doppler corrected RX / TX,
+  power, countdown `AOS in` / `LOS in` and maximum elevation. `1` / `2` /
+  `3` pick the voice / APRS / other frequency, `9` opens SSTV with the
+  Doppler retune running, `#` jumps to the next satellite in view.
+* **Sky plot (3/4)** and **pass details (4/4)** (`▲▼` switch views, `◄►`
+  step through the passes, `RED` back to the list).
 
 ### SSTV receive — *main menu → SSTV*
 
