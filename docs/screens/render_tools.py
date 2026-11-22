@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # UI refresh, stage 2: mock-ups of the field tool screens in the EMCOM styles (day, night, mono,
 # contrast, mono / contrast at night), following the EMCOM views of menuPACE.c, menuRadioCheck.c,
-# menuEventLog.c, menuCoverage.c, menuPosition.c and menuSSTV.c and the emcomUi* helpers of
+# menuEventLog.c, menuCoverage.c, menuPosition.c, menuSSTV.c and menuNetControl.c and the emcomUi* helpers of
 # uiEmcom.c. Colours: the menu theme items of emcomThemePreset(). Example data.
 #
 #   python3 docs/screens/render_tools.py
@@ -415,11 +415,76 @@ def sstv_bar(T, state='rx', doppler=False, mode='PD120', row=63):
     return s
 
 
+# --- net control ---------------------------------------------------------------------------------------
+# (station, check-in, age, quiet)
+NET = [('SP7ABC', '14:02', '1m', False), ('SP7XYZ-9', '14:03', '12m', True), ('2601234', '14:05', '40s', False),
+       ('FM#1', '14:06', '3m', False), ('SP5ABC-15', '14:08', '16m', True), ('FM#2', '14:10', '9m', False),
+       ('SQ7KLM', '14:11', '2m', False)]
+
+
+def net_chip(s, T, y, quiet, on):
+    word = 'QUIET' if quiet else 'IN'
+    w = len(word) * 6 + 4
+    x = W - 2 - w
+    if on and not quiet:
+        s.fill(x, y - 1, w, 9, T['bg']); s.text(x + 2, y, word, '1b', T['sel'])
+    elif quiet:
+        c = T['bg'] if on else T['amber']
+        s.rect(x, y - 1, w, 9, c); s.text(x + 2, y, word, '1b', c)
+    else:
+        s.fill(x, y - 1, w, 9, T['green']); s.text(x + 2, y, word, '1b', T['bg'])
+
+
+def net(T, state='run', sel=1):
+    s = R.Screen(T['bg'])
+    running = state != 'off'
+    rows = NET if state != 'empty' else []
+    title(s, T, 'NET CONTROL', (f'{sel + 1}/{len(rows)}' if rows else '0') if running else None)
+    strip(s, T)
+    x = 2 + chip(s, T, 2, STRIP_Y + 2, 'RUN' if running else 'OFF', T['green'] if running else T['deco'], outline=not running) + 4
+    if running:
+        x += txt(s, T, x, STRIP_Y + 2, '0:42', '1b', T['hfg']) + 5
+        x += txt(s, T, x, STRIP_Y + 2, 'Q10', 1, T['hfg']) + 5
+    name = 'SR7TM AU Tomaszo'[:(W - 3 - x) // 6]
+    txt(s, T, W - 3, STRIP_Y + 2, name, 1, T['deco'], True)
+    y = BODY_Y
+    if not running:
+        centred(s, y + 10, 'NO NET', 3, T['fg'])
+        txt(s, T, 4, y + 34, 'GREEN starts a net.', 1, T['deco'])
+        txt(s, T, 4, y + 44, 'DMR / APRS stations', 1, T['deco'])
+        txt(s, T, 4, y + 54, 'heard check in.', 1, T['deco'])
+        txt(s, T, 4, y + 70, 'Last net: 7 stations', 1, T['fg'])
+        keybar(s, T, 'GRN START  RED EXIT')
+        return s
+    if not rows:
+        centred(s, y + 10, 'LISTENING', 3, T['fg'])
+        txt(s, T, 4, y + 34, 'Stations heard on DMR', 1, T['deco'])
+        txt(s, T, 4, y + 44, 'or APRS check in.', 1, T['deco'])
+        txt(s, T, 4, y + 58, '* adds an FM station.', 1, T['deco'])
+        keybar(s, T, '* FM  # QUIET  0 END')
+        return s
+    for i, (call, tin, age, quiet) in enumerate(rows[:(KEYBAR_Y - 1 - BODY_Y) // 11]):
+        y = BODY_Y + i * 11
+        on = i == sel
+        if on:
+            s.fill(0, y - 2, W, 11, T['sel'])
+        txt(s, T, 2, y, call, '1b', T['bg'] if on else T['fg'])
+        txt(s, T, 62, y, tin, 1, T['bg'] if on else T['deco'])
+        txt(s, T, 120, y, age, 1, T['bg'] if on else (T['amber'] if quiet else T['fg']), True)
+        net_chip(s, T, y, quiet, on)
+    if state == 'end':
+        confirm(s, T, 'END NET?')
+    else:
+        keybar(s, T, 'GRN HEARD * FM # Q 0 END' if rows[sel][0].startswith('FM#') else 'GRN QSO  * FM  # Q  0 END')
+    return s
+
+
 SCREENS = {
     'pace': lambda T: [pace(T), pace(T, 3, confirm_clear=True)],
     'radio_check': lambda T: [radio_check(T), radio_check(T, empty=True)],
     'eventlog': lambda T: [event_log(T), event_log(T, 2, confirm_clear=True)],
     'coverage': lambda T: [coverage(T)],
+    'net': lambda T: [net(T, 'off'), net(T, 'empty'), net(T, 'run', 1), net(T, 'run', 3), net(T, 'end', 2)],
     'position': lambda T: [position(T)],
     'sstv': lambda T: [sstv_idle(T), sstv_idle(T, doppler=True), sstv_bar(T), sstv_bar(T, doppler=True, mode='Scottie 1', row=100),
                        sstv_bar(T, 'done')],
