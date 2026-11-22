@@ -113,12 +113,12 @@ def f1(P):
     return '1b' if P.get('large') else 1
 
 
-def inverse_chip(s, P, x, y, t, c, right=False):
+def inverse_chip(s, P, x, y, t, c, right=False, tc=None):
     w = len(t) * 6 + 4
     if right:
         x -= w
     s.fill(x, y - 1, w, 10, c)
-    s.text(x + 2, y, t, '1b', P['bg'])
+    s.text(x + 2, y, t, '1b', P['bar'] if tc is None else tc)
     return w
 
 # --- layout of uiEmcom.c -------------------------------------------------------------
@@ -164,7 +164,7 @@ def status_bar(s, P, state='STBY', mode='FMN', pwr='5W', tone='CTR', aprs=True, 
     s.rect(r - 13, 2, 12, 7, bc); s.fill(r - 1, 4, 1, 3, bc); s.fill(r - 12, 3, (batt * 10 + 50) // 100, 5, bc)
     r -= 16
     if cues and low:
-        r -= inverse_chip(s, P, r + 2, 2, f'!{batt}%', fg, True) + 2
+        r -= inverse_chip(s, P, r + 2, 2, f'!{batt}%', fg, True, P['tx'] if is_tx else P['bar']) + 2
     else:
         r -= s.text(r, 2, f'{batt}%', f1(P), bc, True) + 4
     for b in range(4):

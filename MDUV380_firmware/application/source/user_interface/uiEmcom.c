@@ -198,8 +198,8 @@ static int16_t text(int16_t x, int16_t y, const char *str, ucFont_t font, uint32
 	return textRaw(x, y, str, (((font == FONT_SIZE_1) && pal->large) ? FONT_SIZE_1_BOLD : font), rgb, alignRight);
 }
 
-// Inverse video chip: 'str' in the background colour on a 'rgb' block (y is the text row)
-static int16_t inverseChip(int16_t x, int16_t y, const char *str, uint32_t rgb, bool alignRight)
+// Inverse video chip: 'str' in 'textRgb' (the colour behind the chip) on a 'rgb' block (y is the text row)
+static int16_t inverseChip(int16_t x, int16_t y, const char *str, uint32_t rgb, uint32_t textRgb, bool alignRight)
 {
 	int16_t w = (int16_t)((strlen(str) * 6) + 4);
 
@@ -208,7 +208,7 @@ static int16_t inverseChip(int16_t x, int16_t y, const char *str, uint32_t rgb, 
 		x -= w;
 	}
 	fill(x, (y - 1), w, 10, rgb);
-	textRaw((x + 2), y, str, FONT_SIZE_1_BOLD, pal->bg, false);
+	textRaw((x + 2), y, str, FONT_SIZE_1_BOLD, textRgb, false);
 	return w;
 }
 
@@ -497,7 +497,7 @@ void emcomRenderStatusBar(void)
 	if (pal->cues && low)
 	{
 		snprintf(buf, sizeof(buf), "!%d%%", pct);
-		r -= inverseChip((r + 2), 2, buf, fg, true) + 2;
+		r -= inverseChip((r + 2), 2, buf, fg, barCol, true) + 2;
 	}
 	else
 	{
@@ -1144,7 +1144,7 @@ static void drawFooter(emcomState_t st)
 	{
 		if (pal->cues && alert)
 		{
-			inverseChip((DISPLAY_SIZE_X - 1), (FOOTER_Y + 2), right, rightCol, true); // SOS, TX OFF, TX
+			inverseChip((DISPLAY_SIZE_X - 1), (FOOTER_Y + 2), right, rightCol, pal->bar, true); // SOS, TX OFF, TX
 		}
 		else
 		{
