@@ -22,6 +22,7 @@
 #include "user_interface/uiUtilities.h"
 #include "user_interface/uiLocalisation.h"
 #include "user_interface/uiEmcom.h"
+#include "user_interface/uiTextEdit.h"
 #include "functions/settings.h"
 #include "functions/trx.h"
 #include "functions/codeplug.h"
@@ -118,6 +119,7 @@ static struct
 static bool sosOn = false;
 static uint32_t sosNextMs;
 static uint32_t sosSent;
+static bool sosPauseShown; // "SOS PAUSED" shown for the beacon that is due
 
 // --- drawing helpers ------------------------------------------------------------------
 static void colour(uint32_t rgb)
@@ -1188,6 +1190,7 @@ void emcomSosToggle(void)
 	sosOn = !sosOn;
 	sosSent = 0U;
 	sosNextMs = ticksGetMillis();
+	sosPauseShown = false;
 	drawn.valid = false;
 
 	uiNotificationShow(NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 2000U, (sosOn ? "SOS: ON" : "SOS: OFF"), false);
@@ -1257,6 +1260,37 @@ static void sosSend(void)
 	}
 }
 
+// Screens where an SOS beacon may go out: the main screens and the field / info screens
+// a person in distress plausibly looks at. Not on the TX, satellite (Doppler / uplink)
+// or SSTV screens, CPS / hotspot, calibration, power off, nor while a text is edited.
+static bool sosScreenAllowsTx(int menu)
+{
+	switch (menu)
+	{
+		case UI_CHANNEL_MODE:
+		case UI_VFO_MODE:
+		case UI_LOCK_SCREEN:
+		case MENU_LAST_HEARD:
+#if defined(HAS_GPS)
+		case MENU_GPS:
+#endif
+#if defined(HAS_APRS_RX_MENU)
+		case MENU_POSITION:
+		case MENU_PACE:
+		case MENU_COVERAGE:
+		case MENU_RADIO_CHECK:
+		case MENU_EVENT_LOG:
+#endif
+			return true;
+#if defined(HAS_APRS_RX_MENU)
+		case MENU_APRS_RX:
+			return (uiTextEditIsActive() == false); // not while a message is typed
+#endif
+		default:
+			return false;
+	}
+}
+
 void emcomSosTick(void)
 {
 	int menu = menuSystemGetCurrentMenuNumber();
@@ -1266,12 +1300,24 @@ void emcomSosTick(void)
 		return;
 	}
 
-	if (trxTransmissionEnabled || aprsBeaconingIsTransmitting() ||
-			((menu != UI_CHANNEL_MODE) && (menu != UI_VFO_MODE)))
+	if (trxTransmissionEnabled || aprsBeaconingIsTransmitting())
 	{
 		return;
 	}
 
+	if (sosScreenAllowsTx(menu) == false)
+	{
+		// once per held back beacon, and not over screens that own the display
+		if ((sosPauseShown == false) && (menu != UI_CPS) && (menu != UI_HOTSPOT_MODE) && (menu != UI_POWER_OFF) &&
+				(menu != UI_SPLASH_SCREEN) && (menu != MENU_CALIBRATION) && (menu != UI_TX_SCREEN))
+		{
+			sosPauseShown = true;
+			uiNotificationShow(NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 2000U, "SOS PAUSED", false);
+		}
+		return;
+	}
+
+	sosPauseShown = false;
 #if defined(I2S_APRS_RX)
 	i2sAprsRxStop(); // restarted by aprsRxTick() after the transmission
 #endif

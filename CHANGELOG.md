@@ -24,6 +24,7 @@ marked *(untested)* build and pass host tests but still need on-air checking.
   * The list shows where the observer position comes from (`GPS` fix / `MANUAL`) and the short lat / lon; `*` opens Radio infos → Location to change it, `RED` comes back and the passes are predicted again for the new position (the screen now re-reads the position every time it opens). `#` was not free on the list (it jumps to the next satellite in view).
   * Selected satellite: AZ / EL, Doppler corrected RX / TX, `AOS in` / `LOS in` countdown, keys `1-3 QRG  9 SSTV` in the key bar.
   * Radio infos → Location (EMCOM style): key bar with the entry keys (13 digits, `▲▼` N/S, `SK2` E/W, `GREEN` save, `RED` clear, `SK2`+`GREEN` GPS on); the title shows the right page number.
+* **SOS beacons on more screens** *(untested)*: they went out only on the channel / VFO screen and stopped silently elsewhere. Now also on Position, PACE, Coverage, Radio check, GPS, APRS RX (not while a message is typed), Event log, Last heard and the lock screen. Still held back on the TX, satellite and SSTV screens, CPS / hotspot, calibration, menus and while editing; then `SOS PAUSED` shows once per held back beacon and the beacon goes out as soon as an allowed screen is open.
 
 ## R20260131-SP7TQ.4 — 2026-11-20
 
