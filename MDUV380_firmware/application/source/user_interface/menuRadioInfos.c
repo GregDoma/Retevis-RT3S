@@ -418,10 +418,11 @@ static void updateScreen(uiEvent_t *ev, bool forceRedraw)
 						const int16_t estY = (dblHeight ? 58 : 54);
 
 						batteryTimeLeftString(est, sizeof(est));
+						const char *e = ((est[0] == '~') ? &est[1] : est); // the "time left" label says it is an estimate
 						displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
 						displayFillRect(0, estY, (x - 2), (FONT_SIZE_3_HEIGHT + 10), true);
 						displayThemeResetToDefault();
-						displayPrintCore(((x - ((int)strlen(est) * 8)) >> 1), estY, est, FONT_SIZE_3, TEXT_ALIGN_LEFT, false);
+						displayPrintCore(((x - ((int)strlen(e) * 8)) >> 1), estY, e, FONT_SIZE_3, TEXT_ALIGN_LEFT, false);
 						displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
 						displayPrintCore(((x - (9 * 6)) >> 1), (estY + FONT_SIZE_3_HEIGHT + 2), "time left", FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
 					}
