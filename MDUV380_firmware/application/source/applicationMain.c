@@ -526,7 +526,7 @@ void applicationMainTask(void)
 	if (!codeplugCustomDataAreaIsInitialised())
 	{
 		bool ok = codeplugResetOpenGD77CustomDataArea();
-		uiNotificationShow(NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 2500,
+		uiNotificationShowKind((ok ? UI_ALERT_INFO : UI_ALERT_ERROR), NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 2500,
 				(ok ? "Storage init." : "Init failed"), true);
 	}
 

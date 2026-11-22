@@ -2557,6 +2557,7 @@ static void handleQuickMenuEvent(uiEvent_t *ev)
 						displayMessageBox = true;
 						vp1 = currentLanguage->aprs_channel;
 						vp2 = currentLanguage->locked;
+						uiDataGlobal.MessageBox.kind = UI_ALERT_WARNING;
 						uiDataGlobal.MessageBox.buttons =
 #if defined(PLATFORM_MD9600)
 								MESSAGEBOX_BUTTONS_ENT;

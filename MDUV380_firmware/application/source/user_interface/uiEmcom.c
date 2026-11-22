@@ -931,7 +931,7 @@ static void drawCallerPanel(void)
 	text(2, (PANEL_Y2 + 2), buf, FONT_SIZE_1, pal->fg, false);
 }
 
-// Warnings (TOT last seconds): amber, at night the brighter TX red (the night amber is too dim for
+// Warnings (TOT last seconds, warning cards): amber, at night the brighter TX red (the night amber is too dim for
 // small text on it)
 static uint32_t warnColour(void)
 {
@@ -1414,6 +1414,216 @@ void emcomDrawTxBanner(const char *str)
 	displayThemeResetToDefault();
 }
 
+// --- message boxes / notifications ----------------------------------------------------------
+#define ALERT_X           2
+#define ALERT_W           (DISPLAY_SIZE_X - (2 * ALERT_X))
+#define ALERT_STRIP_H     12
+#define ALERT_GLYPH       15                                // glyph box, left of the text
+#define ALERT_TEXT_X      (ALERT_X + ALERT_GLYPH + 8)
+#define ALERT_TEXT_W      ((ALERT_X + ALERT_W - 3) - ALERT_TEXT_X)
+#define ALERT_CHARS       (ALERT_TEXT_W / 8)                // 16 (8x16 font)
+#define ALERT_MAX_LINES   4
+#define ALERT_KEYBAR_H    11
+
+static uint32_t alertColour(uiAlertKind_t kind)
+{
+	switch (kind)
+	{
+		case UI_ALERT_WARNING:
+			return warnColour();
+		case UI_ALERT_ERROR:
+			return pal->tx;
+		case UI_ALERT_QUESTION:
+			return pal->fg;
+		default:
+			return pal->info;
+	}
+}
+
+// 15 x 15 glyph at (x, y): the shape tells the kind, the sign inside in the background colour
+static void alertGlyph(int16_t x, int16_t y, uiAlertKind_t kind, uint32_t rgb)
+{
+	colour(rgb);
+	switch (kind)
+	{
+		case UI_ALERT_WARNING: // triangle, '!'
+			displayFillTriangle((x + 7), y, x, (y + 14), (x + 14), (y + 14), false);
+			fill((x + 6), (y + 5), 3, 5, pal->bg);
+			fill((x + 6), (y + 11), 3, 2, pal->bg);
+			break;
+		case UI_ALERT_ERROR: // square, 'X'
+			fill((x + 1), y, 13, 15, rgb);
+			fill(x, (y + 1), 15, 13, rgb);
+			colour(pal->bg);
+			for (int16_t d = 0; d < 2; d++)
+			{
+				displayDrawLine((x + 4 + d), (y + 4), (x + 10), (y + 10 - d), false);
+				displayDrawLine((x + 4), (y + 10 - d), (x + 10 - d), (y + 4), false);
+			}
+			break;
+		case UI_ALERT_QUESTION: // diamond, '?'
+			displayFillTriangle((x + 7), y, x, (y + 7), (x + 14), (y + 7), false);
+			displayFillTriangle(x, (y + 7), (x + 14), (y + 7), (x + 7), (y + 14), false);
+			textRaw((x + 5), (y + 4), "?", FONT_SIZE_1_BOLD, pal->bg, false);
+			break;
+		default: // info: disc, 'i'
+			displayFillCircle((x + 7), (y + 7), 7, false);
+			fill((x + 6), (y + 3), 3, 2, pal->bg);
+			fill((x + 6), (y + 6), 3, 6, pal->bg);
+			break;
+	}
+}
+
+// Card frame + title strip (kind colour, title in capitals in the background colour); returns the colour
+static uint32_t alertCard(uiAlertKind_t kind, const char *title, int16_t y, int16_t h)
+{
+	static const char *const words[] = { "INFO", "INFO", "WARNING", "ERROR", "CONFIRM" };
+	uint32_t c = alertColour(kind);
+	char buf[26];
+	size_t n = 0;
+	// warnings / errors (and every card in the contrast style) get a 2 px frame
+	int16_t t = ((pal->large || (pal->cues && ((kind == UI_ALERT_WARNING) || (kind == UI_ALERT_ERROR)))) ? 2 : 1);
+
+	if (title == NULL)
+	{
+		title = words[((kind <= UI_ALERT_QUESTION) ? kind : UI_ALERT_INFO)];
+	}
+	for (; title[n] && (n < (sizeof(buf) - 1)); n++)
+	{
+		char ch = title[n];
+		buf[n] = (((ch >= 'a') && (ch <= 'z')) ? (char)(ch - ('a' - 'A')) : ch);
+	}
+	buf[n] = 0;
+
+	fill((ALERT_X - 2), (y - 2), (ALERT_W + 4), (h + 4), pal->bg); // margin from the screen below
+	fill(ALERT_X, y, ALERT_W, ALERT_STRIP_H, c);
+	fill(ALERT_X, y, t, h, c);
+	fill((ALERT_X + ALERT_W - t), y, t, h, c);
+	fill(ALERT_X, (y + h - t), ALERT_W, t, c);
+	textRaw((ALERT_X + 4), (y + 2), buf, FONT_SIZE_1_BOLD, pal->bg, false);
+	return c;
+}
+
+// Splits 'message' into lines of at most ALERT_CHARS ('\n', else at the last space); returns the count
+static int alertWrap(const char *message, char lines[ALERT_MAX_LINES][ALERT_CHARS + 1])
+{
+	int count = 0;
+	const char *p = (message ? message : "");
+
+	while (*p && (count < ALERT_MAX_LINES))
+	{
+		size_t len = 0;
+		size_t cut;
+
+		while (*p == ' ')
+		{
+			p++;
+		}
+		while (p[len] && (p[len] != '\n'))
+		{
+			len++;
+		}
+		cut = len;
+		if (len > ALERT_CHARS)
+		{
+			cut = ALERT_CHARS;
+			while ((cut > 0) && (p[cut] != ' '))
+			{
+				cut--;
+			}
+			if (cut == 0)
+			{
+				cut = ALERT_CHARS; // one long word: hard break
+			}
+		}
+		memcpy(lines[count], p, cut);
+		lines[count][cut] = 0;
+		count++;
+		p += cut;
+		if (*p == '\n')
+		{
+			p++;
+		}
+	}
+	return count;
+}
+
+void emcomDrawAlert(uiAlertKind_t kind, const char *title, const char *message, const char *keys, bool fullScreen)
+{
+	char lines[ALERT_MAX_LINES][ALERT_CHARS + 1];
+	int count;
+	int16_t y, h, bodyY, bodyH;
+	uint32_t c;
+
+	selectPalette();
+	count = alertWrap(message, lines);
+
+	if (fullScreen)
+	{
+		int16_t bottom = (DISPLAY_SIZE_Y - (keys ? ALERT_KEYBAR_H : 0));
+
+		fill(0, 0, DISPLAY_SIZE_X, DISPLAY_SIZE_Y, pal->bg);
+		y = 2;
+		h = (bottom - 4);
+		if (keys)
+		{
+			fill(0, bottom, DISPLAY_SIZE_X, ALERT_KEYBAR_H, pal->bar);
+			text(3, (bottom + 2), keys, FONT_SIZE_1, pal->barFg, false);
+		}
+	}
+	else
+	{
+		h = (int16_t)(ALERT_STRIP_H + (((count > 0) ? count : 1) * FONT_SIZE_3_HEIGHT) + 6);
+		y = (int16_t)((DISPLAY_SIZE_Y - h) / 2);
+	}
+
+	c = alertCard(kind, title, y, h);
+	bodyY = (y + ALERT_STRIP_H);
+	bodyH = (h - ALERT_STRIP_H - 2);
+
+	alertGlyph((ALERT_X + 5), (int16_t)(bodyY + ((bodyH - ALERT_GLYPH) / 2)), kind, c);
+
+	int16_t ly = (int16_t)(bodyY + ((bodyH - (count * FONT_SIZE_3_HEIGHT)) / 2));
+	for (int i = 0; i < count; i++)
+	{
+		int16_t w = (int16_t)(strlen(lines[i]) * 8);
+
+		textRaw((int16_t)(ALERT_TEXT_X + ((ALERT_TEXT_W - w) / 2)), ly, lines[i], FONT_SIZE_3, pal->fg, false);
+		ly += FONT_SIZE_3_HEIGHT;
+	}
+
+	displayThemeResetToDefault();
+}
+
+void emcomDrawLevelAlert(const char *title, const char *value, int percent)
+{
+	int16_t h = (ALERT_STRIP_H + FONT_SIZE_3_HEIGHT + 8);
+	int16_t y = (int16_t)((DISPLAY_SIZE_Y - h) / 2);
+	int16_t ty = (y + ALERT_STRIP_H + 3);
+
+	selectPalette();
+	alertCard(UI_ALERT_INFO, title, y, h);
+
+	if (percent < 0)
+	{
+		textRaw((int16_t)((DISPLAY_SIZE_X - (strlen(value) * 8)) / 2), ty, value, FONT_SIZE_3, pal->fg, false);
+	}
+	else
+	{
+		int16_t bx = (ALERT_X + 6);
+		int16_t bw = 96;
+		int16_t bh = 12;
+		int16_t by = (ty + 2);
+
+		colour(pal->fg);
+		displayDrawRect(bx, by, bw, bh, false);
+		fill((bx + 2), (by + 2), (int16_t)(((bw - 4) * CLAMP(percent, 0, 100)) / 100), (bh - 4), pal->info);
+		textRaw((ALERT_X + ALERT_W - 5), ty, value, FONT_SIZE_3, pal->fg, true);
+	}
+
+	displayThemeResetToDefault();
+}
+
 // --- theme preset (menus in the same colours as the EMCOM screen) ------------------------
 void emcomThemePreset(bool night, uint16_t *items)
 {
@@ -1514,7 +1724,7 @@ void emcomSosRequest(void)
 	}
 
 	pendingSince = now;
-	uiNotificationShow(NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 3000U, (sosOn ? "Again: SOS OFF" : "Again: SOS ON"), false);
+	uiNotificationShowKind(UI_ALERT_QUESTION, NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 3000U, (sosOn ? "Again: SOS OFF" : "Again: SOS ON"), false);
 	soundSetMelody(MELODY_KEY_BEEP);
 }
 
@@ -1526,7 +1736,7 @@ void emcomSosToggle(void)
 	sosPauseShown = false;
 	drawn.valid = false;
 
-	uiNotificationShow(NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 2000U, (sosOn ? "SOS: ON" : "SOS: OFF"), false);
+	uiNotificationShowKind((sosOn ? UI_ALERT_WARNING : UI_ALERT_INFO), NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 2000U, (sosOn ? "SOS: ON" : "SOS: OFF"), false);
 #if defined(HAS_EVENT_LOG)
 	eventLogAdd(EVENT_LOG_SOS, "%s", (sosOn ? "SOS ON" : "SOS OFF"));
 #endif
@@ -1579,7 +1789,7 @@ static void sosSend(void)
 			break;
 		case APRS_INFO_TX_NO_CONFIG:
 		case APRS_INFO_TX_NOT_ALLOWED:
-			uiNotificationShow(NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 2500U,
+			uiNotificationShowKind(UI_ALERT_ERROR, NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 2500U,
 					((res == APRS_INFO_TX_NO_CONFIG) ? "SOS: no APRS config" : "SOS: TX not allowed"), true);
 			sosNextMs = (ticksGetMillis() + SOS_INTERVAL_MS);
 			break;
@@ -1645,7 +1855,7 @@ void emcomSosTick(void)
 				(menu != UI_SPLASH_SCREEN) && (menu != MENU_CALIBRATION) && (menu != UI_TX_SCREEN))
 		{
 			sosPauseShown = true;
-			uiNotificationShow(NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 2000U, "SOS PAUSED", false);
+			uiNotificationShowKind(UI_ALERT_WARNING, NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 2000U, "SOS PAUSED", false);
 		}
 		return;
 	}

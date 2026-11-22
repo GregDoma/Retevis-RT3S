@@ -583,7 +583,7 @@ static void showTxError(aprsInfoTxResult_t res)
 	if (txErrorShown == false)
 	{
 		txErrorShown = true;
-		uiNotificationShow(NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 2500U,
+		uiNotificationShowKind(UI_ALERT_ERROR, NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 2500U,
 				((res == APRS_INFO_TX_NO_CONFIG) ? "APRS: no ch. config" : "APRS: TX not allowed"), true);
 		soundSetMelody(MELODY_ERROR_BEEP);
 	}
@@ -746,7 +746,7 @@ static void messagesTxTick(uint32_t now)
 	if (m->tries >= MSG_MAX_TRIES)
 	{
 		m->kind = APRS_MSG_OUT_FAILED;
-		uiNotificationShow(NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, NOTIFICATION_MS, "APRS msg: no ACK", false);
+		uiNotificationShowKind(UI_ALERT_WARNING, NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, NOTIFICATION_MS, "APRS msg: no ACK", false);
 		soundSetMelody(MELODY_NACK_BEEP);
 		return;
 	}

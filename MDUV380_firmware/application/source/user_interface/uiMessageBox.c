@@ -30,6 +30,7 @@
 #include "user_interface/uiLocalisation.h"
 #include "user_interface/uiUtilities.h"
 #include "utils.h"
+#include "user_interface/uiEmcom.h"
 
 static menuStatus_t menuMessageBoxExitCode;
 
@@ -37,6 +38,9 @@ static void handleEvent(uiEvent_t *ev);
 static void updateScreen(bool forceRedraw);
 static void displayMessage(void);
 static void displayButtons(void);
+#if defined(HAS_EMCOM_UI)
+static void emcomMessageBox(void);
+#endif
 
 menuStatus_t uiMessageBox(uiEvent_t *ev, bool isFirstRun)
 {
@@ -132,6 +136,7 @@ static void handleEvent(uiEvent_t *ev)
 		if (greenHandled && (((uiDataGlobal.MessageBox.validatorCallback != NULL) && res) || (uiDataGlobal.MessageBox.validatorCallback == NULL)))
 		{
 			uiDataGlobal.MessageBox.validatorCallback = NULL;
+			uiDataGlobal.MessageBox.kind = UI_ALERT_AUTO;
 			menuSystemPopPreviousMenu();
 			return;
 		}
@@ -156,6 +161,7 @@ static void handleEvent(uiEvent_t *ev)
 		if (redHandled && (((uiDataGlobal.MessageBox.validatorCallback != NULL) && res) || (uiDataGlobal.MessageBox.validatorCallback == NULL)))
 		{
 			uiDataGlobal.MessageBox.validatorCallback = NULL;
+			uiDataGlobal.MessageBox.kind = UI_ALERT_AUTO;
 			menuSystemPopPreviousMenu();
 			return;
 		}
@@ -211,6 +217,13 @@ static void updateScreen(bool forceRedraw)
 	{
 		case MESSAGEBOX_TYPE_INFO:
 		{
+#if defined(HAS_EMCOM_UI)
+			if (emcomStyleEnabled())
+			{
+				emcomMessageBox();
+				break;
+			}
+#endif
 			if (uiDataGlobal.MessageBox.decoration != MESSAGEBOX_DECORATION_NONE)
 			{
 				displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG_NOTIFICATION);
@@ -420,3 +433,34 @@ static void displayButtons(void)
 			break;
 	}
 }
+
+#if defined(HAS_EMCOM_UI)
+// Fork: EMCOM style: a full screen card (kind glyph + word, the message) and the keys at the bottom
+static void emcomMessageBox(void)
+{
+	uiAlertKind_t kind = (uiAlertKind_t)uiDataGlobal.MessageBox.kind;
+	const char *keys = NULL;
+
+	switch (uiDataGlobal.MessageBox.buttons)
+	{
+		case MESSAGEBOX_BUTTONS_OK:
+			keys = "GRN OK";
+			break;
+		case MESSAGEBOX_BUTTONS_YESNO:
+			keys = "GRN YES     RED NO";
+			break;
+		case MESSAGEBOX_BUTTONS_DISMISS:
+			keys = "RED CLOSE";
+			break;
+		default:
+			break;
+	}
+
+	if (kind == UI_ALERT_AUTO)
+	{
+		kind = ((uiDataGlobal.MessageBox.buttons == MESSAGEBOX_BUTTONS_YESNO) ? UI_ALERT_QUESTION : UI_ALERT_INFO);
+	}
+
+	emcomDrawAlert(kind, NULL, uiDataGlobal.MessageBox.message, keys, true);
+}
+#endif

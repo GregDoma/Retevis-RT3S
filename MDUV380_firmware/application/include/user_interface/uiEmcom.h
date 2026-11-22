@@ -17,6 +17,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "hardware/HX8353E.h"
+#include "user_interface/uiGlobals.h"
 
 #if defined(PLATFORM_MDUV380) || defined(PLATFORM_MD380) || defined(PLATFORM_RT84_DM1701)
 #define HAS_EMCOM_UI
@@ -73,6 +74,15 @@ void emcomDrawEmblem(int16_t cx, int16_t ty, themeItem_t waves, themeItem_t mast
 void emcomThemePreset(bool night, uint16_t *items);
 
 void emcomDrawTxBanner(const char *str);         // "APRS Tx" over the panel while a beacon is sent (no render)
+
+// Message boxes, notifications and the TX stop screen (uiAlertKind_t in uiGlobals.h): a card with a
+// title strip (the kind word, or 'title'), a glyph whose shape tells the kind (info: disc, warning:
+// triangle, error: square, question: diamond) and the message ('\n' separated, long lines wrapped).
+// fullScreen: the whole screen (keys: key bar at the bottom, NULL = none), else a card centred over
+// the current screen content. No render.
+void emcomDrawAlert(uiAlertKind_t kind, const char *title, const char *message, const char *keys, bool fullScreen);
+// Notification with a value and an optional level bar (percent < 0: none), e.g. squelch, volume, power
+void emcomDrawLevelAlert(const char *title, const char *value, int percent);
 
 // SOS: APRS emergency beacons + banner
 void emcomSosToggle(void);

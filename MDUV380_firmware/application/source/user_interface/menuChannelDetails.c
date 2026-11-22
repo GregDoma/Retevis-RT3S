@@ -1809,7 +1809,7 @@ static bool saveChanges(uiEvent_t *ev)
 			char buf[NOTIFICATION_MESSAGE_LEN_MAX];
 
 			snprintf(buf, NOTIFICATION_MESSAGE_LEN_MAX, "%s\n%s", currentLanguage->aprs_channel, currentLanguage->locked);
-			uiNotificationShow(NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 3000U, buf, false);
+			uiNotificationShowKind(UI_ALERT_WARNING, NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 3000U, buf, false);
 
 			uiDataGlobal.VoicePrompts.inhibitInitial = true;
 			roamingSortZone = false;

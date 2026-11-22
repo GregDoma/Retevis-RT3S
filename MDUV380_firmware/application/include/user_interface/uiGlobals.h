@@ -446,6 +446,16 @@ typedef enum
 
 typedef bool (*messageBoxValidator_t)(void); // MessageBox callback function prototype.
 
+// Fork: kind of a message box / notification, shown by a glyph shape and a word in the EMCOM styles
+typedef enum
+{
+	UI_ALERT_AUTO = 0, // message box: from the buttons (YES / NO: question); notification: from its ID
+	UI_ALERT_INFO,
+	UI_ALERT_WARNING,
+	UI_ALERT_ERROR,
+	UI_ALERT_QUESTION
+} uiAlertKind_t;
+
 typedef enum
 {
 	ALARM_TYPE_NONE,
@@ -552,6 +562,7 @@ typedef struct
 		messageBoxDecoration_t   decoration;
 		messageBoxButtons_t      buttons;
 		uint8_t                  pinLength;
+		uint8_t                  kind; // Fork: uiAlertKind_t, back to UI_ALERT_AUTO when the box closes
 		char                     message[MESSAGEBOX_MESSAGE_LEN_MAX]; // 3 lines max for MESSAGEBOX_TYPE_INFO type
 		int                      keyPressed;
 		messageBoxValidator_t    validatorCallback;
