@@ -274,8 +274,12 @@ static void updateScreen(void)
 	}
 	else if (eventLogGet(selected, &rec))
 	{
+		char full[EVENT_LOG_TEXT_LEN + 1];
+
+		memcpy(full, rec.text, EVENT_LOG_TEXT_LEN); // not terminated when the text fills the record
+		full[EVENT_LOG_TEXT_LEN] = 0;
 		displayThemeApply(THEME_ITEM_FG_HEADER_TEXT, THEME_ITEM_BG_HEADER_TEXT);
-		displayPrintCore(3, (fy + 1), rec.text, FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
+		displayPrintCore(3, (fy + 1), full, FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
 		timeString(rec.time, buf, sizeof(buf), true);
 		displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG_HEADER_TEXT);
 		displayPrintCore(3, (fy + 11), buf, FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
