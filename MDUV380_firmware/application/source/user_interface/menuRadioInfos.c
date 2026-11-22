@@ -127,14 +127,15 @@ static void circularBufferPushBack(voltageCircularBuffer_t *cb, const int32_t it
     }
 }
 
-static size_t circularBufferGetData(voltageCircularBuffer_t *cb, int32_t *data, size_t dataLen)
+// Fork: 'data' is int16_t (the voltages are in 0.1 V units, a few hundred at most): saves 208 bytes of RAM
+static size_t circularBufferGetData(voltageCircularBuffer_t *cb, int16_t *data, size_t dataLen)
 {
      size_t  count = 0;
      int32_t *p = cb->tail;
 
      while ((p != cb->head) && (count < dataLen))
      {
-    	 *(data + count) = *p;
+    	 *(data + count) = (int16_t)CLAMP(*p, 0, INT16_MAX);
 
     	 p++;
     	 count++;
@@ -688,7 +689,7 @@ static void updateScreen(uiEvent_t *ev, bool forceRedraw)
 		case RADIO_INFOS_BATTERY_GRAPH:
 		{
 #define  CHART_WIDTH 104
-			static int32_t hist[CHART_WIDTH];
+			static int16_t hist[CHART_WIDTH];
 			static size_t histLen = 0;
 			bool newHistAvailable = false;
 

@@ -37,6 +37,9 @@ DEFS := \
     -DSTM32F405xx \
     $(PLATFORM_DEFS)
 
+# SEGGER RTT debug output (SWD debugger); release builds leave it out (no RTT RAM)
+# DEFS += -DUSING_EXTERNAL_DEBUGGER
+
 # Optional language pack (uncomment one to bake a default language)
 # DEFS += -DLANGUAGE_BUILD_JAPANESE
 
