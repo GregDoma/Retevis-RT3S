@@ -398,7 +398,22 @@ header, every line is re-timed on its sync pulse, the picture is scaled to
 160x120 and drawn as it arrives under a status line (mode, line, audio
 frequency). `0` clears and waits for the next picture, `GREEN` / `RED`
 leave; also available as a quickkey. While the screen is open APRS / DTMF /
-CW decoding is paused (the SSTV decoder borrows their memory).
+CW decoding is paused (the SSTV decoder borrows their memory), and so are
+APRS beacons and message replies.
+
+* **Frequency**: `UP` / `DOWN` step through the channel / VFO the screen was
+  opened on, ISS 145.800 and 437.800 (FM, wide, no CTCSS). The presets are
+  RX only (PTT just beeps); leaving the screen goes back to the channel.
+* **Doppler**: on the satellite screen select a satellite and press `9`.
+  SSTV opens on that satellite's frequency and keeps the Doppler retune
+  running once a second (TLE, clock and position needed, as for the
+  satellite screen). On 2 m FM it matters little (±3.5 kHz); on 70 cm
+  (±10 kHz) it keeps the signal in the filter.
+* **Saved pictures**: every picture of 30 lines or more is saved to the SPI
+  flash with its UTC time, mode and frequency; the 8 newest are kept
+  (320 KB taken from the end of the GPS NMEA log). Download them as PNG on
+  [sp7tq.pl/rt3s/narzedzia](https://sp7tq.pl/rt3s/narzedzia/#sstv) (SSTV tab)
+  or with `tools/opengd77_sstv.py -d pictures/`.
 
 ### Volume indicator
 

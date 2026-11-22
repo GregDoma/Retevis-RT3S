@@ -2038,6 +2038,13 @@ void aprsBeaconingTick(uiEvent_t *ev)
 	{
 		return;
 	}
+#if defined(HAS_SSTV_MENU)
+	// Fork: nor while receiving SSTV (a beacon would ruin the picture, and the screen may be on a downlink)
+	if (currentMenu == MENU_SSTV)
+	{
+		return;
+	}
+#endif
 
 	if (((uiDataGlobal.Scan.active == false) && (aprsBcnData.settings.mode != APRS_BEACONING_MODE_OFF) && aprsBeaconingStateEnabled(APRS_BEACONING_STATE_ENABLED))
 			&& aprsBeaconingStateEnabled(APRS_BEACONING_STATE_HAS_APRS_CONFIG) &&

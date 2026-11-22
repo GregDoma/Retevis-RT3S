@@ -250,6 +250,11 @@ void menuSatelliteScreenClearPredictions(bool reloadKeps);
 bool menuSatelliteIsDisplayingHeader(void);
 void menuSatelliteTxScreen(uint32_t txTimeSecs);
 void menuSatelliteSetFullReload(void);
+// Fork: the SSTV screen opened from a satellite keeps its Doppler retune running
+bool menuSatelliteDopplerAvailable(void);
+void menuSatelliteDopplerTick(void); // once a second
+const char *menuSatelliteActiveName(void);
+CodeplugChannel_t *menuSatelliteBorrowChannelData(void); // only while the satellite screen is not on the menu stack
 void menuSystemMenuIncrement(int32_t *O, int32_t M);
 void menuSystemMenuDecrement(int32_t *O, int32_t M);
 

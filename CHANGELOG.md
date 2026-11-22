@@ -5,6 +5,15 @@ This is an independent fork maintained by **Marcin SP7TQ**, based on the
 upstream [OpenGD77](https://www.opengd77.com/) R20260131 source. Features
 marked *(untested)* build and pass host tests but still need on-air checking.
 
+## Unreleased
+
+* **SSTV++** (GitHub issue #13) *(untested)*:
+  * `UP` / `DOWN` on the SSTV screen: channel / VFO, ISS 145.800, 437.800 (RX only presets; leaving restores the channel).
+  * Satellite screen, selected satellite, `9`: SSTV with the Doppler retune of that satellite kept running.
+  * Every picture (30 lines or more) is saved to the flash with UTC time, mode and frequency, 8 newest kept; *SSTV* tab on sp7tq.pl/rt3s/narzedzia and `tools/opengd77_sstv.py` export PNG. The GPS NMEA log is 320 KB shorter.
+  * APRS beacons and message replies wait while the SSTV screen is open.
+* Python tools find the radio by its real USB IDs (1FC9:0094).
+
 ## R20260131-SP7TQ.4 — 2026-11-20
 
 `.gla` language packs changed (new strings `.aprs_comment`, `.aprs_replies`, language version 8: older packs are not loaded): flash the ones built from this version.

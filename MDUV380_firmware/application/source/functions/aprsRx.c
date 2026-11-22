@@ -698,7 +698,11 @@ static void messagesTxTick(uint32_t now)
 	int menu = menuSystemGetCurrentMenuNumber();
 
 	if (aprsBeaconingIsTransmitting() || trxTransmissionEnabled ||
-			(menu == UI_TX_SCREEN) || (menu == UI_HOTSPOT_MODE) || (menu == UI_CPS) || (menu == MENU_SATELLITE))
+			(menu == UI_TX_SCREEN) || (menu == UI_HOTSPOT_MODE) || (menu == UI_CPS) || (menu == MENU_SATELLITE)
+#if defined(HAS_SSTV_MENU)
+			|| (menu == MENU_SSTV) // Fork: the SSTV screen may be on a downlink
+#endif
+			)
 	{
 		return;
 	}

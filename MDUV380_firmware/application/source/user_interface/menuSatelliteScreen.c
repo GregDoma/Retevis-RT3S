@@ -886,6 +886,14 @@ static void handleEvent(uiEvent_t *ev)
 			currentSatelliteFreqIndex = SATELLITE_OTHER_FREQ;
 			needsUpdate = true;
 		}
+#if defined(HAS_SSTV_MENU) && defined(I2S_APRS_RX)
+		else if (KEYCHECK_SHORTUP(ev->keys, KEY_9))
+		{
+			// Fork: SSTV picture receive on this satellite, Doppler retune kept running
+			menuSystemPushNewMenu(MENU_SSTV);
+			return;
+		}
+#endif
 
 		if (needsUpdate)
 		{
@@ -1510,6 +1518,32 @@ void menuSatelliteSetFullReload(void)
 	displayMode = SATELLITE_SCREEN_ALL_PREDICTIONS_LIST;
 	hasSelectedSatellite = false;
 	hasSatelliteKeps = false;
+}
+
+bool menuSatelliteDopplerAvailable(void)
+{
+	return (hasSatelliteKeps && hasSelectedSatellite && (currentActiveSatellite != NULL) && (currentChannelData == &satelliteChannelData));
+}
+
+void menuSatelliteDopplerTick(void)
+{
+	if (menuSatelliteDopplerAvailable())
+	{
+		calculateActiveSatelliteData(false);
+	}
+}
+
+// Fork: the SSTV presets borrow the channel data (no spare RAM for a copy of their own). The
+// satellite is selected again (full set up of the channel data) the next time this screen opens.
+CodeplugChannel_t *menuSatelliteBorrowChannelData(void)
+{
+	hasSelectedSatellite = false;
+	return &satelliteChannelData;
+}
+
+const char *menuSatelliteActiveName(void)
+{
+	return ((currentActiveSatellite != NULL) ? currentActiveSatellite->name : "");
 }
 
 static void exitCallback(void *data)

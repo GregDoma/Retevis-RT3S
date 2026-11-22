@@ -25,7 +25,7 @@ from xml.sax.saxutils import escape
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 LOG_ADDR = 14 * 1024 * 1024 + 64 * 1024   # LOG_FLASH_16MB_START_ADDRESS (after the 64 KB event log)
-LOG_SIZE = 2 * 1024 * 1024 - 128 * 1024  # LOG_FLASH_16MB_MEM_SIZE (the last 64 KB hold the field tools data)
+LOG_SIZE = 2 * 1024 * 1024 - 128 * 1024 - 320 * 1024  # LOG_FLASH_16MB_MEM_SIZE (then 320 KB SSTV pictures, 64 KB field tools data)
 BLOCK = 64 * 1024
 NMEA_RE = re.compile(rb'\$(G[PNLAB][A-Z]{3}),([^*$\r\n]*)\*([0-9A-Fa-f]{2})')
 
@@ -135,7 +135,7 @@ def main():
     ap.add_argument('--port', help='serial port (default: auto-detect)')
     ap.add_argument('--input', '-i', help='convert a raw dump file instead of reading the radio')
     ap.add_argument('--dump', help='also save the raw log region to this file')
-    ap.add_argument('--max-kb', type=int, default=LOG_SIZE // 1024, help='read at most this many kB (default: the whole 2 MB)')
+    ap.add_argument('--max-kb', type=int, default=LOG_SIZE // 1024, help='read at most this many kB (default: the whole log, 1.56 MB)')
     ap.add_argument('--output', '-o', required=True, help='GPX file to write')
     args = ap.parse_args()
 

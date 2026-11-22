@@ -48,3 +48,64 @@ Status legend: **done**, **in progress**, *idea*.
 | 13 | Unify MD2017 / MD9600 trees | *idea* | `unify_sourcecodes.md` |
 | 14 | Host-side unit tests (AX.25 encoder, Maidenhead, satellite maths, roaming sort, quickkey encoding) in CI | *idea* | |
 | 15 | Ship a binary named for the RT3S in releases + flashing notes in the README | *idea* | |
+| 18 | Colour-blind safe EMCOM style: `Opcje ekranu → Styl` = Classic / EMCOM / **EMCOM mono** | *planned* | see *EMCOM mono style* below |
+| 19 | SSTV++ (issue #13): frequency on the SSTV screen, Doppler from the satellite mode, pictures saved to flash + web download | *in progress* | see *SSTV++* below |
+
+## EMCOM mono style (planned, #18)
+
+**Why:** the EMCOM screen says what the radio is doing by colour alone. RX is
+green, TX red, scan amber and info blue, and the header uses the same colours
+for the battery, the `a` APRS mark and the status chip. Red against green is the
+pair that people with deuteranopia or protanopia cannot tell apart. These
+colours are hard-coded, so a custom theme cannot fix them.
+
+**What:** the existing `Styl` row in `Opcje ekranu` (today Classic / EMCOM,
+`BIT_UI_CLASSIC_STYLE`) gets a third value, **EMCOM mono**:
+
+* One hue in several shades: white, light grey, mid grey and dark grey on
+  black. The night variant uses the same idea in shades of red, as the current
+  night palette does.
+* The state must be readable without any colour:
+  * TX: a status chip in inverted video (white fill, black text) and the word
+    `TX`. RX keeps the plain chip with `RX`, and scan gets `SCAN`. The bold
+    "chip" text already exists, so only the fill changes.
+  * Low battery: the battery outline blinks, or `!` appears before the
+    percentage, instead of turning red.
+  * APRS beacon on or off: a bold or thin `a`, which already works without
+    colour. Keep it that way.
+  * S-meter over S9: hatched or striped bar segments instead of amber.
+* Menus get a grey preset from `emcomThemePreset()`, a third table next to day
+  and night, with the selected item in inverted video.
+
+**Where in the code:**
+
+| File | Change |
+|---|---|
+| `uiEmcom.c` | `PALETTE_DARK` and `PALETTE_NIGHT` (around line 55): add `PALETTE_MONO` and pick it in the palette selector |
+| `uiEmcom.c` | Status chip (around line 326), battery (around line 363), TX bar (around line 305): shape and inverted-video cues in mono mode |
+| `uiEmcom.c` | `emcomThemePreset()` (around line 1128): mono table |
+| `menuDisplayOptions.c` | Lines 306, 684 and 896: the style row cycles through three values |
+| `settings.h` | One more option bit, for example `BIT_UI_EMCOM_MONO`, from the free bits in bank 0 or 1. No settings layout change, so no settings version bump |
+| `languages/*.h` | One new string, "EMCOM mono" (MaxLen 16). English as the fallback, Polish "EMCOM mono" |
+
+**Checks:**
+
+* Run screenshots of the main screen in RX, TX, SCAN, low battery and SOS
+  through a deuteranopia/protanopia simulator. Every state must be
+  distinguishable.
+* Use `tools/opengd77_screenshot.py`, or the web tool once it exists, for
+  before and after shots for the guide.
+* Day and night both work. A custom saved theme still wins in menus, as it
+  does now.
+
+**Also:** the band scope and waterfall colour map, and the SSTV and APRS radar
+colours. Check whether they also need a mono map (a grey ramp). Decide this
+during the plan.
+
+## SSTV++ (in progress, #19, GitHub issue #13)
+
+Asked by SP9TKN: pick the SSTV frequency (ISS uses 2 m and 70 cm), keep the pictures and download them, Doppler correction.
+
+1. **Frequency on the SSTV screen.** UP / DOWN step through presets (145.800, 437.800, 435.000-band sats, plus the channel / VFO the screen was opened from). The tuned frequency is shown in the status line. Leaving restores the original frequency.
+2. **Doppler.** Opened from the satellite screen, SSTV keeps the chosen satellite and retunes RX once a second with the satellite maths (`satellite.c`), as the satellite screen does. On 2 m FM the gain is small (±3.5 kHz); on 70 cm (±10 kHz) it keeps the carrier inside the filter. In FM Doppler does not shift the SSTV tones, it only costs SNR.
+3. **Pictures in flash.** A finished picture (160 x 120, RGB565, 38 400 B) goes into a ring of slots carved from the end of the GPS NMEA log, with a small header (UTC, mode, frequency). The web tools get an *SSTV* tab with a gallery and PNG export, read over the CPS link like the coverage map.
