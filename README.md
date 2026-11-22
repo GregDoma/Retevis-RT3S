@@ -252,6 +252,10 @@ To give the menus the same colours: *Options → Theme → Day* (then *Night*),
 position beacons with the emergency symbol and `EMERGENCY SOS` (3 at one
 minute, then every two minutes) through the channel APRS configuration
 (its QSY frequency when set), and a flashing banner; the same again stops it.
+The beacons also go out while the Position, PACE, Coverage, Radio check,
+GPS, APRS RX, Event log, Last heard or lock screen is open. On the TX,
+satellite and SSTV screens, in menus and while editing they wait
+(`SOS PAUSED` shows once) and go out as soon as you are back.
 
 ### Event log — *main menu → Event log*
 
@@ -264,8 +268,40 @@ log is a 64 KB ring in the SPI flash (2048 entries, the GPS NMEA log now
 starts 64 KB later) and survives a power cycle.
 
 On the radio: newest first, type field in colour, the selected entry in
-full with its date in the footer; `0` then `GREEN` clears it. On a computer:
+full with its date in the footer; `0` then `GREEN` clears it (any other key
+cancels). On a computer:
 `MDUV380_firmware/tools/opengd77_event_log.py --csv log.csv`.
+
+### Field tools — *main menu → PACE / Position / Coverage / Radio check*
+
+Four screens for working in the field, also available as quickkeys. Their
+data lives in the last 64 KB of the SPI flash and survives a power cycle.
+
+| ![PACE plan](docs/screens/field_pace.png) | ![Position](docs/screens/field_position.png) |
+|---|---|
+| ![Coverage survey](docs/screens/field_coverage.png) | ![Radio check](docs/screens/field_radio_check.png) |
+
+* **PACE plan**: Primary / Alternate / Contingency / Emergency channels.
+  `1`–`4` (or `GREEN` on the selected slot) switch the radio to that
+  channel, `*` stores the current channel in the selected slot (channel
+  mode only), `0` then `GREEN` clears the slot.
+* **Position**: own position in MGRS (large) and UTM, decimal degrees,
+  locator, altitude, GPS fix / satellites / HDOP, sunrise and sunset, and
+  distance and bearing to the waypoint; `*` marks the current position as
+  the waypoint.
+* **Coverage survey**: records the signal level with the GPS position every
+  1–30 s (`#` changes the interval, `GREEN` starts / stops), up to 3840
+  points, with a live graph and the session min / max. `0` then `GREEN`
+  clears the memory. On a computer:
+  `MDUV380_firmware/tools/opengd77_coverage.py` makes a coloured KML map,
+  GPX or CSV.
+* **Radio check**: every received over is measured (length, average and
+  peak level) and rated readability / strength ("5 by 9"), with the last
+  reports below. `0` then `GREEN` clears the reports.
+
+Every clear asks first: the key bar shows the question, `GREEN` confirms
+and any other key cancels (you stay on the screen). The same goes for the
+Event log (`0`) and Last heard (long `#`).
 
 ### Screenshots over USB
 
