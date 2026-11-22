@@ -170,6 +170,11 @@ typedef struct
 } menuItemsList_t;
 
 
+// Fork: menu entries without a language string (no translation): stringOffset below -1, a fixed English name
+#define MENU_STRING_NET_CONTROL   (-2)
+const char *menuItemName(const menuItemNewData_t *item);  // NULL: no name
+void menuItemNamePrompt(const menuItemNewData_t *item);   // voice prompt of the name
+
 void menuDisplayTitle(const char *title);
 void menuDisplayEntry(int loopOffset, int focusedItem, const char *entryText, int32_t optStart, themeItem_t fgItem, themeItem_t fgOptItem, themeItem_t bgItem);
 
@@ -342,6 +347,7 @@ enum MENU_SCREENS
 	MENU_POSITION,// Fork: MGRS / UTM position
 	MENU_COVERAGE,// Fork: coverage survey
 	MENU_RADIO_CHECK,// Fork: radio check (signal report)
+	MENU_NET_CONTROL,// Fork: EMCOM net control (roster, QSO log)
 #endif
 	// *** Add new menus to be accessed using quickkey (ID: 0..31) above this line ***
 	UI_MESSAGE_BOX,
@@ -507,6 +513,7 @@ menuStatus_t menuPACE(uiEvent_t *event, bool isFirstRun);
 menuStatus_t menuPosition(uiEvent_t *event, bool isFirstRun);
 menuStatus_t menuCoverage(uiEvent_t *event, bool isFirstRun);
 menuStatus_t menuRadioCheck(uiEvent_t *event, bool isFirstRun);
+menuStatus_t menuNetControl(uiEvent_t *event, bool isFirstRun);
 #endif
 menuStatus_t menuLastHeard(uiEvent_t *event, bool isFirstRun);
 menuStatus_t menuGeneralOptions(uiEvent_t *event, bool isFirstRun);

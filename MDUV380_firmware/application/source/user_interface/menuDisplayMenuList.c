@@ -53,10 +53,9 @@ menuStatus_t menuDisplayMenuList(uiEvent_t *ev, bool isFirstRun)
 			{
 				int lastIndex = menuSystemGetLastItemIndex(menuDataGlobal.controlData.stackPosition - 1);
 
-				if (lastIndex != -1)
+				if ((lastIndex != -1) && (menuDataGlobal.data[menuDataGlobal.controlData.stack[menuDataGlobal.controlData.stackPosition - 1]]->items[lastIndex].stringOffset >= 0))
 				{
-					menuName = (currentLanguage->LANGUAGE_NAME +
-							(menuDataGlobal.data[menuDataGlobal.controlData.stack[menuDataGlobal.controlData.stackPosition - 1]]->items[lastIndex].stringOffset * LANGUAGE_TEXTS_LENGTH));
+					menuName = menuItemName(&menuDataGlobal.data[menuDataGlobal.controlData.stack[menuDataGlobal.controlData.stackPosition - 1]]->items[lastIndex]);
 				}
 			}
 		}
@@ -121,6 +120,7 @@ static uiIcon_t menuIcon(int menuNum)
 		case MENU_POSITION:           return UI_ICON_POSITION;
 		case MENU_COVERAGE:           return UI_ICON_COVERAGE;
 		case MENU_RADIO_CHECK:        return UI_ICON_RADIOCHECK;
+		case MENU_NET_CONTROL:        return UI_ICON_NET;
 #endif
 		case MENU_CONTACT_LIST:       return UI_ICON_CONTACTLIST;
 		case MENU_DTMF_CONTACT_LIST:  return UI_ICON_DTMF;
@@ -212,9 +212,9 @@ static void updateGridScreen(const char *title)
 	// name of the selected entry
 	displayThemeApply(THEME_ITEM_BG_MENU_NAME, THEME_ITEM_BG);
 	displayFillRect(0, NAME_BAR_Y, DISPLAY_SIZE_X, (DISPLAY_SIZE_Y - NAME_BAR_Y), false);
-	if ((sel < menuDataGlobal.numItems) && (menuDataGlobal.currentMenuList[sel].stringOffset >= 0))
+	if ((sel < menuDataGlobal.numItems) && (menuItemName(&menuDataGlobal.currentMenuList[sel]) != NULL))
 	{
-		const char *name = (currentLanguage->LANGUAGE_NAME + (menuDataGlobal.currentMenuList[sel].stringOffset * LANGUAGE_TEXTS_LENGTH));
+		const char *name = menuItemName(&menuDataGlobal.currentMenuList[sel]);
 
 		displayThemeApply(THEME_ITEM_FG_MENU_NAME, THEME_ITEM_BG_MENU_NAME);
 		displayPrintCore(4, (NAME_BAR_Y + ((DISPLAY_SIZE_Y - NAME_BAR_Y - FONT_SIZE_3_HEIGHT) / 2)), name, FONT_SIZE_3, TEXT_ALIGN_LEFT, false);
@@ -248,13 +248,13 @@ static void updateScreen(bool isFirstRun)
 	{
 		updateGridScreen(mName);
 
-		if ((menuDataGlobal.currentItemIndex < menuDataGlobal.numItems) && (menuDataGlobal.currentMenuList[menuDataGlobal.currentItemIndex].stringOffset >= 0))
+		if ((menuDataGlobal.currentItemIndex < menuDataGlobal.numItems) && (menuItemName(&menuDataGlobal.currentMenuList[menuDataGlobal.currentItemIndex]) != NULL))
 		{
 			if (!isFirstRun)
 			{
 				voicePromptsInit();
 			}
-			voicePromptsAppendLanguageString(currentLanguage->LANGUAGE_NAME + (menuDataGlobal.currentMenuList[menuDataGlobal.currentItemIndex].stringOffset * LANGUAGE_TEXTS_LENGTH));
+			menuItemNamePrompt(&menuDataGlobal.currentMenuList[menuDataGlobal.currentItemIndex]);
 			promptsPlayNotAfterTx();
 		}
 		return;
@@ -277,9 +277,9 @@ static void updateScreen(bool isFirstRun)
 
 		if (mNum < menuDataGlobal.numItems)
 		{
-			if (menuDataGlobal.currentMenuList[mNum].stringOffset >= 0)
+			if (menuItemName(&menuDataGlobal.currentMenuList[mNum]) != NULL)
 			{
-				const char *menuName = (currentLanguage->LANGUAGE_NAME + (menuDataGlobal.currentMenuList[mNum].stringOffset * LANGUAGE_TEXTS_LENGTH));
+				const char *menuName = menuItemName(&menuDataGlobal.currentMenuList[mNum]);
 				menuDisplayEntry(i, mNum, menuName, 0, THEME_ITEM_FG_MENU_ITEM, THEME_ITEM_COLOUR_NONE, THEME_ITEM_BG);
 
 				if (i == 0)
@@ -289,7 +289,7 @@ static void updateScreen(bool isFirstRun)
 						voicePromptsInit();
 					}
 
-					voicePromptsAppendLanguageString(menuName);
+					menuItemNamePrompt(&menuDataGlobal.currentMenuList[mNum]);
 					promptsPlayNotAfterTx();
 				}
 			}

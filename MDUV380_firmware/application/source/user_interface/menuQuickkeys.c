@@ -233,9 +233,9 @@ static const char *quickkeyMenuTitle(int menuId)
 	{
 		for (int i = 0; i < lists[l]->numItems; i++)
 		{
-			if ((lists[l]->items[i].menuNum == menuId) && (lists[l]->items[i].stringOffset >= 0))
+			if ((lists[l]->items[i].menuNum == menuId) && (menuItemName(&lists[l]->items[i]) != NULL))
 			{
-				return (currentLanguage->LANGUAGE_NAME + (lists[l]->items[i].stringOffset * LANGUAGE_TEXTS_LENGTH));
+				return menuItemName(&lists[l]->items[i]);
 			}
 		}
 	}
