@@ -54,6 +54,8 @@ Status legend: **done**, **in progress**, *idea*.
 | 20 | UI refresh, stage 1 (EMCOM styles): TX view, APRS messages, message boxes / notifications | **done** (2026-11-22) | see *UI refresh* below; untested on hardware |
 | 20b | UI refresh, stage 2 (EMCOM styles): PACE, Radio check, Event log, Coverage, Position, SSTV | **done** (2026-11-22) | see *UI refresh* below; untested on hardware |
 | 21 | Net control + QSO log: roster of stations heard since the net start (DMR last heard / APRS), FM manual check-ins, silence alarm, QSO from the roster / Last heard into the event log | **done** (2026-11-22) | see *Net control* below; untested on hardware |
+| 22 | Blackout / silent mode: minimum backlight on key press only, no beeps / voice prompts / LEDs; `SK1+5` / quickkey | **done** (2026-11-22) | see *Blackout and battery time left* below; untested on hardware |
+| 23 | Battery runtime estimate ("time left") on Radio infos and the EMCOM footer | **done** (2026-11-22) | see *Blackout and battery time left* below; untested on hardware |
 
 ## EMCOM mono style (done, #18)
 
@@ -209,3 +211,27 @@ per second), `user_interface/menuNetControl.c` (screen, EMCOM + classic), mock-u
 **Ideas:** other reports than 59 (`OK` / `RPT` / `NIL` codes picked on the radio), the roster
 saved in flash across a power cycle, a net summary export, FM check-in by DTMF ANI / CTCSS.
 
+
+## Blackout and battery time left (done, #22, #23)
+
+**Done (2026-11-22).** Mock-ups `field_blackout.png`, `field_battery.png` (`render_blackout.py`).
+
+* **Blackout** (`functions/blackout.c`): `SK1 + 5` on the channel / VFO screen (`SK1` + 1/2/4/9 were
+  taken, 0/3 are sweep keys; 5..8 were free) or `QUICKKEY_ACTION_BLACKOUT` (appended, the stored
+  action numbers of the others are unchanged). The backlight mode / timeout / day, night and "off"
+  levels are swapped for `BUTTONS` / user timeout (10 s for *never*) / 5 % / 0 % in RAM;
+  `settingsSaveSettings()` writes the user values around the flash write (`blackoutSettingsForSave()`),
+  so the radio always boots normal; a backlight value the user changes during the blackout is
+  adopted. Beeps (`soundSetMelody()`, except the transmitted 1750 Hz / DTMF), voice prompts
+  (`voicePromptsPlay()`) and the LEDs (`LedWrite()`, `LEDsState` still tracks RX for the EMCOM
+  state) are gated by `blackoutActive()`. 7 B of RAM.
+* **Battery time left** (`functions/batteryRuntime.c`, pure, host test `tests/aprs_rx/test_batt.c`):
+  the existing average is truncated to 0.1 V (one step per ~35 min at a typical drain), so
+  `adc.c` keeps a second, untruncated average. Every 150 s the highest voltage outside TX (and 5 s
+  after it) is kept, 12 slots = 30 min; least squares slope, smoothed (1/4 per slot), mapped
+  through the linear 6.4..8.2 V curve of the percentage; the minutes shown count down and are pulled
+  1/4 of the way to each new estimate; clamp 99 h; `--` below 6 slots, rising voltage, a +0.08 V
+  step (charger) or a -0.10 V step (charger removed). 65 B of RAM.
+
+**Ideas:** a classic-style indicator (the header has no room), blackout in the event log, a
+non-linear Li-ion curve for the percentage and the estimate, the estimate in the voice prompt.

@@ -291,6 +291,24 @@ Net control, GPS, APRS RX, Event log, Last heard or lock screen is open. On the 
 satellite and SSTV screens, in menus and while editing they wait
 (`SOS PAUSED` shows once) and go out as soon as you are back.
 
+**Blackout / silent mode:** `SK1+5` on the channel / VFO screen (or the
+*Blackout* quickkey action) for night or covert work, `BLACKOUT ON` / `OFF`
+card. The backlight stays off until a key is pressed and then lights at 5 % for
+the normal timeout; no key beeps, alert or RX / TX beeps, no voice prompts, RX /
+TX LEDs off. TX (1750 Hz and DTMF included), receive audio, SOS beacons and the
+on-screen alerts are unchanged. The EMCOM footer shows a solid `BLK` chip. Not
+kept over a power cycle: the radio always boots with your own backlight settings.
+
+**Battery time left:** an estimate such as `~3h20` from the voltage trend of the
+last 30 minutes (transmissions left out), on the right of the EMCOM footer when
+nothing else is shown there and under the voltage on *Radio infos → Battery*.
+`--` for the first 15 minutes, while charging and just after the charger is
+plugged in or removed. Not on the classic main screen (no room in the header).
+
+![Blackout](docs/screens/field_blackout.png)
+
+![Battery time left](docs/screens/field_battery.png)
+
 ### Event log — *main menu → Event log*
 
 The radio keeps a station log by itself: own transmissions (frequency,
@@ -387,6 +405,7 @@ Satellite, GPS, APRS), a slot can run a fork **action**:
 | Day/Night | `SK1 + RED` |
 | Band scope | long `#` in VFO (also works from the Channel screen) |
 | Scope: to peak | `SK1 + 0` while sweeping |
+| Blackout | `SK1 + 5` |
 
 Actions are stored as out-of-range contact indices. Upstream firmware ignores
 these, so going back to upstream with the same codeplug is harmless.
