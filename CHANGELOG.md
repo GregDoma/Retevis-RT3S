@@ -5,7 +5,7 @@ This is an independent fork maintained by **Marcin SP7TQ**, based on the
 upstream [OpenGD77](https://www.opengd77.com/) R20260131 source. Features
 marked *(untested)* build and pass host tests but still need on-air checking.
 
-## Unreleased
+## R20260131-SP7TQ.5 — 2026-11-22
 
 * **VFO power in the channel details**: the Power row showed `N/A` in the VFO; it now shows the master power (e.g. `Master 1W`) and `LEFT` / `RIGHT` change it at once, like `SK2` + `UP` / `DOWN` on the VFO screen.
 * **Saved waypoints** *(untested)*: 8 named waypoints kept in the flash (survive a power cycle). GPS waypoint page `*` or the new *Waypoints* quickkey action opens the list: name, distance, compass point and an arrow (north up) from the GPS fix, `--` without a fix, `>` on the current target. `GREEN` navigates (sets the waypoint and opens the waypoint page), `*` saves the current position (`WP1`..`WP8`), `#` types lat / lon (the keypad entry of the waypoint page), `RIGHT` renames (A-Z, 0-9, `-`), `0` then `GREEN` deletes. APRS RX: long `*` on a station also saves it under its callsign. `tools/opengd77_coverage.py --waypoints wpts.gpx` exports them.
