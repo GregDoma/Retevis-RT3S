@@ -264,15 +264,10 @@ static void emListRow(int row, satelliteData_t *sat, int passNumber, const struc
 		displayFillRect(0, y, DISPLAY_SIZE_X, (EM_ROW_H - 1), false);
 	}
 
-	if (visible)
+	// marker: the row GREEN opens, or a satellite in view now
+	if (selected || visible)
 	{
-		// in view now
-		displayThemeApply(THEME_ITEM_FG_SATELLITE_COLOUR, bg);
-		displayFillRect(0, (y + 2), 3, (EM_ROW_H - 5), false);
-	}
-	else if (selected)
-	{
-		displayThemeApply(THEME_ITEM_BG, bg);
+		displayThemeApply((selected ? THEME_ITEM_BG : THEME_ITEM_FG_SATELLITE_COLOUR), bg);
 		displayFillRect(0, (y + 3), 2, (EM_ROW_H - 7), false);
 	}
 
@@ -280,7 +275,14 @@ static void emListRow(int row, satelliteData_t *sat, int passNumber, const struc
 	snprintf(buf, 9, "%s", sat->name); // 8 characters
 	displayPrintCore(6, (y + 3), buf, FONT_SIZE_2, TEXT_ALIGN_LEFT, false);
 
-	snprintf(buf, sizeof(buf), "%02u:%02u", (unsigned)aos->tm_hour, (unsigned)aos->tm_min);
+	if (visible)
+	{
+		snprintf(buf, sizeof(buf), "NOW");
+	}
+	else
+	{
+		snprintf(buf, sizeof(buf), "%02u:%02u", (unsigned)aos->tm_hour, (unsigned)aos->tm_min);
+	}
 	emText(78, (y + 3), buf, FONT_SIZE_2, (selected ? THEME_ITEM_BG : (visible ? THEME_ITEM_FG_RSSI_BAR : THEME_ITEM_FG_RX_FREQ)), bg);
 
 	snprintf(buf, sizeof(buf), "%u%c", (unsigned)satelliteGetMaximumElevation(sat, passNumber), 176);
