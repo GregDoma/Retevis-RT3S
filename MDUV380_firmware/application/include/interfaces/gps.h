@@ -94,6 +94,8 @@ void gpsTick(void);
 void gpsOn(void);
 void gpsOff(void);
 void gpsOnUsingQuickKey(bool on);
+uint32_t gpsSearchStartMs(void); // Fork: ticks when the receiver was turned on or lost its fix
+uint16_t gpsLastTtffSecs(void);  // Fork: time to first fix of the last search (s), 0 = none yet
 #if defined(PLATFORM_MD9600)
 void gpsAndMicPower(bool on);
 #endif

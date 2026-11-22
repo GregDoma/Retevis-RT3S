@@ -255,11 +255,16 @@ static bool displayTrip(bool isFirstRun, bool forceRedraw);
 
 typedef enum
 {
+#if defined(HAS_EMCOM_UI)
+	PAGE_STATUS = 0, // Fork: EMCOM style only (overview); the classic style starts at PAGE_COORDS
+	PAGE_COORDS,
+#else
 	PAGE_COORDS = 0,
+#endif
 #if defined(PLATFORM_MD9600) || defined(CPU_MK22FN512VLL12)
 	PAGE_RSSI,
 #else
-	PAGE_RSSI = 0,
+	PAGE_RSSI = PAGE_COORDS,
 #endif
 	PAGE_POLAR,
 	PAGE_DIRECTION, // MD9600: Sat/HDOP/Alt, MD-UV380 everything in that page
@@ -306,11 +311,32 @@ static uint32_t updateTick = 0;
 static uint16_t prevSatsInView = 0xFFFF;
 static char directions[16][4];
 
+#if defined(HAS_EMCOM_UI)
+static void emDrawPage(void);
+static bool emIsEmcomPage(void);
+#endif
+
+// First page of the current style (the EMCOM style has the status page first)
+static int gpsFirstPage(void)
+{
+#if defined(HAS_EMCOM_UI)
+	if (emcomStyleEnabled() == false)
+	{
+		return PAGE_COORDS;
+	}
+#endif
+	return 0;
+}
+
 menuStatus_t menuGPS(uiEvent_t *ev, bool isFirstRun)
 {
 	if (isFirstRun)
 	{
 		menuDataGlobal.numItems = PAGES_MAX;
+		if (menuDataGlobal.currentItemIndex < gpsFirstPage())
+		{
+			menuDataGlobal.currentItemIndex = gpsFirstPage();
+		}
 #if defined(GPS_WAYPOINT_PAGE)
 		waypointEditActive = false;
 #endif
@@ -364,9 +390,15 @@ menuStatus_t menuGPS(uiEvent_t *ev, bool isFirstRun)
 			// Limits updateScreen() calling frequency rate to every second, if a new GPS info is available, GPS_STATUS_TIME_UPDATED excepted.
 			// The functions called by updateScreen() are also filtering and limiting the screen redrawing, depending on the displayed page.
 			if ((updateTick > 1000) &&
-					(gpsData.Status & (GPS_STATUS_FIX_UPDATED | GPS_STATUS_FIXTYPE_UPDATED | GPS_STATUS_POSITION_UPDATED |
+					((gpsData.Status & (GPS_STATUS_FIX_UPDATED | GPS_STATUS_FIXTYPE_UPDATED | GPS_STATUS_POSITION_UPDATED |
 							GPS_STATUS_HDOP_UPDATED | GPS_STATUS_COURSE_UPDATED | GPS_STATUS_SPEED_UPDATED | GPS_STATUS_HEIGHT_UPDATED |
-							GPS_STATUS_GPS_SATS_UPDATED | GPS_STATUS_BD_SATS_UPDATED)))
+							GPS_STATUS_GPS_SATS_UPDATED | GPS_STATUS_BD_SATS_UPDATED))
+#if defined(HAS_EMCOM_UI)
+							// Fork: the EMCOM status page has a clock and the search timer, redrawn every second
+							|| (emcomStyleEnabled() && (menuDataGlobal.currentItemIndex == PAGE_STATUS) &&
+									(SETTINGS_GPS_MODE_GET(nonVolatileSettings) > GPS_MODE_OFF))
+#endif
+					))
 			{
 				updateTick = 0;
 				updateScreen(false, false);
@@ -1043,6 +1075,848 @@ static bool displayCoords(bool isFirstRun, bool forceRedraw)
 	return false;
 }
 
+#if defined(HAS_EMCOM_UI)
+//
+// Fork: EMCOM style pages: status (overview), signal (one bar per satellite) and sky plot.
+// They redraw their whole screen into the frame buffer (rendered once, no flicker). The classic
+// drawing above is used by the classic style and by the other pages.
+//
+// The receiver does not report which satellites are used in the fix (GSA is not stored), so
+// the pages tell satellites with a signal (SNR > 0) from satellites only in view.
+//
+#define EM_STRIP_Y        MENU_HEADER_HEIGHT
+#define EM_STRIP_H        11
+#define EM_KEYBAR_H       11
+#define EM_KEYBAR_Y       (DISPLAY_SIZE_Y - EM_KEYBAR_H)
+#define EM_TOP            (EM_STRIP_Y + EM_STRIP_H)
+
+#define EM_SAT_BD         0x80U // satellite index flag: BeiDou array
+
+// Signal page: bars area x EM_CH_X..158, 0 dB-Hz at y EM_CH_BASE, EM_CH_MAX_DB at EM_CH_TOP
+#define EM_CH_X           14
+#define EM_CH_RIGHT       (DISPLAY_SIZE_X - 2)
+#define EM_CH_TOP         (EM_TOP + 10)
+#define EM_CH_BASE        98
+#define EM_CH_MAX_DB      50
+#define EM_CH_MAX_BARS    ((EM_CH_RIGHT - EM_CH_X) / 6)  // 24 bars of 5 px
+#define EM_CH_MAX_PITCH   14
+
+// Sky plot
+#define EM_SKY_CX         50
+#define EM_SKY_R          44
+#define EM_SKY_CY         ((EM_TOP + EM_KEYBAR_Y) / 2)
+#define EM_SKY_RIGHT      98    // labels stay left of the right column
+#define EM_SKY_COL_X      102
+#define EM_SKY_MAX_SATS   40
+#define EM_SKY_MAX_LABELS 18    // 2 ring elevations + 16 PRN numbers
+
+typedef enum
+{
+	EM_SYM_SOLID = 0, // GPS bar, BeiDou on the sky plot
+	EM_SYM_HATCH,     // BeiDou bar
+	EM_SYM_DISC       // GPS on the sky plot
+} emSymbol_t;
+
+static void emText(int16_t x, int16_t y, const char *s, ucFont_t font, themeItem_t fg, themeItem_t bg)
+{
+	displayThemeApply(fg, bg);
+	displayPrintCore(x, y, s, font, TEXT_ALIGN_LEFT, false);
+}
+
+static int16_t emTextWidth(const char *s, ucFont_t font)
+{
+	return (int16_t)(strlen(s) * (((font == FONT_SIZE_1) || (font == FONT_SIZE_1_BOLD)) ? 6 : 8));
+}
+
+static void emTextRight(int16_t xRight, int16_t y, const char *s, ucFont_t font, themeItem_t fg, themeItem_t bg)
+{
+	emText((int16_t)(xRight - emTextWidth(s, font)), y, s, font, fg, bg);
+}
+
+// Small label + value, e.g. "HDOP 0.9"; right aligned when xRight is true
+static void emKeyValue(int16_t x, int16_t y, const char *label, const char *value, themeItem_t colour, bool alignRight)
+{
+	int16_t lw = (int16_t)(emTextWidth(label, FONT_SIZE_1) + 4);
+	int16_t vw = emTextWidth(value, FONT_SIZE_1);
+
+	if (alignRight)
+	{
+		x = (int16_t)(x - (lw + vw));
+	}
+	emText(x, y, label, FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+	emText((int16_t)(x + lw), y, value, FONT_SIZE_1, colour, THEME_ITEM_BG);
+}
+
+// Coloured field on the status strip, text in the background colour; returns its width
+static int16_t emChip(int16_t x, int16_t y, const char *text, themeItem_t colour)
+{
+	int16_t w = (int16_t)(emTextWidth(text, FONT_SIZE_1) + 4);
+
+	displayThemeApply(colour, THEME_ITEM_BG);
+	displayFillRect(x, y, w, 9, false);
+	displayPrintCore((x + 2), y, text, FONT_SIZE_1_BOLD, TEXT_ALIGN_LEFT, true);
+	return w;
+}
+
+// Big field (8x16 font), text in the background colour
+static void emBigChip(int16_t x, int16_t y, const char *text, themeItem_t colour)
+{
+	displayThemeApply(colour, THEME_ITEM_BG);
+	displayFillRect(x, y, (emTextWidth(text, FONT_SIZE_3) + 6), 18, false);
+	displayPrintCore((x + 3), (y + 1), text, FONT_SIZE_3, TEXT_ALIGN_LEFT, true);
+}
+
+static void emKeyBar(const char *keys)
+{
+	displayThemeApply(THEME_ITEM_BG_HEADER_TEXT, THEME_ITEM_BG);
+	displayFillRect(0, EM_KEYBAR_Y, DISPLAY_SIZE_X, EM_KEYBAR_H, false);
+	emText(3, (EM_KEYBAR_Y + 2), keys, FONT_SIZE_1, THEME_ITEM_FG_HEADER_TEXT, THEME_ITEM_BG_HEADER_TEXT);
+}
+
+// "45s", "3:12", "1:02:03"
+static void emDuration(char *buf, size_t size, uint32_t secs)
+{
+	if (secs >= 3600U)
+	{
+		snprintf(buf, size, "%u:%02u:%02u", (unsigned)MIN((secs / 3600U), 99U), (unsigned)((secs / 60U) % 60U), (unsigned)(secs % 60U));
+	}
+	else if (secs >= 60U)
+	{
+		snprintf(buf, size, "%u:%02u", (unsigned)(secs / 60U), (unsigned)(secs % 60U));
+	}
+	else
+	{
+		snprintf(buf, size, "%us", (unsigned)secs);
+	}
+}
+
+// 7 x 7 legend / plot symbol, top left at (x, y)
+static void emSymbol(int16_t x, int16_t y, emSymbol_t symbol, bool filled, themeItem_t colour, themeItem_t bg)
+{
+	displayThemeApply(colour, bg);
+
+	switch (symbol)
+	{
+		case EM_SYM_DISC:
+			if (filled)
+			{
+				displayFillCircle((x + 3), (y + 3), 3, true);
+			}
+			else
+			{
+				displayDrawCircle((x + 3), (y + 3), 3, true);
+			}
+			break;
+
+		case EM_SYM_HATCH:
+			displayDrawRect(x, y, 7, 7, true);
+			displayDrawFastHLine(x, (y + 2), 7, true);
+			displayDrawFastHLine(x, (y + 4), 7, true);
+			break;
+
+		default:
+			if (filled)
+			{
+				displayFillRect(x, y, 7, 7, false);
+			}
+			else
+			{
+				displayDrawRect(x, y, 7, 7, true);
+			}
+			break;
+	}
+}
+
+static uint8_t emSatsInView(bool beidou)
+{
+	return (uint8_t)MIN((beidou ? gpsData.SatsInViewBD : gpsData.SatsInViewGP), GPS_STORAGE_MAX);
+}
+
+static gpsSatellitesData_t *emSat(uint8_t code)
+{
+	return ((code & EM_SAT_BD) ? &gpsData.BDSatellites[code & 0x7FU] : &gpsData.GPSatellites[code]);
+}
+
+static uint8_t emSatsHeard(bool beidou)
+{
+	uint8_t n = 0;
+
+	for (uint8_t i = 0; i < emSatsInView(beidou); i++)
+	{
+		n += ((beidou ? gpsData.BDSatellites[i].RSSI : gpsData.GPSatellites[i].RSSI) > 0) ? 1 : 0;
+	}
+	return n;
+}
+
+// The satellites in view, strongest first (no signal last), at most maxCount; returns the
+// number stored, *total gets the number in view.
+static uint8_t emSortedSats(uint8_t *codes, uint8_t maxCount, uint8_t *total)
+{
+	uint8_t n = 0;
+
+	*total = 0;
+	for (uint8_t c = 0; c < 2; c++)
+	{
+		uint8_t count = emSatsInView(c != 0);
+
+		for (uint8_t i = 0; i < count; i++)
+		{
+			uint8_t code = (uint8_t)(i | ((c != 0) ? EM_SAT_BD : 0U));
+			int8_t rssi = emSat(code)->RSSI;
+			uint8_t pos = n;
+
+			(*total)++;
+
+			// insertion: after the ones as strong or stronger
+			while ((pos > 0) && (emSat(codes[pos - 1])->RSSI < rssi))
+			{
+				pos--;
+			}
+
+			if (pos >= maxCount)
+			{
+				continue; // weaker than all the stored ones, list full
+			}
+
+			if (n < maxCount)
+			{
+				n++;
+			}
+
+			for (uint8_t k = (uint8_t)(n - 1); k > pos; k--)
+			{
+				codes[k] = codes[k - 1];
+			}
+			codes[pos] = code;
+		}
+	}
+
+	return n;
+}
+
+static bool emGpsIsOn(void)
+{
+	return (SETTINGS_GPS_MODE_GET(nonVolatileSettings) > GPS_MODE_OFF);
+}
+
+// Fix state word and colour
+static const char *emFixState(themeItem_t *colour)
+{
+	if (SETTINGS_GPS_MODE_GET(nonVolatileSettings) == GPS_NOT_DETECTED)
+	{
+		*colour = THEME_ITEM_FG_TX_COUNTER;
+		return "NO GPS";
+	}
+
+	if (emGpsIsOn() == false)
+	{
+		*colour = THEME_ITEM_FG_DECORATION;
+		return "GPS OFF";
+	}
+
+	if (gpsData.Status & GPS_STATUS_HAS_FIX)
+	{
+		if (gpsData.Status & GPS_STATUS_3D_FIX)
+		{
+			*colour = THEME_ITEM_FG_RSSI_BAR;
+			return "3D FIX";
+		}
+
+		*colour = THEME_ITEM_FG_RSSI_BAR_S9P;
+		return ((gpsData.Status & GPS_STATUS_2D_FIX) ? "2D FIX" : "FIX");
+	}
+
+	*colour = THEME_ITEM_FG_TX_COUNTER;
+	return "NO FIX";
+}
+
+// HDOP value + word; returns its colour
+static themeItem_t emHdop(char *value, size_t size, const char **word)
+{
+	uint16_t h = gpsData.AccuracyInCm; // HDOP x 100
+
+	// (the HAS_* bits of gps.c are only set again when a value changes after a lost fix: not used)
+	if (((gpsData.Status & GPS_STATUS_HAS_FIX) == 0) || (h == 0U))
+	{
+		snprintf(value, size, "--");
+		*word = "";
+		return THEME_ITEM_FG_DECORATION;
+	}
+
+	if (h < 1000U)
+	{
+		snprintf(value, size, "%u.%u", (unsigned)(h / 100U), (unsigned)((h % 100U) / 10U));
+	}
+	else
+	{
+		snprintf(value, size, "%u", (unsigned)MIN((h / 100U), 99U)); // 3 characters at most
+	}
+
+	if (h <= 200U)
+	{
+		*word = "GOOD";
+		return THEME_ITEM_FG_RSSI_BAR;
+	}
+
+	if (h <= 500U)
+	{
+		*word = "FAIR";
+		return THEME_ITEM_FG_RSSI_BAR_S9P;
+	}
+
+	*word = "POOR";
+	return THEME_ITEM_FG_TX_COUNTER;
+}
+
+static uint32_t emSearchSecs(void)
+{
+	return ((ticksGetMillis() - gpsSearchStartMs()) / 1000U);
+}
+
+// Title bar (page number from menuDisplayTitle()) and the status strip: counts per constellation
+// ("GPS 8/10": 8 with a signal, 10 in view), each with its legend symbol, or a "SATS" chip.
+static void emFrame(bool withLegend, emSymbol_t gpsSymbol, emSymbol_t bdSymbol, const char *right)
+{
+	char buf[12];
+	int16_t x = 2;
+
+	displayClearBuf();
+	menuDisplayTitle(currentLanguage->gps);
+
+	displayThemeApply(THEME_ITEM_BG_HEADER_TEXT, THEME_ITEM_BG);
+	displayFillRect(0, EM_STRIP_Y, DISPLAY_SIZE_X, EM_STRIP_H, false);
+
+	if (emGpsIsOn() == false)
+	{
+		return;
+	}
+
+	for (uint8_t c = 0; c < 2; c++)
+	{
+		if (withLegend)
+		{
+			emSymbol(x, (EM_STRIP_Y + 2), ((c == 0) ? gpsSymbol : bdSymbol), true,
+					((c == 0) ? THEME_ITEM_FG_GPS_COLOUR : THEME_ITEM_FG_BD_COLOUR), THEME_ITEM_BG_HEADER_TEXT);
+			x += 9;
+		}
+		else if (c == 0)
+		{
+			x = (int16_t)(x + emChip(x, (EM_STRIP_Y + 1), "SATS", THEME_ITEM_FG_RX_FREQ) + 4);
+		}
+
+		snprintf(buf, sizeof(buf), "%s %u/%u", ((c == 0) ? "GPS" : "BD"), (unsigned)emSatsHeard(c != 0), (unsigned)emSatsInView(c != 0));
+		emText(x, (EM_STRIP_Y + 2), buf, FONT_SIZE_1, THEME_ITEM_FG_HEADER_TEXT, THEME_ITEM_BG_HEADER_TEXT);
+		x = (int16_t)(x + emTextWidth(buf, FONT_SIZE_1) + 6);
+	}
+
+	if (right)
+	{
+		emTextRight((DISPLAY_SIZE_X - 3), (EM_STRIP_Y + 2), right, FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG_HEADER_TEXT);
+	}
+}
+
+// GPS off / not detected: say so, with the key that turns it on
+static void emOffBody(void)
+{
+	themeItem_t colour;
+	const char *state = emFixState(&colour);
+	int16_t y = (EM_TOP + 3);
+
+	emBigChip(2, y, state, colour);
+
+	if (SETTINGS_GPS_MODE_GET(nonVolatileSettings) == GPS_NOT_DETECTED)
+	{
+		emText(4, (y + 30), "No GPS receiver found.", FONT_SIZE_1, THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
+		emText(4, (y + 42), "Checked at power on.", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+		emKeyBar("UP/DN PAGE  RED EXIT");
+	}
+	else
+	{
+		emText(4, (y + 30), "The receiver is off.", FONT_SIZE_1, THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
+		emText(4, (y + 42), "SK2+GREEN turns it on", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+		emText(4, (y + 52), "(or Options > General).", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+		emKeyBar("SK2+GRN GPS ON  RED EXIT");
+	}
+}
+
+// Status page: fix state, UTC or search time, position, locator, altitude, HDOP, speed, course, TTFF
+static void emStatusPage(void)
+{
+	char buf[24];
+	char value[12];
+	themeItem_t colour;
+	const char *word;
+	const char *state;
+	bool hasFix;
+	int16_t y = (EM_TOP + 3);
+
+	emFrame(false, EM_SYM_SOLID, EM_SYM_SOLID, NULL);
+
+	if (emGpsIsOn() == false)
+	{
+		emOffBody();
+		return;
+	}
+
+	state = emFixState(&colour);
+	hasFix = ((gpsData.Status & GPS_STATUS_HAS_FIX) != 0);
+	emBigChip(2, y, state, colour);
+
+	if (hasFix)
+	{
+		if (gpsData.Status & GPS_STATUS_HAS_TIME)
+		{
+			struct tm t;
+			time_t_custom tt = gpsData.Time;
+
+			gmtime_r_Custom(&tt, &t);
+			snprintf(buf, sizeof(buf), "%02u:%02u:%02u", (unsigned)t.tm_hour, (unsigned)t.tm_min, (unsigned)t.tm_sec);
+		}
+		else
+		{
+			snprintf(buf, sizeof(buf), "--:--:--");
+		}
+		emText(68, (y + 5), "UTC", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+		emTextRight((DISPLAY_SIZE_X - 2), (y + 1), buf, FONT_SIZE_3, THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
+	}
+	else
+	{
+		// time since the receiver was turned on / lost its fix
+		emDuration(buf, sizeof(buf), emSearchSecs());
+		emTextRight((DISPLAY_SIZE_X - 2), (y + 1), buf, FONT_SIZE_3, THEME_ITEM_FG_RSSI_BAR_S9P, THEME_ITEM_BG);
+		if (strlen(buf) <= 7) // not beside a 10 hour search, the fix field is there
+		{
+			emTextRight((DISPLAY_SIZE_X - 2 - emTextWidth(buf, FONT_SIZE_3) - 4), (y + 5), "SEARCH", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+		}
+	}
+
+	// Position (the GPS one, not the location setting)
+	y += 21;
+	emText(2, (y + 5), "LAT", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+	emText(2, (y + 21), "LON", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+	emText(106, (y + 1), "LOC", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+	emText(106, (y + 21), "ALT", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+
+	if (hasFix)
+	{
+		double lat = gpsData.LatitudeHiRes;
+		double lon = gpsData.LongitudeHiRes;
+		uint32_t la = (uint32_t)((fabs(lat) * 100000.0) + 0.5);
+		uint32_t lo = (uint32_t)((fabs(lon) * 100000.0) + 0.5);
+		char loc[12] = { 0 };
+
+		snprintf(buf, sizeof(buf), "%u.%05u%c", (unsigned)(la / 100000U), (unsigned)(la % 100000U), ((lat >= 0.0) ? 'N' : 'S'));
+		emText(22, y, buf, FONT_SIZE_3, THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
+		snprintf(buf, sizeof(buf), "%u.%05u%c", (unsigned)(lo / 100000U), (unsigned)(lo % 100000U), ((lon >= 0.0) ? 'E' : 'W'));
+		emText(22, (y + 16), buf, FONT_SIZE_3, THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
+
+		coordsToMaidenhead((uint8_t *)loc, lat, lon);
+		loc[6] = 0;
+		emText(110, (y + 10), loc, FONT_SIZE_2, THEME_ITEM_FG_RX_FREQ, THEME_ITEM_BG);
+	}
+	else
+	{
+		emText(22, y, "--", FONT_SIZE_3, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+		emText(22, (y + 16), "--", FONT_SIZE_3, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+		emText(110, (y + 10), "--", FONT_SIZE_2, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+	}
+
+	if (hasFix)
+	{
+		snprintf(buf, sizeof(buf), "%dm", (int)gpsData.HeightInM);
+		if (strlen(buf) > 5)
+		{
+			buf[strlen(buf) - 1] = 0; // "12345" (no unit) up to "-9999m"
+		}
+		emTextRight((DISPLAY_SIZE_X - 2), (y + 21), buf, FONT_SIZE_1, THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
+	}
+	else
+	{
+		emTextRight((DISPLAY_SIZE_X - 2), (y + 21), "--", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+	}
+
+	y += 35;
+	displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+	displayDrawFastHLine(0, y, DISPLAY_SIZE_X, true);
+	y += 3;
+
+	// HDOP + word, speed
+	colour = emHdop(value, sizeof(value), &word);
+	snprintf(buf, sizeof(buf), "%s %s", value, word);
+	emKeyValue(2, y, "HDOP", buf, colour, false);
+
+	bool moving = (hasFix && (gpsData.SpeedInHundredthKn > GPS_SPEED_THRESHOLD_MIN));
+
+	if (hasFix)
+	{
+		snprintf(buf, sizeof(buf), "%ukm/h", (unsigned)MIN((uint32_t)(((gpsData.SpeedInHundredthKn * 1852U) + 50000U) / 100000U), 999U));
+	}
+	else
+	{
+		snprintf(buf, sizeof(buf), "--");
+	}
+	emKeyValue((DISPLAY_SIZE_X - 2), y, "SPD", buf, THEME_ITEM_FG_DEFAULT, true);
+
+	// Course (only when moving), time to first fix
+	y += 10;
+	if (moving)
+	{
+		int course = ((int)((gpsData.CourseInHundredthDeg / 100U) % 360U));
+
+		snprintf(buf, sizeof(buf), "%03d %s", course, directions[((course * 10 + 112) / 225) % 16]);
+	}
+	else
+	{
+		snprintf(buf, sizeof(buf), "--");
+	}
+	emKeyValue(2, y, "CRS", buf, THEME_ITEM_FG_DEFAULT, false);
+
+	if (gpsLastTtffSecs() != 0U)
+	{
+		emDuration(buf, sizeof(buf), gpsLastTtffSecs());
+		emKeyValue((DISPLAY_SIZE_X - 2), y, "TTFF", buf, THEME_ITEM_FG_DEFAULT, true);
+	}
+
+	// Date (GPS, UTC)
+	y += 10;
+	if (gpsData.Status & GPS_STATUS_HAS_TIME)
+	{
+		struct tm t;
+		time_t_custom tt = gpsData.Time;
+
+		gmtime_r_Custom(&tt, &t);
+		snprintf(buf, sizeof(buf), "%04u-%02u-%02u", (unsigned)(t.tm_year + 1900), (unsigned)(t.tm_mon + 1), (unsigned)t.tm_mday);
+		emKeyValue(2, y, "DATE", buf, THEME_ITEM_FG_DEFAULT, false);
+	}
+	if (SETTINGS_GPS_MODE_GET(nonVolatileSettings) == GPS_MODE_ON_NMEA)
+	{
+		emTextRight((DISPLAY_SIZE_X - 2), y, "NMEA>USB", FONT_SIZE_1, THEME_ITEM_FG_RX_FREQ, THEME_ITEM_BG);
+	}
+
+	emKeyBar("UP/DN PAGE  SK2+RED OFF");
+}
+
+static int16_t emSnrY(int8_t snr)
+{
+	return (int16_t)(EM_CH_BASE - ((MIN(snr, EM_CH_MAX_DB) * (EM_CH_BASE - EM_CH_TOP)) / EM_CH_MAX_DB));
+}
+
+// Signal page: one bar per satellite, strongest first, PRN under each bar. GPS bars are solid,
+// BeiDou bars hatched (and in their colours); a satellite in view without a signal is a hollow stub.
+static void emSignalPage(void)
+{
+	uint8_t codes[EM_CH_MAX_BARS];
+	uint8_t total;
+	uint8_t n = emSortedSats(codes, EM_CH_MAX_BARS, &total);
+	char buf[28];
+
+	emFrame(true, EM_SYM_SOLID, EM_SYM_HATCH, "dBHz");
+
+	if (emGpsIsOn() == false)
+	{
+		emOffBody();
+		return;
+	}
+
+	emKeyBar("UP/DN PAGE  RED EXIT");
+
+	if (n == 0)
+	{
+		emText(((DISPLAY_SIZE_X - emTextWidth("No satellites yet", FONT_SIZE_3)) / 2), 48, "No satellites yet", FONT_SIZE_3, THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
+		if ((gpsData.Status & GPS_STATUS_HAS_FIX) == 0)
+		{
+			char t[12];
+
+			emDuration(t, sizeof(t), emSearchSecs());
+			snprintf(buf, sizeof(buf), "Searching: %s", t);
+			emText(((DISPLAY_SIZE_X - emTextWidth(buf, FONT_SIZE_1)) / 2), 70, buf, FONT_SIZE_1, THEME_ITEM_FG_RSSI_BAR_S9P, THEME_ITEM_BG);
+		}
+		emText(((DISPLAY_SIZE_X - emTextWidth("Open sky helps (1-5 min)", FONT_SIZE_1)) / 2), 82, "Open sky helps (1-5 min)", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+		return;
+	}
+
+	// SNR scale, dotted every 10 dB-Hz, 30 (a usable signal) denser
+	displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+	for (int db = 10; db <= EM_CH_MAX_DB; db += 10)
+	{
+		int16_t y = emSnrY((int8_t)db);
+
+		for (int16_t x = EM_CH_X; x < EM_CH_RIGHT; x += ((db == 30) ? 2 : 4))
+		{
+			displaySetPixel(x, y, true);
+		}
+
+		if ((db == 20) || (db == 40))
+		{
+			snprintf(buf, sizeof(buf), "%d", db);
+			emText(1, (y - 3), buf, FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+		}
+	}
+	displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+	displayDrawFastHLine((EM_CH_X - 1), EM_CH_BASE, (EM_CH_RIGHT - EM_CH_X + 1), true);
+
+	int16_t pitch = MIN(EM_CH_MAX_PITCH, ((EM_CH_RIGHT - EM_CH_X) / n));
+	int16_t barW = (int16_t)(pitch - ((pitch >= 8) ? 2 : 1));
+	uint16_t maxPrn = 0;
+
+	for (uint8_t i = 0; i < n; i++)
+	{
+		maxPrn = MAX(maxPrn, emSat(codes[i])->Number);
+	}
+
+	// PRN labels: one row when they fit under their bar, else two staggered rows; 3 digit
+	// numbers lose their hundreds when even two rows are too narrow.
+	int16_t labelW = (int16_t)(((maxPrn > 99) ? 3 : ((maxPrn > 9) ? 2 : 1)) * 6);
+	bool oneRow = (pitch > labelW);
+	bool cutHundreds = ((maxPrn > 99) && ((pitch * 2) <= 18));
+
+	for (uint8_t i = 0; i < n; i++)
+	{
+		gpsSatellitesData_t *sat = emSat(codes[i]);
+		bool bd = ((codes[i] & EM_SAT_BD) != 0);
+		themeItem_t colour = (bd ? THEME_ITEM_FG_BD_COLOUR : THEME_ITEM_FG_GPS_COLOUR);
+		int16_t x = (int16_t)(EM_CH_X + 1 + (i * pitch));
+
+		if (sat->RSSI > 0)
+		{
+			int16_t y = emSnrY(sat->RSSI);
+			int16_t h = (int16_t)(EM_CH_BASE - y);
+
+			displayThemeApply(colour, THEME_ITEM_BG);
+			if (bd)
+			{
+				displayDrawRect(x, y, barW, h, true);
+				for (int16_t yy = (int16_t)(y + 2); yy < EM_CH_BASE; yy += 2)
+				{
+					displayDrawFastHLine(x, yy, barW, true);
+				}
+			}
+			else
+			{
+				displayFillRect(x, y, barW, h, false);
+			}
+
+			if (oneRow && (pitch >= 13))
+			{
+				snprintf(buf, sizeof(buf), "%d", sat->RSSI);
+				emText((int16_t)(x + (barW / 2) - (emTextWidth(buf, FONT_SIZE_1) / 2)), (y - 9), buf, FONT_SIZE_1, THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
+			}
+		}
+		else
+		{
+			displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+			displayDrawRect(x, (EM_CH_BASE - 3), barW, 3, true);
+		}
+
+		snprintf(buf, sizeof(buf), "%u", (unsigned)(cutHundreds ? (sat->Number % 100U) : sat->Number));
+		emText((int16_t)MAX(0, (x + (barW / 2) - (emTextWidth(buf, FONT_SIZE_1) / 2))), (EM_CH_BASE + 2 + ((oneRow || ((i & 1) == 0)) ? 0 : 8)), buf, FONT_SIZE_1,
+				((sat->RSSI > 0) ? colour : THEME_ITEM_FG_DECORATION), THEME_ITEM_BG);
+	}
+
+	if (total > n)
+	{
+		snprintf(buf, sizeof(buf), "+%u", (unsigned)(total - n));
+		emTextRight(EM_CH_RIGHT, (EM_TOP + 1), buf, FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+	}
+}
+
+// Position of a satellite on the sky plot; false without elevation / azimuth
+static bool emSkyPoint(const gpsSatellitesData_t *sat, uint8_t *x, uint8_t *y)
+{
+	if ((sat->Number == 0) || (sat->El < 0) || (sat->Az < 0))
+	{
+		return false;
+	}
+
+	float f = ((1.0f - (MIN(sat->El, 90) / 90.0f)) * EM_SKY_R);
+	float a = (sat->Az * (float)DEG_TO_RAD);
+
+	*x = (uint8_t)(EM_SKY_CX + lroundf(sinf(a) * f));
+	*y = (uint8_t)(EM_SKY_CY - lroundf(cosf(a) * f));
+	return true;
+}
+
+static bool emBoxesOverlap(int16_t ax, int16_t ay, int16_t aw, int16_t ah, int16_t bx, int16_t by, int16_t bw, int16_t bh)
+{
+	return ((ax < (bx + bw)) && (bx < (ax + aw)) && (ay < (by + bh)) && (by < (ay + ah)));
+}
+
+// Sky plot: horizon, 30 and 60 degree rings, N up. GPS = discs, BeiDou = squares, filled with a
+// signal, hollow without; PRN numbers beside the satellites with a signal where they do not collide.
+static void emSkyPage(void)
+{
+	uint8_t codes[EM_SKY_MAX_SATS];
+	uint8_t px[EM_SKY_MAX_SATS]; // the plot is inside the screen: 0..159, 0..127
+	uint8_t py[EM_SKY_MAX_SATS];
+	uint8_t labels[EM_SKY_MAX_LABELS][3]; // x, y, width
+	uint8_t numLabels = 0;
+	uint8_t total;
+	uint8_t n = emSortedSats(codes, EM_SKY_MAX_SATS, &total);
+	uint8_t plotted = 0;
+	char buf[12];
+	char value[8];
+	themeItem_t colour;
+	const char *word;
+	const char *state;
+
+	emFrame(true, EM_SYM_DISC, EM_SYM_SOLID, "N UP");
+
+	if (emGpsIsOn() == false)
+	{
+		emOffBody();
+		return;
+	}
+
+	emKeyBar("UP/DN PAGE  RED EXIT");
+
+	// Grid
+	displayThemeApply(THEME_ITEM_FG_POLAR_DRAWING, THEME_ITEM_BG);
+	displayDrawCircle(EM_SKY_CX, EM_SKY_CY, EM_SKY_R, true);
+	displayDrawCircle(EM_SKY_CX, EM_SKY_CY, ((EM_SKY_R * 2) / 3), true);
+	displayDrawCircle(EM_SKY_CX, EM_SKY_CY, (EM_SKY_R / 3), true);
+	displayDrawFastVLine(EM_SKY_CX, (EM_SKY_CY - EM_SKY_R), ((EM_SKY_R * 2) + 1), true);
+	displayDrawFastHLine((EM_SKY_CX - EM_SKY_R), EM_SKY_CY, ((EM_SKY_R * 2) + 1), true);
+
+	// Cardinals inside the horizon ring
+	emText((EM_SKY_CX - 2), (EM_SKY_CY - EM_SKY_R + 2), directions[0], FONT_SIZE_1_BOLD, THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
+	emText((EM_SKY_CX - 2), (EM_SKY_CY + EM_SKY_R - 9), directions[8], FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+	emText((EM_SKY_CX + EM_SKY_R - 7), (EM_SKY_CY - 3), directions[4], FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+	emText((EM_SKY_CX - EM_SKY_R + 3), (EM_SKY_CY - 3), directions[12], FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+
+	// Positions (codes[] is strongest first; satellites without a position are dropped)
+	for (uint8_t i = 0; i < n; i++)
+	{
+		if (emSkyPoint(emSat(codes[i]), &px[plotted], &py[plotted]))
+		{
+			codes[plotted++] = codes[i];
+		}
+	}
+
+	// Markers, weakest first so the strong ones stay on top
+	for (int i = (plotted - 1); i >= 0; i--)
+	{
+		bool bd = ((codes[i] & EM_SAT_BD) != 0);
+
+		emSymbol((px[i] - 3), (py[i] - 3), (bd ? EM_SYM_SOLID : EM_SYM_DISC), (emSat(codes[i])->RSSI > 0),
+				(bd ? THEME_ITEM_FG_BD_COLOUR : THEME_ITEM_FG_GPS_COLOUR), THEME_ITEM_BG);
+	}
+
+	// Ring elevations on the SE diagonal, else the SW one, where no satellite is
+	for (uint8_t ring = 1; ring <= 2; ring++)
+	{
+		int16_t d = (int16_t)(((EM_SKY_R * ring) / 3) * 707 / 1000);
+		int16_t ly = (int16_t)(EM_SKY_CY + d - 1);
+
+		for (uint8_t side = 0; side < 2; side++)
+		{
+			int16_t lx = (int16_t)((side == 0) ? (EM_SKY_CX + d + 1) : (EM_SKY_CX - d - 12));
+			bool isFree = true;
+
+			for (uint8_t k = 0; isFree && (k < plotted); k++)
+			{
+				isFree = !emBoxesOverlap(lx, ly, 12, 8, (px[k] - 3), (py[k] - 3), 7, 7);
+			}
+
+			if (isFree)
+			{
+				emText(lx, ly, ((ring == 1) ? "60" : "30"), FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+				labels[numLabels][0] = (uint8_t)lx;
+				labels[numLabels][1] = (uint8_t)ly;
+				labels[numLabels][2] = 12;
+				numLabels++;
+				break;
+			}
+		}
+	}
+
+	// PRN labels, strongest first, right of the marker else left, when free
+	for (uint8_t i = 0; (i < plotted) && (numLabels < EM_SKY_MAX_LABELS); i++)
+	{
+		gpsSatellitesData_t *sat = emSat(codes[i]);
+
+		if (sat->RSSI <= 0)
+		{
+			break; // the rest has no signal either
+		}
+
+		snprintf(buf, sizeof(buf), "%u", (unsigned)sat->Number);
+		int16_t w = emTextWidth(buf, FONT_SIZE_1);
+		int16_t ly = (int16_t)(py[i] - 4);
+
+		for (uint8_t side = 0; side < 2; side++)
+		{
+			int16_t lx = (int16_t)((side == 0) ? (px[i] + 5) : (px[i] - 4 - w));
+			bool isFree = ((lx >= 0) && ((lx + w) <= EM_SKY_RIGHT) && (ly > EM_TOP) && ((ly + 8) < EM_KEYBAR_Y));
+
+			for (uint8_t k = 0; isFree && (k < numLabels); k++)
+			{
+				isFree = !emBoxesOverlap(lx, ly, w, 8, labels[k][0], labels[k][1], labels[k][2], 8);
+			}
+
+			for (uint8_t k = 0; isFree && (k < plotted); k++)
+			{
+				isFree = ((k == i) || !emBoxesOverlap(lx, ly, w, 8, (px[k] - 3), (py[k] - 3), 7, 7));
+			}
+
+			if (isFree)
+			{
+				emText(lx, ly, buf, FONT_SIZE_1, THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
+				labels[numLabels][0] = (uint8_t)lx;
+				labels[numLabels][1] = (uint8_t)ly;
+				labels[numLabels][2] = (uint8_t)w;
+				numLabels++;
+				break;
+			}
+		}
+	}
+
+	if (plotted == 0)
+	{
+		emText((EM_SKY_CX - (emTextWidth("no satellites", FONT_SIZE_1) / 2)), (EM_SKY_CY + 8), "no satellites", FONT_SIZE_1, THEME_ITEM_FG_RSSI_BAR_S9P, THEME_ITEM_BG);
+	}
+
+	// Right column: fix, HDOP, legend
+	state = emFixState(&colour);
+	emChip(EM_SKY_COL_X, (EM_TOP + 3), state, colour);
+
+	emText(EM_SKY_COL_X, (EM_TOP + 17), "HDOP", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+	colour = emHdop(value, sizeof(value), &word);
+	emText(EM_SKY_COL_X, (EM_TOP + 26), value, FONT_SIZE_3, colour, THEME_ITEM_BG);
+	emText((EM_SKY_COL_X + 28), (EM_TOP + 31), word, FONT_SIZE_1, colour, THEME_ITEM_BG);
+
+	emSymbol(EM_SKY_COL_X, (EM_TOP + 50), EM_SYM_DISC, true, THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
+	emText((EM_SKY_COL_X + 10), (EM_TOP + 50), "signal", FONT_SIZE_1, THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
+	emSymbol(EM_SKY_COL_X, (EM_TOP + 60), EM_SYM_DISC, false, THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
+	emText((EM_SKY_COL_X + 10), (EM_TOP + 60), "no sig", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+	emText(EM_SKY_COL_X, (EM_TOP + 74), "rings", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+	snprintf(buf, sizeof(buf), "0/30/60%c", 176);
+	emText(EM_SKY_COL_X, (EM_TOP + 83), buf, FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+}
+
+static bool emIsEmcomPage(void)
+{
+	return (emcomStyleEnabled() &&
+			((menuDataGlobal.currentItemIndex == PAGE_STATUS) || (menuDataGlobal.currentItemIndex == PAGE_RSSI) || (menuDataGlobal.currentItemIndex == PAGE_POLAR)));
+}
+
+static void emDrawPage(void)
+{
+	switch (menuDataGlobal.currentItemIndex)
+	{
+		case PAGE_STATUS:
+			emStatusPage();
+			break;
+		case PAGE_RSSI:
+			emSignalPage();
+			break;
+		default:
+			emSkyPage();
+			break;
+	}
+	displayThemeResetToDefault();
+}
+#endif
+
 static bool displayGPSData(bool isFirstRun, bool forceRedraw)
 {
 	char buffer[SCREEN_LINE_BUFFER_SIZE];
@@ -1050,8 +1924,21 @@ static bool displayGPSData(bool isFirstRun, bool forceRedraw)
 
 	if (SETTINGS_GPS_MODE_GET(nonVolatileSettings) > GPS_MODE_OFF)
 	{
+#if defined(HAS_EMCOM_UI)
+		if (emIsEmcomPage())
+		{
+			// Fork: status, signal and sky pages in the EMCOM style draw their whole screen
+			emDrawPage();
+			res = true;
+		}
+		else
+#endif
 		switch(menuDataGlobal.currentItemIndex)
 		{
+#if defined(HAS_EMCOM_UI)
+			case PAGE_STATUS: // EMCOM style only, drawn above
+				break;
+#endif
 			case PAGE_COORDS: // with PAGE_RSSI on MD-UV380
 				res = displayCoords(isFirstRun, forceRedraw);
 #if !(defined(PLATFORM_MD9600) || defined(CPU_MK22FN512VLL12))
@@ -1162,7 +2049,11 @@ static bool displayGPSData(bool isFirstRun, bool forceRedraw)
 #if defined(PLATFORM_MD9600) || defined(CPU_MK22FN512VLL12)
 				if (menuDataGlobal.currentItemIndex < PAGE_RSSI)   // Do not display anything on RSSI, Polar and Direction* screens
 #else
-				if (menuDataGlobal.currentItemIndex < PAGE_POLAR)  // Do not display anything on Polar and Direction* screens
+				if ((menuDataGlobal.currentItemIndex < PAGE_POLAR)  // Do not display anything on Polar and Direction* screens
+#if defined(HAS_EMCOM_UI)
+						&& (emIsEmcomPage() == false) // the EMCOM pages show the search state themselves
+#endif
+						)
 #endif
 				{
 					// Update, only clear screen regions
@@ -1209,6 +2100,15 @@ static bool displayGPSData(bool isFirstRun, bool forceRedraw)
 	{
 		if (isFirstRun || forceRedraw || (prevGPSState != SETTINGS_GPS_MODE_GET(nonVolatileSettings)))
 		{
+#if defined(HAS_EMCOM_UI)
+			const bool emPage = emIsEmcomPage();
+
+			if (emPage)
+			{
+				emDrawPage(); // GPS off / not detected, with the key to turn it on
+			}
+			else
+#endif
 			if ((isFirstRun || forceRedraw) == false) // only clear if the GPS power status has changed
 			{
 				displayFillRect(0, (((DISPLAY_SIZE_Y - FONT_SIZE_3_HEIGHT) >> 1) + (FONT_SIZE_3_HEIGHT >> 1)), DISPLAY_SIZE_X, FONT_SIZE_3_HEIGHT, true);
@@ -1216,10 +2116,15 @@ static bool displayGPSData(bool isFirstRun, bool forceRedraw)
 
 			if (SETTINGS_GPS_MODE_GET(nonVolatileSettings) == GPS_MODE_OFF)
 			{
-				snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%s %s", currentLanguage->gps, currentLanguage->off);
-				displayThemeApply(THEME_ITEM_FG_WARNING_NOTIFICATION, THEME_ITEM_BG);
-				displayPrintCentered(((DISPLAY_SIZE_Y - FONT_SIZE_3_HEIGHT) >> 1) + (FONT_SIZE_3_HEIGHT >> 1), buffer, FONT_SIZE_3);
-				displayThemeResetToDefault();
+#if defined(HAS_EMCOM_UI)
+				if (emPage == false)
+#endif
+				{
+					snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%s %s", currentLanguage->gps, currentLanguage->off);
+					displayThemeApply(THEME_ITEM_FG_WARNING_NOTIFICATION, THEME_ITEM_BG);
+					displayPrintCentered(((DISPLAY_SIZE_Y - FONT_SIZE_3_HEIGHT) >> 1) + (FONT_SIZE_3_HEIGHT >> 1), buffer, FONT_SIZE_3);
+					displayThemeResetToDefault();
+				}
 
 				if (forceRedraw == false)
 				{
@@ -1229,10 +2134,15 @@ static bool displayGPSData(bool isFirstRun, bool forceRedraw)
 			}
 			else
 			{
-				snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%s %s", currentLanguage->no, currentLanguage->gps);
-				displayThemeApply(THEME_ITEM_FG_ERROR_NOTIFICATION, THEME_ITEM_BG);
-				displayPrintCentered(((DISPLAY_SIZE_Y - FONT_SIZE_3_HEIGHT) >> 1) + (FONT_SIZE_3_HEIGHT >> 1), buffer, FONT_SIZE_3);
-				displayThemeResetToDefault();
+#if defined(HAS_EMCOM_UI)
+				if (emPage == false)
+#endif
+				{
+					snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%s %s", currentLanguage->no, currentLanguage->gps);
+					displayThemeApply(THEME_ITEM_FG_ERROR_NOTIFICATION, THEME_ITEM_BG);
+					displayPrintCentered(((DISPLAY_SIZE_Y - FONT_SIZE_3_HEIGHT) >> 1) + (FONT_SIZE_3_HEIGHT >> 1), buffer, FONT_SIZE_3);
+					displayThemeResetToDefault();
+				}
 
 				if (forceRedraw == false)
 				{
@@ -1269,7 +2179,7 @@ static void updateScreen(bool isFirstRun, bool forceRedraw)
 		if (emcomStyleEnabled() == false) // the EMCOM title bar shows the page number itself
 #endif
 		{
-			snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%d/%d", (menuDataGlobal.currentItemIndex + 1), PAGES_MAX);
+			snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%d/%d", (menuDataGlobal.currentItemIndex - gpsFirstPage() + 1), (PAGES_MAX - gpsFirstPage()));
 			displayThemeApply(THEME_ITEM_FG_MENU_NAME, THEME_ITEM_BG);
 			displayPrintCore(0, 3, buffer, FONT_SIZE_1, TEXT_ALIGN_RIGHT, false);
 			displayThemeResetToDefault();
@@ -1320,6 +2230,10 @@ static void handleEvent(uiEvent_t *ev)
 			waypointEditActive = false;
 #endif
 			menuDataGlobal.currentItemIndex = QUICKKEY_ENTRYID(ev->function);
+			if ((menuDataGlobal.currentItemIndex < gpsFirstPage()) || (menuDataGlobal.currentItemIndex >= PAGES_MAX))
+			{
+				menuDataGlobal.currentItemIndex = gpsFirstPage();
+			}
 			isDirty = true;
 			goto eventHanderExit;
 		}
@@ -1357,7 +2271,7 @@ static void handleEvent(uiEvent_t *ev)
 
 	if (KEYCHECK_SHORTUP(ev->keys, KEY_UP))
 	{
-		if (menuDataGlobal.currentItemIndex > PAGE_COORDS)
+		if (menuDataGlobal.currentItemIndex > gpsFirstPage())
 		{
 			menuDataGlobal.currentItemIndex--;
 			isDirty = true;
