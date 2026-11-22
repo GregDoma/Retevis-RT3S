@@ -260,11 +260,9 @@ def screen_rx(P=DARK):
 
 
 def screen_tx(P=DARK):
-    s = Screen(P['bg']); status_bar(s, P, 'TX'); bar(s, P, 17, True); zone_row(s, P)
-    hero(s, P, freq='144.9000 MHz TX', tx=True); divs(s, P)
-    s.text(1, PANEL_Y1 - 10, '2:48', 4, P['tx'])
-    kv(s, P, 84, PANEL_Y1, 'TOT', '3m'); kv(s, P, 84, PANEL_Y2, 'TXT', '88.5')
-    emcom_rows(s, P); footer(s, P, right='TX', rc=P['tx']); return s
+    # TX view: elapsed time, power, TOT bar (render_refresh.py, uiEmcom.c drawTxPanel / drawTxRows)
+    import render_refresh
+    return render_refresh.tx_screen(P, elapsed=12)
 
 
 def screen_dmr(P=DARK):

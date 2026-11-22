@@ -51,6 +51,7 @@ Status legend: **done**, **in progress**, *idea*.
 | 18 | Colour-blind safe EMCOM style: `Opcje ekranu → Styl` = Classic / EMCOM / **EMCOM mono** | **done** (2026-11-22) | see *EMCOM mono style* below; untested on hardware |
 | 18b | Low-vision EMCOM style **EMCOM contr**: white / yellow on black (night amber / red), bold text, 8x16 channel frequency, thick S-meter | **done** (2026-11-22) | same option row and shape cues as mono; untested on hardware |
 | 19 | SSTV++ (issue #13): frequency on the SSTV screen, Doppler from the satellite mode, pictures saved to flash + web download | *in progress* | see *SSTV++* below |
+| 20 | UI refresh, stage 1 (EMCOM styles): TX view, APRS messages, message boxes / notifications | **done** (2026-11-22) | see *UI refresh* below; untested on hardware |
 
 ## EMCOM mono style (done, #18)
 
@@ -122,3 +123,31 @@ Asked by SP9TKN: pick the SSTV frequency (ISS uses 2 m and 70 cm), keep the pict
 1. **Frequency on the SSTV screen.** UP / DOWN step through presets (145.800, 437.800, 435.000-band sats, plus the channel / VFO the screen was opened from). The tuned frequency is shown in the status line. Leaving restores the original frequency.
 2. **Doppler.** Opened from the satellite screen, SSTV keeps the chosen satellite and retunes RX once a second with the satellite maths (`satellite.c`), as the satellite screen does. On 2 m FM the gain is small (±3.5 kHz); on 70 cm (±10 kHz) it keeps the carrier inside the filter. In FM Doppler does not shift the SSTV tones, it only costs SNR.
 3. **Pictures in flash.** A finished picture (160 x 120, RGB565, 38 400 B) goes into a ring of slots carved from the end of the GPS NMEA log, with a small header (UTC, mode, frequency). The web tools get an *SSTV* tab with a gallery and PNG export, read over the CPS link like the coverage map.
+
+## UI refresh (#20)
+
+The EMCOM styles (EMCOM / mono / contr, day and night) cover more screens, one stage at a time.
+Classic stays as it is. Mock-ups: `docs/screens/render_refresh.py`.
+
+**Stage 1 (done, 2026-11-22):**
+
+1. **TX view** (`uiEmcom.c`): elapsed time in 16x32, power level in 8x16, a TOT bar with the
+   remaining time (the last 10 s: the bar counts these seconds only, hatched, countdown in an
+   inverse chip in mono / contr), TX tone / bandwidth or TG / CC / TS + contact, the keys usable
+   while transmitting (`SK2` 1750, `0-9` DTMF, `SK1` last heard). TX stop screens (RX only, out of
+   band, time-out) and the `APRS Tx` banner of a PTT / timed beacon follow the style.
+   Still classic while transmitting: VFO sweep / dual watch / scan limits (their own classic
+   screen), the hotspot screen. The satellite TX screen and the TX last heard list were already
+   styled.
+2. **APRS messages** (`menuAPRSRx.c`): two-line rows (`IN` / `OUT` / `BLN` chip, callsign,
+   distance, UTC time; ACK state as a symbol + word: check `ACK`, hourglass `WAIT n`, cross
+   `NO ACK` / `REJ` / `NOT SENT`); `*` opens a read view (sender in 8x16, time, distance /
+   bearing, the whole text word-wrapped, `UP` / `DOWN` to the next message, `GREEN` reply).
+3. **Message boxes and notifications** (`uiMessageBox.c`, `uiNotification.c`): one card with the
+   kind as a word and a glyph shape (info disc, warning triangle, error square, question
+   diamond), long lines wrapped; squelch / volume / power as a value card. Kind: `UI_ALERT_*`,
+   from the buttons / notification ID or given by the caller (`uiNotificationShowKind()`).
+
+**Next stages (ideas):** PIN code entry, bearing notification, channel details / VFO special
+modes, contact list and the quick menus in the EMCOM card look.
+

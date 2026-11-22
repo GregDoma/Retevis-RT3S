@@ -67,6 +67,15 @@ def main_pairs(P):
             ('RX chip', P['bar'], P['rx']), ('TX bar', P['txFg'], P['tx']), ('SCAN chip', P['bar'], P['scan'])]
 
 
+def alert_pairs(P):
+    # UI refresh stage 1: card title strips (kind word in the background colour), TX banner, TOT chip
+    import render_refresh
+    w = render_refresh.warn(P)
+    return [('info card', P['bg'], P['info']), ('warn card', P['bg'], w), ('error card', P['bg'], P['tx']),
+            ('ask card', P['bg'], P['fg']), ('card text', P['fg'], P['bg']), ('APRS Tx', P['txFg'], P['tx']),
+            ('TOT 10 s', P['bg'], w)]
+
+
 def menu_pairs(M):
     return [('menu text', M['fg'], M['bg']), ('values', M['val'], M['bg']), ('selected', M['bg'], M['sel']),
             ('title', M['name'], M['bar'])]
@@ -96,6 +105,7 @@ def main():
                     ('EMCOM mono night', R.MONO_NIGHT), ('EMCOM contrast day', R.CONTRAST),
                     ('EMCOM contrast night', R.CONTRAST_NIGHT)):
         report(name + ' (main screen)', main_pairs(P), {k: P[k] for k in ('rx', 'tx', 'scan')})
+        report(name + ' (cards / TX)', alert_pairs(P), None)
     for name, M in (('mono menus day', A.MENU['mono']), ('mono menus night', A.night_menu(A.MENU['mono'])),
                     ('contrast menus day', A.MENU['contrast']), ('contrast menus night', A.night_menu(A.MENU['contrast']))):
         report(name, menu_pairs(M), None)

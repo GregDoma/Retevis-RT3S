@@ -229,14 +229,17 @@ aligned:
 | Status bar | state field (mode when idle, `RX` green, `TX` red with the whole bar, `SCAN` amber), power, CTCSS/DCS or time slot, APRS beacon, GPS fix, volume, battery |
 | S-meter | 32 segments, S9 and above in amber; mic level while transmitting |
 | Channel | zone and `CH n/m`, channel number (16x32), name, frequency (`TX`, `REV`, `TA` marks); VFO: the frequency in 16x32 |
-| Panel | FM: offset, RX/TX tone, squelch, bandwidth, TOT; DMR: TG/PC, CC, TS, contact. Receiving FM: level in dBm and S units. DMR call: callsign, TG, rest of the alias. Transmitting: timer in 16x32 |
+| Panel | FM: offset, RX/TX tone, squelch, bandwidth, TOT; DMR: TG/PC, CC, TS, contact. Receiving FM: level in dBm and S units. DMR call: callsign, TG, rest of the alias. Transmitting: elapsed time in 16x32 and the power level |
 | EMCOM rows | APRS stations heard, unread APRS messages, Maidenhead locator, position (GPS, else the fixed location), last heard (DMR station, or the last APRS station with distance) |
+| EMCOM rows (TX) | time-out timer bar with the remaining time (the last 10 s hatched, the countdown in an inverse chip), TX tone / bandwidth or TG / CC / TS and contact, the keys usable while transmitting |
 | Footer | UTC time and date, key / PTT lock, scan, SOS, `TX OFF` when TX inhibit is on |
 
 The same style covers the whole UI: menu title bars (accent, capitals,
 list position), full-width selection, square boxes without shadows, soft
 key bars with a green (GREEN key) and a red (RED key) field, the APRS RX,
-SSTV and event log screens, and the SP7TEAM boot screen (when no custom
+SSTV and event log screens, message boxes and notifications (a card with
+the kind as a word and a glyph shape: info disc, warning triangle, error
+square, question diamond), and the SP7TEAM boot screen (when no custom
 boot image is set).
 
 By day the screen is dark; at night (the existing day/night switch and

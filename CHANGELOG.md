@@ -7,6 +7,11 @@ marked *(untested)* build and pass host tests but still need on-air checking.
 
 ## Unreleased
 
+* **UI refresh, stage 1 (EMCOM styles)** *(untested)*: classic style unchanged.
+  * **TX view**: elapsed time in 16x32 and the power level in 8x16; with a TOT a bar of the remaining time, the last 10 s hatched with the countdown in an inverse chip (mono / contr); TX tone / bandwidth or TG / CC / TS and contact; the keys usable while transmitting. The `APRS Tx` banner of a beacon now sits on the panel instead of across the channel name.
+  * **TX stopped** (time-out) and **TX blocked** (RX only / out of band) as full screen cards.
+  * **APRS messages**: two-line rows with `IN` / `OUT` / `BLN`, callsign, distance, UTC time and the ACK state as symbol + word (`ACK`, `WAIT n`, `NO ACK`, `REJ`, `NOT SENT`); `*` opens a message on its own screen (whole text wrapped, `UP` / `DOWN` next message, `GREEN` reply, `RED` / `*` back).
+  * **Message boxes and notifications**: one card look, the kind as a word and a glyph shape (info disc, warning triangle, error square, question diamond), long lines wrapped (e.g. an incoming APRS message); squelch, volume and power as a value card.
 * **Accessibility display styles** *(untested)*: *Options → Display → Screen* now steps through Classic / EMCOM / **EMCOM mono** / **EMCOM contr**. Existing settings keep their style (two formerly unused option bits, no settings reset).
   * **EMCOM mono** (colour-blind safe): grey shades (night: reds); state by word and shape — outlined idle chip, solid `RX` / `SCAN` chip, inverse status bar on TX, hollow S-meter segments above S9 (main and RSSI screens), `!` + inverse chip for a low battery, thin `GPS` without a fix, inverse `SOS` / `TX OFF` / `TX` in the footer; grey menu preset with a white selection block; band scope waterfall as a brightness ramp.
   * **EMCOM contr** (low vision): white / yellow on black (night: amber / red-orange), bold small text, the channel frequency in 8x16, a thicker S-meter, the selected row as a yellow block, same shape cues.

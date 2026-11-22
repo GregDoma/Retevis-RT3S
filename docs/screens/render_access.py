@@ -37,11 +37,8 @@ def rx(P):
 
 
 def tx(P):
-    s = R.Screen(P['bg']); R.status_bar(s, P, 'TX'); R.bar(s, P, 17, True); R.zone_row(s, P)
-    R.hero(s, P, freq='144.9000 MHz TX', tx=True); R.divs(s, P)
-    s.text(1, R.PANEL_Y1 - 10, '2:48', 4, P['tx'])
-    R.kv(s, P, 84, R.PANEL_Y1, 'TOT', '3m'); R.kv(s, P, 84, R.PANEL_Y2, 'TXT', '88.5')
-    R.emcom_rows(s, P); R.footer(s, P, right='TX', rc=P['tx']); return s
+    import render_refresh
+    return render_refresh.tx_screen(P, elapsed=172)
 
 
 def scan_low(P):
