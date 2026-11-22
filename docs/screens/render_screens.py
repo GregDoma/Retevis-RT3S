@@ -237,14 +237,21 @@ def emcom_rows(s, P, unread=0, lh='LH', lhv='SP7ABC-9 4.2km 2m'):
     kv(s, P, 2, EMCOM_Y3, lh, lhv)
 
 
-def footer(s, P, left='14:32Z 19NOV', right=None, rc=None):
+def footer(s, P, left='14:32Z 19NOV', right=None, rc=None, est=None, blk=False):
+    # uiEmcom.c drawFooter(): the right item (SOS, SCAN, TX OFF, locks, TX), else the battery
+    # time left; the BLK chip (blackout) left of it
     s.fill(0, FOOTER_Y, W, H - FOOTER_Y, P['bar'])
     s.text(2, FOOTER_Y + 2, left, f1(P), P['barFg'])
+    r = W - 2
     if right:
         if P.get('cues') and right in ('SOS', 'TX OFF', 'TX'):
-            inverse_chip(s, P, W - 1, FOOTER_Y + 2, right, rc or P['barFg'], True)
+            r = W - 1 - inverse_chip(s, P, W - 1, FOOTER_Y + 2, right, rc or P['barFg'], True) - 3
         else:
-            s.text(W - 2, FOOTER_Y + 2, right, '1b', rc or P['barFg'], True)
+            r -= s.text(W - 2, FOOTER_Y + 2, right, '1b', rc or P['barFg'], True) + 4
+    elif est:
+        r -= s.text(r, FOOTER_Y + 2, est, f1(P), P['barFg'], True) + 4
+    if blk:
+        inverse_chip(s, P, r + 1, FOOTER_Y + 2, 'BLK', P['barFg'], True)
 
 
 def screen_standby(P=DARK):
