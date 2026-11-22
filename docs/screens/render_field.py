@@ -127,7 +127,7 @@ def net():
         if i == 1:
             s.fill(0, ry - 1, 160, 10, P['line'])
         s.text(2, ry, f'{call:<9} {t} {age:>3}', 1, P['fg'])
-        s.text(158 - (30 if quiet else 12), ry, 'QUIET' if quiet else 'IN', '1b', P['tx'] if quiet else P['rx'])
+        s.text(157 - (30 if quiet else 12), ry, 'QUIET' if quiet else 'IN', '1b', P['tx'] if quiet else P['rx'])
     keybar(s, 'GRN QSO  * FM  # Q  0 END')
     return s
 

@@ -198,7 +198,13 @@ per second), `user_interface/menuNetControl.c` (screen, EMCOM + classic), mock-u
   10 / 15 / 30 / 5 min (RAM only: no spare settings bit in bank 0), `0` + `GREEN` end, `RED` leave.
   Last heard: `*` = QSO 59.
 * The main menu tile has a fixed English name (`menuItemName()`, `MENU_STRING_NET_CONTROL`), no
-  language string; it is not offered as a quickkey (menu IDs above 31 do not fit the 5 bit field).
+  language string.
+* **Quickkeys:** menu IDs >= 32 (Position, Coverage, Radio check, Net control) do not fit the 5 bit
+  `QUICKKEY_MENUID`; they are `QUICKKEY_ACTION_MENU_*` actions now (`saveQuickkeyMenuIndex()` stores
+  them so too), opened from the channel / VFO screen only. `QUICKKEY_MENUVALUE_CHECKED()` refuses an
+  ID >= 32 in the choice table at compile time. Old slots that wrapped to menus 0..2 still open
+  those (valid) menus.
+* APRS objects / items (`aprsRxStation_t.isObject`) are not checked in.
 
 **Ideas:** other reports than 59 (`OK` / `RPT` / `NIL` codes picked on the radio), the roster
 saved in flash across a power cycle, a net summary export, FM check-in by DTMF ANI / CTCSS.

@@ -308,9 +308,9 @@ cancels). On a computer:
 
 ### Field tools — *main menu → PACE / Position / Coverage / Radio check / Net control*
 
-Five screens for working in the field. PACE, Position, Coverage and Radio
-check are also available as quickkeys; their data lives in the last 64 KB of
-the SPI flash and survives a power cycle.
+Five screens for working in the field, also available as quickkeys. The
+PACE, Coverage and Radio check data lives in the last 64 KB of the SPI flash
+and survives a power cycle.
 
 | ![PACE plan](docs/screens/field_pace.png) | ![Position](docs/screens/field_position.png) |
 |---|---|

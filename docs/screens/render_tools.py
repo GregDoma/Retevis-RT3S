@@ -423,14 +423,15 @@ NET = [('SP7ABC', '14:02', '1m', False), ('SP7XYZ-9', '14:03', '12m', True), ('2
 
 
 def net_chip(s, T, y, quiet, on):
+    # IN: solid block, bold text; QUIET: frame, regular text (3 px from the right edge)
     word = 'QUIET' if quiet else 'IN'
     w = len(word) * 6 + 4
-    x = W - 2 - w
-    if on and not quiet:
-        s.fill(x, y - 1, w, 9, T['bg']); s.text(x + 2, y, word, '1b', T['sel'])
-    elif quiet:
+    x = W - 3 - w
+    if quiet:
         c = T['bg'] if on else T['amber']
-        s.rect(x, y - 1, w, 9, c); s.text(x + 2, y, word, '1b', c)
+        s.rect(x, y - 1, w, 9, c); s.text(x + 2, y, word, 1, c)
+    elif on:
+        s.fill(x, y - 1, w, 9, T['bg']); s.text(x + 2, y, word, '1b', T['sel'])
     else:
         s.fill(x, y - 1, w, 9, T['green']); s.text(x + 2, y, word, '1b', T['bg'])
 
@@ -470,7 +471,7 @@ def net(T, state='run', sel=1):
             s.fill(0, y - 2, W, 11, T['sel'])
         txt(s, T, 2, y, call, '1b', T['bg'] if on else T['fg'])
         txt(s, T, 62, y, tin, 1, T['bg'] if on else T['deco'])
-        txt(s, T, 120, y, age, 1, T['bg'] if on else (T['amber'] if quiet else T['fg']), True)
+        txt(s, T, 118, y, age, 1, T['bg'] if on else (T['amber'] if quiet else T['fg']), True)
         net_chip(s, T, y, quiet, on)
     if state == 'end':
         confirm(s, T, 'END NET?')
