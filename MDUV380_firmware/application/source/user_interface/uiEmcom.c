@@ -931,34 +931,139 @@ static void drawCallerPanel(void)
 	text(2, (PANEL_Y2 + 2), buf, FONT_SIZE_1, pal->fg, false);
 }
 
-static void drawTxPanel(const emcomMainInfo_t *info)
+// Warnings (TOT last seconds): amber, at night the brighter TX red (the night amber is too dim for
+// small text on it)
+static uint32_t warnColour(void)
 {
-	char buf[16];
-	int t = ((info->txTimeSecs < 0) ? 0 : info->txTimeSecs);
+	return (((DAYTIME_CURRENT == NIGHT) && (pal->large == false)) ? pal->tx : pal->scan);
+}
 
-	snprintf(buf, sizeof(buf), "%d:%02d", (t / 60), (t % 60));
-	text(1, (PANEL_Y1 - 10), buf, FONT_SIZE_4, pal->tx, false);
-
-	if (currentChannelData->tot != 0)
+// Diagonal stripes in a box (the TOT bar in its last seconds: shown by shape, not only by colour)
+static void hatch(int16_t x, int16_t y, int16_t w, int16_t h, uint32_t rgb)
+{
+	colour(rgb);
+	for (int16_t j = 0; j < h; j++)
 	{
-		totString(buf, sizeof(buf));
-		keyValue(84, PANEL_Y1, "TOT", buf, pal->fg); // the timer counts down
+		for (int16_t i = (int16_t)(((y + j) + x) % 3); i < w; i += 3)
+		{
+			displaySetPixel((x + i), (y + j), false);
+		}
+	}
+}
+
+// "1:05" / "12:34" / "1:02:03"
+static void mmss(int secs, char *buf, size_t size)
+{
+	secs = ((secs < 0) ? 0 : secs);
+	if (secs >= 3600)
+	{
+		snprintf(buf, size, "%d:%02d:%02d", (secs / 3600), ((secs / 60) % 60), (secs % 60));
 	}
 	else
 	{
-		keyValue(84, PANEL_Y1, "TOT", "off", pal->mut);
+		snprintf(buf, size, "%d:%02d", (secs / 60), (secs % 60));
+	}
+}
+
+#define TX_TIMER_Y      46   // 16x32 cell: digits in rows 52..70
+#define TX_WARN_SECS    10   // TOT: last seconds shown hatched, the countdown in an inverse chip
+
+// TX: elapsed time (large) and the power level, between the dividers
+static void drawTxPanel(const emcomMainInfo_t *info, int elapsed)
+{
+	char buf[16];
+	uint8_t powerLevel = trxGetPowerLevel();
+
+	UNUSED_PARAMETER(info);
+	mmss(elapsed, buf, sizeof(buf));
+	text(1, TX_TIMER_Y, buf, ((elapsed >= 3600) ? FONT_SIZE_3 : FONT_SIZE_4), pal->tx, false);
+
+	text((DISPLAY_SIZE_X - 2), (PANEL_Y1 - 1), "PWR", FONT_SIZE_1, pal->mut, true);
+	snprintf(buf, sizeof(buf), "%s%s", getPowerLevel(powerLevel), getPowerLevelUnit(powerLevel));
+	text((DISPLAY_SIZE_X - 2), (PANEL_Y1 + 6), buf, FONT_SIZE_3, pal->fg, true);
+}
+
+// TX: the time-out timer bar (remaining time, hatched in the last seconds), the TG / tone and the key hints,
+// in place of the EMCOM rows
+static void drawTxRows(int remaining)
+{
+	char buf[24];
+	bool digital = (trxGetMode() == RADIO_MODE_DIGITAL);
+	int16_t barX = 26;
+	int16_t barW = 86;
+	int16_t barH = (pal->large ? 9 : 7);
+	int16_t barY = (EMCOM_Y1 - (pal->large ? 1 : 0));
+
+	text(2, EMCOM_Y1, "TOT", FONT_SIZE_1, pal->mut, false);
+	if (remaining < 0)
+	{
+		text(barX, EMCOM_Y1, "off", FONT_SIZE_1, pal->mut, false);
+	}
+	else
+	{
+		int total = (int)(currentChannelData->tot * 15U);
+		bool last = (remaining <= TX_WARN_SECS);
+		// last seconds: the bar becomes a countdown of these seconds only (full width = TX_WARN_SECS)
+		int span = (last ? MIN(TX_WARN_SECS, total) : total);
+		int16_t fillW = (int16_t)((span > 0) ? (((barW - 4) * CLAMP(remaining, 0, span)) / span) : 0);
+
+		colour(last ? warnColour() : pal->mut);
+		displayDrawRect(barX, barY, barW, barH, false);
+		if (last)
+		{
+			hatch((barX + 2), (barY + 2), fillW, (barH - 4), warnColour());
+		}
+		else
+		{
+			fill((barX + 2), (barY + 2), fillW, (barH - 4), pal->tx);
+		}
+
+		buf[0] = '-';
+		mmss(remaining, &buf[1], (sizeof(buf) - 1));
+		if (last)
+		{
+			if (pal->cues)
+			{
+				inverseChip((DISPLAY_SIZE_X - 1), EMCOM_Y1, buf, warnColour(), pal->bg, true);
+			}
+			else
+			{
+				text((DISPLAY_SIZE_X - 2), EMCOM_Y1, buf, FONT_SIZE_1_BOLD, warnColour(), true);
+			}
+		}
+		else
+		{
+			text((DISPLAY_SIZE_X - 2), EMCOM_Y1, buf, FONT_SIZE_1, pal->fg, true);
+		}
 	}
 
-	if (trxGetMode() == RADIO_MODE_DIGITAL)
+	if (digital)
 	{
 		uint32_t PCorTG = ((nonVolatileSettings.overrideTG != 0) ? nonVolatileSettings.overrideTG : codeplugContactGetPackedId(&currentContactData));
+		char contact[20];
+
 		snprintf(buf, sizeof(buf), "%u", (unsigned)(PCorTG & 0xFFFFFF));
-		keyValue(84, PANEL_Y2, (((PCorTG >> 24) == PC_CALL_FLAG) ? "PC" : "TG"), buf, pal->fg);
+		keyValue(2, EMCOM_Y2, (((PCorTG >> 24) == PC_CALL_FLAG) ? "PC" : "TG"), buf, pal->fg);
+		snprintf(buf, sizeof(buf), "%u", (unsigned)trxGetDMRColourCode());
+		keyValue(COL2_X, EMCOM_Y2, "CC", buf, pal->fg);
+		snprintf(buf, sizeof(buf), "%d", (trxGetDMRTimeSlot() + 1));
+		keyValue(COL3_X, EMCOM_Y2, "TS", buf, pal->fg);
+
+		codeplugUtilConvertBufToString(currentContactData.name, contact, 16);
+		if (nonVolatileSettings.overrideTG != 0)
+		{
+			uiUtilityBuildTgOrPCDisplayName(contact, sizeof(contact));
+		}
+		contact[16] = 0;
+		text(2, EMCOM_Y3, contact, FONT_SIZE_1, pal->fg, false);
+		text((DISPLAY_SIZE_X - 2), EMCOM_Y3, "SK1 LH", FONT_SIZE_1, pal->mut, true);
 	}
-	else if (currentChannelData->txTone != CODEPLUG_CSS_TONE_NONE)
+	else
 	{
 		toneString(currentChannelData->txTone, buf, sizeof(buf));
-		keyValue(84, PANEL_Y2, "TXT", buf, pal->fg);
+		keyValue(2, EMCOM_Y2, "TXT", buf, ((currentChannelData->txTone != CODEPLUG_CSS_TONE_NONE) ? pal->fg : pal->mut));
+		keyValue(COL2_X, EMCOM_Y2, "BW", (trxGetBandwidthIs25kHz() ? "25k" : "12.5k"), pal->fg);
+		text(2, EMCOM_Y3, "SK2 1750  0-9 DTMF", FONT_SIZE_1, pal->mut, false);
 	}
 }
 
@@ -1199,7 +1304,14 @@ void emcomRenderMain(const emcomMainInfo_t *info)
 
 	if (st == ST_TX)
 	{
-		drawTxPanel(info);
+		// TOT set: the TX screen counts the remaining time down, else the elapsed time up
+		int t = ((info->txTimeSecs < 0) ? 0 : info->txTimeSecs);
+		int remaining = ((currentChannelData->tot != 0) ? t : -1);
+		int elapsed = ((remaining >= 0) ? ((int)(currentChannelData->tot * 15U) - t) : t);
+
+		drawTxPanel(info, elapsed);
+		divider(DIV2_Y);
+		drawTxRows(remaining);
 	}
 	else if (info->showDetails)
 	{
@@ -1218,8 +1330,11 @@ void emcomRenderMain(const emcomMainInfo_t *info)
 		drawParams();
 	}
 
-	divider(DIV2_Y);
-	drawEmcomRows();
+	if (st != ST_TX)
+	{
+		divider(DIV2_Y);
+		drawEmcomRows();
+	}
 	drawFooter(st);
 
 	displayThemeResetToDefault();
@@ -1287,6 +1402,15 @@ void emcomDrawEmblem(int16_t cx, int16_t ty, themeItem_t waves, themeItem_t mast
 	displayDrawLine(cx, (ty + 8), (cx + 7), (ty + 26), true);
 	displayDrawFastHLine((cx - 4), (ty + 17), 9, true);
 	displayDrawFastHLine((cx - 9), (ty + 26), 19, true);
+	displayThemeResetToDefault();
+}
+
+// APRS beacon on air (PTT beacon / timed beacon): an inverse block over the panel, as the TX status bar
+void emcomDrawTxBanner(const char *str)
+{
+	selectPalette();
+	fill(0, (DIV1_Y + 1), DISPLAY_SIZE_X, ((DIV2_Y - DIV1_Y) - 1), pal->tx);
+	textRaw((int16_t)((DISPLAY_SIZE_X - (int16_t)(strlen(str) * 16)) / 2), TX_TIMER_Y, str, FONT_SIZE_4, pal->txFg, false);
 	displayThemeResetToDefault();
 }
 

@@ -72,6 +72,8 @@ void emcomDrawEmblem(int16_t cx, int16_t ty, themeItem_t waves, themeItem_t mast
 // Theme items (native colours) matching the EMCOM screen: dark by day, red at night
 void emcomThemePreset(bool night, uint16_t *items);
 
+void emcomDrawTxBanner(const char *str);         // "APRS Tx" over the panel while a beacon is sent (no render)
+
 // SOS: APRS emergency beacons + banner
 void emcomSosToggle(void);
 void emcomSosRequest(void);                        // SK1 + 9 / quickkey: confirm with a second press
