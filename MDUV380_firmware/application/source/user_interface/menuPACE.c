@@ -18,6 +18,7 @@
 #include "functions/settings.h"
 #include "functions/sound.h"
 #include "functions/fieldData.h"
+#include "user_interface/uiEmcom.h"
 
 #if defined(HAS_FIELD_TOOLS)
 
@@ -58,9 +59,124 @@ static void formatFreq(uint32_t freq, char *buf, size_t size)
 	snprintf(buf, size, "%u.%04u", (unsigned)(freq / 100000U), (unsigned)((freq % 100000U) / 10U));
 }
 
+#if defined(HAS_EMCOM_UI)
+// EMCOM style: status strip (the slot the radio is on), one two-line row per slot with its state
+// (ON / EMPTY / DELETED), the key bar or the clear confirmation
+#define EM_ROW_H    ((EMCOM_UI_KEYBAR_Y - EMCOM_UI_BODY_Y + 1) / PACE_SLOTS)
+#define EM_TEXT_X   (CHIP_W + 4)
+
+static void updateScreenEmcom(void)
+{
+	char buf[SCREEN_LINE_BUFFER_SIZE + 8];
+	int active = -1;
+	int set = 0;
+
+	displayClearBuf();
+	snprintf(buf, sizeof(buf), "%d/%d", (selectedSlot + 1), PACE_SLOTS);
+	emcomUiTitle("PACE PLAN", buf);
+
+	for (int i = 0; i < PACE_SLOTS; i++)
+	{
+		paceSlot_t slot;
+		int16_t y = (int16_t)(EMCOM_UI_BODY_Y + (i * EM_ROW_H));
+		bool sel = (i == selectedSlot);
+		bool used = fieldPaceGet(i, &slot);
+		bool exists = (used && codeplugAllChannelsIndexIsInUse(slot.channelNumber));
+		themeItem_t text = (sel ? THEME_ITEM_BG : THEME_ITEM_FG_DEFAULT);
+		themeItem_t muted = (sel ? THEME_ITEM_BG : THEME_ITEM_FG_DECORATION);
+
+		set += (used ? 1 : 0);
+
+		// slot letter block, the selected row as a bar beside it
+		displayThemeApply(slotColour(i), THEME_ITEM_BG);
+		displayFillRect(0, y, CHIP_W, (EM_ROW_H - 1), false);
+		buf[0] = paceLetters[i];
+		buf[1] = 0;
+		displayPrintCore(((CHIP_W - 8) / 2), (y + ((EM_ROW_H - 1 - FONT_SIZE_3_HEIGHT) / 2)), buf, FONT_SIZE_3, TEXT_ALIGN_LEFT, true);
+		if (sel)
+		{
+			displayThemeApply(THEME_ITEM_BG_MENU_ITEM_SELECTED, THEME_ITEM_BG);
+			displayFillRect((CHIP_W + 1), y, (DISPLAY_SIZE_X - CHIP_W - 1), (EM_ROW_H - 1), false);
+		}
+		else if (i < (PACE_SLOTS - 1))
+		{
+			displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+			displayDrawFastHLine((CHIP_W + 1), (y + EM_ROW_H - 1), (DISPLAY_SIZE_X - CHIP_W - 1), true);
+		}
+		displayThemeResetToDefault();
+
+		if (exists)
+		{
+			CodeplugChannel_t ch;
+			char name[17];
+
+			codeplugChannelGetDataForIndex(slot.channelNumber, &ch);
+			codeplugUtilConvertBufToString(ch.name, name, 16);
+			emcomUiText(EM_TEXT_X, (y + 3), name, FONT_SIZE_1_BOLD, text, false);
+
+			formatFreq(ch.rxFreq, buf, sizeof(buf));
+			strcat(buf, ((ch.chMode == RADIO_MODE_DIGITAL) ? " DMR" : " FM"));
+			emcomUiText(EM_TEXT_X, (y + 12), buf, FONT_SIZE_1, muted, false);
+			if ((EM_TEXT_X + (int16_t)((strlen(buf) + 1 + strlen(paceNames[i])) * 6)) <= (DISPLAY_SIZE_X - 2))
+			{
+				emcomUiText((DISPLAY_SIZE_X - 2), (y + 12), paceNames[i], FONT_SIZE_1, muted, true);
+			}
+
+			if (slotIsCurrent(&slot))
+			{
+				active = i;
+				emcomUiChip((DISPLAY_SIZE_X - 2), (y + 3), "ON", (sel ? THEME_ITEM_BG : slotColour(i)), (sel ? EMCOM_CHIP_OUTLINE : EMCOM_CHIP_SOLID), true);
+			}
+		}
+		else
+		{
+			emcomUiText(EM_TEXT_X, (y + 3), paceNames[i], FONT_SIZE_1_BOLD, (sel ? THEME_ITEM_BG : slotColour(i)), false);
+			emcomUiText(EM_TEXT_X, (y + 12), (used ? "channel deleted" : "* stores the channel"), FONT_SIZE_1, muted, false);
+			emcomUiChip((DISPLAY_SIZE_X - 2), (y + 3), (used ? "DELETED" : "EMPTY"), (sel ? THEME_ITEM_BG : (used ? THEME_ITEM_FG_TX_COUNTER : THEME_ITEM_FG_DECORATION)),
+					EMCOM_CHIP_OUTLINE, true);
+		}
+	}
+
+	// status strip: the slot the radio is on now
+	emcomUiStrip();
+	if (active >= 0)
+	{
+		snprintf(buf, sizeof(buf), "ON %c", paceLetters[active]);
+		int16_t x = (int16_t)(2 + emcomUiChip(2, (EMCOM_UI_STRIP_Y + 2), buf, slotColour(active), EMCOM_CHIP_SOLID, false) + 4);
+		emcomUiText(x, (EMCOM_UI_STRIP_Y + 2), paceNames[active], FONT_SIZE_1, THEME_ITEM_FG_HEADER_TEXT, false);
+	}
+	else
+	{
+		emcomUiChip(2, (EMCOM_UI_STRIP_Y + 2), (onChannelScreen() ? "OFF PLAN" : "VFO"), (onChannelScreen() ? THEME_ITEM_FG_DECORATION : THEME_ITEM_FG_RSSI_BAR_S9P),
+				EMCOM_CHIP_OUTLINE, false);
+	}
+	snprintf(buf, sizeof(buf), "%d/%d SET", set, PACE_SLOTS);
+	emcomUiText((DISPLAY_SIZE_X - 3), (EMCOM_UI_STRIP_Y + 2), buf, FONT_SIZE_1, THEME_ITEM_FG_DECORATION, true);
+
+	if (confirmClear)
+	{
+		snprintf(buf, sizeof(buf), "CLEAR %c?", paceLetters[selectedSlot]);
+		emcomUiConfirmBar(buf);
+	}
+	else
+	{
+		emcomUiKeyBar(onChannelScreen() ? "1-4 GO  * STORE  0 CLEAR" : "1-4 GO  (VFO: no STORE)");
+	}
+	displayRender();
+}
+#endif
+
 static void updateScreen(void)
 {
 	char buf[SCREEN_LINE_BUFFER_SIZE + 8];
+
+#if defined(HAS_EMCOM_UI)
+	if (emcomStyleEnabled())
+	{
+		updateScreenEmcom();
+		return;
+	}
+#endif
 
 	displayClearBuf();
 	menuDisplayTitle("PACE PLAN");
