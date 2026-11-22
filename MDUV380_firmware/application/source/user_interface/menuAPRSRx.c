@@ -33,7 +33,8 @@
 // radar (north up, own position in the centre), APRS messages, DTMF and CW
 // decoders (SSTV has its own menu entry, menuSSTV.c). '0' clears the current view. GREEN on a message / station:
 // reply / new message (canned texts, editable in Options > APRS, or a text typed on the keypad);
-// '1': new message to a callsign typed on the keypad; '*' on a station: GPS waypoint.
+// '1': new message to a callsign typed on the keypad; '*' on a station: GPS waypoint, long '*': also
+// saved in the waypoint list (fieldData.h) under the callsign.
 #define APRS_MON_REDRAW_MS      1000U
 #define APRS_MON_CHARS          26     // 160 px / 6 px font
 #define APRS_MON_STATUS_Y       (MENU_HEADER_HEIGHT + 2)
@@ -1635,6 +1636,37 @@ static bool aprsMonHandleEvent(uiEvent_t *ev)
 		menuSystemPopPreviousMenu();
 		return true;
 	}
+#if defined(APRS_MON_WAYPOINT)
+	else if (KEYCHECK_LONGDOWN(ev->keys, KEY_STAR) && (aprsMonRawView == false) &&
+			((aprsMonView == APRS_MON_VIEW_STATIONS) || (aprsMonView == APRS_MON_VIEW_RADAR)))
+	{
+		// long '*': the waypoint, also saved in the list (GPS > Waypoint > '*') under the callsign
+		const aprsRxStation_t *st = aprsRxStationGet(aprsMonStationIndex());
+		if (st && st->hasPos)
+		{
+			char buf[SCREEN_LINE_BUFFER_SIZE];
+			int slot;
+
+			gpsWaypointSet(st->lat, st->lon);
+			slot = fieldWaypointAdd(st->lat, st->lon, st->name, FIELD_WAYPOINT_FLAG_APRS);
+			if (slot >= 0)
+			{
+				snprintf(buf, sizeof(buf), "Saved WP%d\n%.8s", (slot + 1), st->name);
+				soundSetMelody(MELODY_ACK_BEEP);
+			}
+			else
+			{
+				snprintf(buf, sizeof(buf), "Waypoint: %s\nlist full", st->name);
+				soundSetMelody(MELODY_ERROR_BEEP);
+			}
+			uiNotificationShow(NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 2000U, buf, false);
+		}
+		else
+		{
+			soundSetMelody(MELODY_ERROR_BEEP);
+		}
+	}
+#endif
 	else if (KEYCHECK_SHORTUP(ev->keys, KEY_HASH))
 	{
 		aprsMonSetView((aprsMonView + 1) % APRS_MON_VIEW_MAX);

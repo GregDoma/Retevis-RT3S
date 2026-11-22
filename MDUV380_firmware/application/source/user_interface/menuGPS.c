@@ -70,8 +70,6 @@ void gpsWaypointSet(double lat, double lon)
 static bool waypointEditActive = false;
 static uint8_t waypointEditFieldIndex = 0; // 0: latitude, 1: longitude
 static char waypointEditFields[2][WAYPOINT_EDIT_FIELD_LEN + 1];
-static bool waypointEditHandleEvent(uiEvent_t *ev);
-static void waypointEditDraw(void);
 #endif
 
 // Fork: trip computer page (distance, moving time, avg/max speed, altitude
@@ -2242,7 +2240,15 @@ static void handleEvent(uiEvent_t *ev)
 #if defined(GPS_WAYPOINT_PAGE)
 	if (waypointEditActive)
 	{
-		if (waypointEditHandleEvent(ev))
+		double lat, lon;
+		gpsWaypointEdit_t r = gpsWaypointEditHandleEvent(ev, &lat, &lon);
+
+		if (r == GPS_WP_EDIT_DONE)
+		{
+			gpsWaypointSet(lat, lon);
+			uiNotificationShow(NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 1000U, "Waypoint set", false);
+		}
+		if (r != GPS_WP_EDIT_NONE)
 		{
 			updateScreen(false, true);
 		}
@@ -2251,21 +2257,15 @@ static void handleEvent(uiEvent_t *ev)
 
 	if (KEYCHECK_SHORTUP(ev->keys, KEY_HASH) && (menuDataGlobal.currentItemIndex == PAGE_WAYPOINT))
 	{
-		// Pre-fill with the current waypoint so it can be tweaked, otherwise start empty.
-		if (waypointIsSet)
-		{
-			snprintf(waypointEditFields[0], sizeof(waypointEditFields[0]), "%.5f", waypointLat);
-			snprintf(waypointEditFields[1], sizeof(waypointEditFields[1]), "%.5f", waypointLon);
-		}
-		else
-		{
-			waypointEditFields[0][0] = 0;
-			waypointEditFields[1][0] = 0;
-		}
-		waypointEditFieldIndex = 0;
-		waypointEditActive = true;
+		gpsWaypointEditStart(true); // pre-filled with the current waypoint so it can be tweaked
 		isDirty = true;
 		goto eventHanderExit;
+	}
+
+	if (KEYCHECK_SHORTUP(ev->keys, KEY_STAR) && (menuDataGlobal.currentItemIndex == PAGE_WAYPOINT))
+	{
+		menuSystemPushNewMenu(MENU_WAYPOINTS); // the saved waypoints
+		return;
 	}
 #endif
 
@@ -2404,7 +2404,7 @@ static bool displayWaypoint(bool isFirstRun, bool forceRedraw)
 
 	if (waypointEditActive)
 	{
-		waypointEditDraw();
+		gpsWaypointEditDraw();
 		return true;
 	}
 
@@ -2413,6 +2413,7 @@ static bool displayWaypoint(bool isFirstRun, bool forceRedraw)
 		displayPrintCentered((WAYPOINT_ARROW_CY - FONT_SIZE_3_HEIGHT), "No waypoint", FONT_SIZE_3);
 		displayPrintCentered((WAYPOINT_ARROW_CY + 4), "GREEN: mark here", FONT_SIZE_1);
 		displayPrintCentered((WAYPOINT_ARROW_CY + 14), "#: enter lat/lon", FONT_SIZE_1);
+		displayPrintCentered((WAYPOINT_ARROW_CY + 24), "*: saved list", FONT_SIZE_1);
 		return true;
 	}
 
@@ -2473,6 +2474,7 @@ static bool displayWaypoint(bool isFirstRun, bool forceRedraw)
 
 	displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
 	displayPrintAt(WAYPOINT_TEXT_X, (WAYPOINT_ARROW_CY + 16), (moving ? "Ahead=up" : "North=up"), FONT_SIZE_1);
+	displayPrintAt(WAYPOINT_TEXT_X, (WAYPOINT_ARROW_CY + 26), "*: saved", FONT_SIZE_1);
 	displayThemeResetToDefault();
 
 	return true;
@@ -2480,9 +2482,47 @@ static bool displayWaypoint(bool isFirstRun, bool forceRedraw)
 #endif
 
 #if defined(GPS_WAYPOINT_PAGE)
+// Fork: the GPS screen on the waypoint page (saved waypoints > GREEN)
+void gpsShowWaypointPage(void)
+{
+	if (menuSystemGetCurrentMenuNumber() != MENU_GPS)
+	{
+		menuSystemPushNewMenu(MENU_GPS);
+	}
+	waypointEditActive = false;
+	menuDataGlobal.currentItemIndex = PAGE_WAYPOINT;
+	updateScreen(false, true);
+}
+
 #define WAYPOINT_EDIT_Y(n)   (MENU_HEADER_HEIGHT + 6 + ((n) * 22))
 
-static void waypointEditDraw(void)
+void gpsWaypointEditStart(bool prefill)
+{
+	if (prefill && waypointIsSet)
+	{
+		snprintf(waypointEditFields[0], sizeof(waypointEditFields[0]), "%.5f", waypointLat);
+		snprintf(waypointEditFields[1], sizeof(waypointEditFields[1]), "%.5f", waypointLon);
+	}
+	else
+	{
+		waypointEditFields[0][0] = 0;
+		waypointEditFields[1][0] = 0;
+	}
+	waypointEditFieldIndex = 0;
+	waypointEditActive = true;
+}
+
+bool gpsWaypointEditIsActive(void)
+{
+	return waypointEditActive;
+}
+
+void gpsWaypointEditStop(void)
+{
+	waypointEditActive = false;
+}
+
+void gpsWaypointEditDraw(void)
 {
 	char buffer[SCREEN_LINE_BUFFER_SIZE];
 
@@ -2530,12 +2570,12 @@ static bool waypointEditParse(const char *str, double limit, double *out)
 	return true;
 }
 
-// Returns true when the screen needs a redraw.
-static bool waypointEditHandleEvent(uiEvent_t *ev)
+// GREEN with two valid fields: GPS_WP_EDIT_DONE and the position in lat / lon (the editor is closed).
+gpsWaypointEdit_t gpsWaypointEditHandleEvent(uiEvent_t *ev, double *latOut, double *lonOut)
 {
 	if ((ev->events & KEY_EVENT) == 0)
 	{
-		return false;
+		return GPS_WP_EDIT_NONE;
 	}
 
 	char *field = waypointEditFields[waypointEditFieldIndex];
@@ -2547,7 +2587,7 @@ static bool waypointEditHandleEvent(uiEvent_t *ev)
 		{
 			field[len] = (char)ev->keys.key;
 			field[len + 1] = 0;
-			return true;
+			return GPS_WP_EDIT_REDRAW;
 		}
 		soundSetMelody(MELODY_NACK_BEEP);
 	}
@@ -2557,7 +2597,7 @@ static bool waypointEditHandleEvent(uiEvent_t *ev)
 		{
 			field[len] = '.';
 			field[len + 1] = 0;
-			return true;
+			return GPS_WP_EDIT_REDRAW;
 		}
 		soundSetMelody(MELODY_NACK_BEEP);
 	}
@@ -2572,12 +2612,12 @@ static bool waypointEditHandleEvent(uiEvent_t *ev)
 			memmove((field + 1), field, (len + 1));
 			field[0] = '-';
 		}
-		return true;
+		return GPS_WP_EDIT_REDRAW;
 	}
 	else if (KEYCHECK_SHORTUP(ev->keys, KEY_UP) || KEYCHECK_SHORTUP(ev->keys, KEY_DOWN))
 	{
 		waypointEditFieldIndex ^= 1;
-		return true;
+		return GPS_WP_EDIT_REDRAW;
 	}
 	else if (KEYCHECK_SHORTUP(ev->keys, KEY_RED))
 	{
@@ -2588,8 +2628,9 @@ static bool waypointEditHandleEvent(uiEvent_t *ev)
 		else
 		{
 			waypointEditActive = false; // RED on an empty field leaves the editor
+			return GPS_WP_EDIT_CANCEL;
 		}
-		return true;
+		return GPS_WP_EDIT_REDRAW;
 	}
 	else if (KEYCHECK_SHORTUP(ev->keys, KEY_GREEN))
 	{
@@ -2599,26 +2640,24 @@ static bool waypointEditHandleEvent(uiEvent_t *ev)
 		{
 			waypointEditFieldIndex = 0;
 			soundSetMelody(MELODY_NACK_BEEP);
-			return true;
+			return GPS_WP_EDIT_REDRAW;
 		}
 
 		if (waypointEditParse(waypointEditFields[1], 180.0, &lon) == false)
 		{
 			waypointEditFieldIndex = 1; // jump to the longitude field (also the normal flow after typing lat)
 			soundSetMelody(((waypointEditFields[1][0] == 0) ? MELODY_ACK_BEEP : MELODY_NACK_BEEP));
-			return true;
+			return GPS_WP_EDIT_REDRAW;
 		}
 
-		waypointLat = lat;
-		waypointLon = lon;
-		waypointIsSet = true;
+		*latOut = lat;
+		*lonOut = lon;
 		waypointEditActive = false;
 		soundSetMelody(MELODY_ACK_BEEP);
-		uiNotificationShow(NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 1000U, "Waypoint set", false);
-		return true;
+		return GPS_WP_EDIT_DONE;
 	}
 
-	return false;
+	return GPS_WP_EDIT_NONE;
 }
 #endif
 

@@ -348,6 +348,7 @@ enum MENU_SCREENS
 	MENU_COVERAGE,// Fork: coverage survey
 	MENU_RADIO_CHECK,// Fork: radio check (signal report)
 	MENU_NET_CONTROL,// Fork: EMCOM net control (roster, QSO log)
+	MENU_WAYPOINTS,// Fork: saved waypoints
 #endif
 	// *** Add new menus to be accessed using quickkey (ID: 0..31) above this line ***
 	UI_MESSAGE_BOX,
@@ -446,6 +447,7 @@ typedef enum
 	QUICKKEY_ACTION_MENU_RADIO_CHECK,
 	QUICKKEY_ACTION_MENU_NET_CONTROL,
 	QUICKKEY_ACTION_BLACKOUT,       // Fork: blackout / silent mode (same as SK1 + 5)
+	QUICKKEY_ACTION_MENU_WAYPOINTS, // Fork: saved waypoints
 	QUICKKEY_ACTION_MAX
 } quickkeyAction_t;
 
@@ -523,6 +525,7 @@ menuStatus_t menuPosition(uiEvent_t *event, bool isFirstRun);
 menuStatus_t menuCoverage(uiEvent_t *event, bool isFirstRun);
 menuStatus_t menuRadioCheck(uiEvent_t *event, bool isFirstRun);
 menuStatus_t menuNetControl(uiEvent_t *event, bool isFirstRun);
+menuStatus_t menuWaypoints(uiEvent_t *event, bool isFirstRun);
 #endif
 menuStatus_t menuLastHeard(uiEvent_t *event, bool isFirstRun);
 menuStatus_t menuGeneralOptions(uiEvent_t *event, bool isFirstRun);
@@ -547,6 +550,20 @@ menuStatus_t menuGPS(uiEvent_t *event, bool isFirstRun);
 #if defined(PLATFORM_MDUV380) || defined(PLATFORM_MD380) || defined(PLATFORM_RT84_DM1701)
 bool gpsWaypointGet(double *lat, double *lon); // Fork: GPS waypoint page target
 void gpsWaypointSet(double lat, double lon);
+// Fork: keypad lat / lon entry (GPS waypoint page '#', saved waypoints '#'), one screen at a time
+typedef enum
+{
+	GPS_WP_EDIT_NONE = 0,  // event ignored
+	GPS_WP_EDIT_REDRAW,
+	GPS_WP_EDIT_DONE,      // GREEN: a valid position (editor closed)
+	GPS_WP_EDIT_CANCEL     // RED on an empty field (editor closed)
+} gpsWaypointEdit_t;
+void gpsWaypointEditStart(bool prefill); // prefill: the current waypoint
+bool gpsWaypointEditIsActive(void);
+void gpsWaypointEditStop(void);
+gpsWaypointEdit_t gpsWaypointEditHandleEvent(uiEvent_t *ev, double *lat, double *lon);
+void gpsWaypointEditDraw(void);          // the body below the title bar (no render)
+void gpsShowWaypointPage(void);          // the GPS screen on the waypoint page (pushed when needed)
 #endif
 #endif
 menuStatus_t menuCalibration(uiEvent_t *ev, bool isFirstRun);
