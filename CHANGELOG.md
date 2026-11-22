@@ -15,6 +15,11 @@ marked *(untested)* build and pass host tests but still need on-air checking.
 * Python tools find the radio by its real USB IDs (1FC9:0094).
 * **Scan on a busy channel** (report: scan held on a DMR repeater with a continuous net could not be left) *(untested)*: `▲` / knob clockwise now skip on also while the signal is still being checked (they did nothing then), `▼` held on a signal stops the scan instead of silently reversing it, and a scan that had just skipped a nuisance-deleted channel no longer stalls on the old channel. RED, GREEN, digits, `#` and PTT stopped the scan before and still do.
 * GPS screen in the EMCOM style: the page number was drawn twice (top right).
+* **GPS screen in the EMCOM style, new pages** *(untested)*: classic style unchanged (5 pages).
+  * New first page **status**: big fix state, UTC time or the search time since the GPS was turned on / lost its fix (time to first fix, `TTFF` shown after the fix), lat / lon, locator, altitude, HDOP with GOOD / FAIR / POOR, speed, course, date; GPS off: `SK2`+`GREEN` turns it on.
+  * **Signal** page replaces the bar graph: one bar per satellite, strongest first, PRN under each bar, dB-Hz scale; GPS solid, BeiDou hatched, no signal = hollow stub; *No satellites yet* instead of empty bars. Strip: heard / in view per constellation.
+  * **Sky plot** as large as fits: N/E/S/W, 30 / 60° rings, GPS discs and BeiDou squares, filled with a signal, hollow without, PRN numbers where free, legend.
+  * Quickkeys saved on a GPS page (`SK2`+digit) before this version open one page earlier in the EMCOM style (the status page was added first).
 * **Satellite screen in the EMCOM style** *(untested)*: all four views (list, selected satellite, sky plot, pass details) with title bar + view number, status strip and key bar; classic style unchanged.
   * The list shows where the observer position comes from (`GPS` fix / `MANUAL`) and the short lat / lon; `*` opens Radio infos → Location to change it, `RED` comes back and the passes are predicted again for the new position (the screen now re-reads the position every time it opens). `#` was not free on the list (it jumps to the next satellite in view).
   * Selected satellite: AZ / EL, Doppler corrected RX / TX, `AOS in` / `LOS in` countdown, keys `1-3 QRG  9 SSTV` in the key bar.

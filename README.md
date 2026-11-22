@@ -57,6 +57,7 @@ layout, fonts and icons (`docs/screens/`, example data).
 | ![APRS frames](docs/screens/aprs_frames.png)<br>APRS frames | ![APRS radar](docs/screens/aprs_radar.png)<br>APRS radar | ![APRS messages](docs/screens/aprs_messages.png)<br>APRS messages |
 | ![TG entry](docs/screens/tg_entry.png)<br>TG / PC entry | ![Lock](docs/screens/lock.png)<br>Keypad lock | ![SSTV](docs/screens/sstv_pd120.png)<br>SSTV (PD 120) |
 | ![Power off](docs/screens/poweroff.png)<br>Power off | ![Satellites](docs/screens/sat_list.png)<br>Satellite passes, observer position | ![Satellite](docs/screens/sat_selected.png)<br>Selected satellite, Doppler |
+| ![GPS status](docs/screens/gps_status.png)<br>GPS status | ![GPS signal](docs/screens/gps_signal.png)<br>GPS signal per satellite | ![GPS sky](docs/screens/gps_sky.png)<br>GPS sky plot |
 
 ## Quick start
 
@@ -326,6 +327,40 @@ Press `#` on the RSSI screen to toggle it.
 * With a GPS fix, the position of that maximum is stored. The screen then shows
   the distance and bearing from where you are now (`Max @ 120m 045 deg`).
 * `0` resets the max-hold.
+
+### GPS screen — *main menu → GPS*
+
+Six pages in the EMCOM style (`▲▼` page, number in the title bar): status,
+signal, sky plot, position / course, waypoint, trip. The classic style keeps
+its five pages as they were (no status page).
+
+| ![GPS status](docs/screens/gps_status.png) | ![GPS signal](docs/screens/gps_signal.png) | ![GPS sky plot](docs/screens/gps_sky.png) |
+|---|---|---|
+
+The receiver does not tell which satellites it uses for the fix, so the pages
+tell satellites **with a signal** (SNR above 0) from satellites only **in
+view**: `GPS 8/10` in the strip = 8 heard of 10 in view.
+
+* **Status (1/6)**: fix state as a big field (`3D FIX` green, `2D FIX` amber,
+  `NO FIX` red), the GPS UTC time, or while there is no fix the **search
+  time** since the GPS was turned on or lost its fix (measures the time to
+  first fix). Latitude / longitude (5 decimals, from the GPS), Maidenhead
+  locator, altitude, HDOP with a word (`GOOD` up to 2, `FAIR` up to 5, else
+  `POOR`), speed, course (when moving), `TTFF` of the last search, GPS date,
+  `NMEA>USB` in the NMEA mode. GPS off: says so, `SK2`+`GREEN` turns it on
+  (`SK2`+`RED` turns it off, on any page).
+* **Signal (2/6)**: one bar per satellite, strongest first, SNR in dB-Hz
+  (dotted lines every 10, denser at 30), the PRN number under each bar
+  (two staggered rows when many). **GPS bars are solid, BeiDou bars hatched**
+  (also blue / red; the shapes keep them apart in the red night palette and
+  for colour-blind users); a satellite in view without a signal is a low
+  hollow box with a grey number. Up to 24 bars, `+N` for the rest. Before
+  the first satellites: *No satellites yet* with the search time.
+* **Sky plot (3/6)**: north up, horizon and 30° / 60° rings (labelled where
+  free), **GPS = discs, BeiDou = squares, filled with a signal, hollow
+  without**; PRN numbers beside the satellites with a signal where they do
+  not collide (strongest first). Right column: fix state, HDOP, legend.
+* Pages 4–6: position / course, waypoint, trip computer (classic drawing).
 
 ### Waypoint page — *GPS menu, second-to-last page*
 
