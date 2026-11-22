@@ -370,7 +370,7 @@ static void drawIdleEmcom(const sstvRxStatus_t *st, const aprsRxStatus_t *rx)
 }
 
 // EMCOM style, picture shown: the one line bar above it only (state, mode, frequency or DOPPLER,
-// progress / saved), the progress also as a line along the bottom of the bar
+// progress / saved), the progress as a block filling up behind "row/120"
 static void drawPictureBarEmcom(const sstvRxStatus_t *st, const aprsRxStatus_t *rx)
 {
 	char right[SSTV_CHARS + 1];
@@ -424,16 +424,33 @@ static void drawPictureBarEmcom(const sstvRxStatus_t *st, const aprsRxStatus_t *
 	int16_t x = (int16_t)(chip(0, 0, SSTV_STATUS_H, state, colour, THEME_ITEM_BG_HEADER_TEXT) + 4);
 	x = (int16_t)(x + emcomUiText(x, ty, st->modeName, FONT_SIZE_1, THEME_ITEM_FG_HEADER_TEXT, false) + 6);
 
-	int16_t rw = emcomUiText((DISPLAY_SIZE_X - 2), ty, right, FONT_SIZE_1, ((st->state == SSTV_RX_RECEIVING) ? THEME_ITEM_FG_HEADER_TEXT : THEME_ITEM_FG_DECORATION), true);
+	int16_t rw = (int16_t)(strlen(right) * 6);
+	if (st->state == SSTV_RX_RECEIVING)
+	{
+		// progress: a block filling up behind "row/120" (no line near the other text or over the picture),
+		// each character in the background colour once the block is under its middle
+		int16_t bx = (int16_t)(DISPLAY_SIZE_X - rw - 4);
+		int16_t fill = (int16_t)((((uint32_t)st->row + 1U) * (uint32_t)(rw + 4)) / SSTV_RX_ROWS);
+		char ch[2] = { 0, 0 };
+
+		displayThemeApply(THEME_ITEM_FG_RSSI_BAR, THEME_ITEM_BG);
+		displayFillRect(bx, 0, fill, SSTV_STATUS_H, false);
+		for (size_t i = 0; right[i]; i++)
+		{
+			int16_t cx = (int16_t)(bx + 2 + (i * 6));
+
+			ch[0] = right[i];
+			emcomUiText(cx, ty, ch, FONT_SIZE_1, (((cx + 3) < (bx + fill)) ? THEME_ITEM_BG : THEME_ITEM_FG_HEADER_TEXT), false);
+		}
+		rw += 2;
+	}
+	else
+	{
+		emcomUiText((DISPLAY_SIZE_X - 2), ty, right, FONT_SIZE_1, THEME_ITEM_FG_DECORATION, true);
+	}
 	if ((x + (int16_t)(strlen(middle) * 6) + 6) <= (DISPLAY_SIZE_X - 2 - rw))
 	{
 		emcomUiText(x, ty, middle, FONT_SIZE_1, middleColour, false);
-	}
-
-	if (st->state == SSTV_RX_RECEIVING)
-	{
-		displayThemeApply(THEME_ITEM_FG_RSSI_BAR, THEME_ITEM_BG);
-		displayFillRect(0, (SSTV_STATUS_H - 1), (int16_t)(((st->row + 1U) * DISPLAY_SIZE_X) / SSTV_RX_ROWS), 1, false);
 	}
 	displayThemeResetToDefault();
 }

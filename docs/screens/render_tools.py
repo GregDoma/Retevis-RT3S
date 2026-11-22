@@ -399,11 +399,19 @@ def sstv_bar(T, state='rx', doppler=False, mode='PD120', row=63):
         right = f'{row}/120'
     else:
         right = 'SAVED 3/8'; mid, mc = '0 NEW', T['deco']
-    rw = txt(s, T, W - 2, 0, right, 1, T['hfg'] if state == 'rx' else T['deco'], True)
+    if state == 'rx':
+        rw = len(right) * 6
+        bx = W - rw - 4
+        fill = row * (rw + 4) // 120
+        s.fill(bx, 0, fill, sh, T['green'])
+        for i, ch in enumerate(right):
+            cx = bx + 2 + i * 6
+            txt(s, T, cx, 0, ch, 1, T['bg'] if cx + 3 < bx + fill else T['hfg'])
+        rw += 2
+    else:
+        rw = txt(s, T, W - 2, 0, right, 1, T['deco'], True)
     if x + len(mid) * 6 + 6 <= W - 2 - rw:
         txt(s, T, x, 0, mid, 1, mc)
-    if state == 'rx':
-        s.fill(0, sh - 1, (row * W) // 120, 1, T['green'])
     return s
 
 

@@ -173,7 +173,7 @@ unchanged; the clear confirmations (`0`, then `GREEN` on its release) show `CLEA
 6. **SSTV**: idle screen with the saved pictures in the title, strip (state, `DOPPLER`, tone /
    VIS, level), the frequency in 8x16. Over a picture only the 8 px bar above it (the picture is
    never covered): state, mode, frequency or `DOPPLER` (when it fits), `row/120`, then
-   `SAVED n/8`; the progress also as a line along the bottom of the bar.
+   `SAVED n/8`; the progress as a block filling up behind `row/120`.
 
 **Next stages (ideas):** PIN code entry, bearing notification, channel details / VFO special
 modes, contact list and the quick menus in the EMCOM card look.
