@@ -119,26 +119,31 @@ static const char *keysText(void)
 }
 
 #if defined(HAS_EMCOM_UI)
-// Status chip at the right of a row: IN solid, QUIET outlined (shape as well as colour)
+// Status chip at the right of a row, 3 px from the edge: IN solid (bold text on a block),
+// QUIET outlined (frame + regular text): told apart by shape as well as colour (mono / contr)
+#define CHIP_RIGHT  (DISPLAY_SIZE_X - 3)
+#define AGE_RIGHT   118
+
 static void statusChip(int16_t y, bool quiet, bool sel)
 {
 	const char *word = (quiet ? "QUIET" : "IN");
+	int16_t w = (int16_t)((strlen(word) * 6) + 4);
+	int16_t x = (int16_t)(CHIP_RIGHT - w);
+	themeItem_t c = (sel ? THEME_ITEM_BG : (quiet ? THEME_ITEM_FG_RSSI_BAR_S9P : THEME_ITEM_FG_RSSI_BAR));
 
-	if (sel && (quiet == false))
+	if (quiet)
 	{
-		int16_t w = (int16_t)((strlen(word) * 6) + 4);
-		int16_t x = (int16_t)(DISPLAY_SIZE_X - 2 - w);
-
-		displayThemeApply(THEME_ITEM_BG, THEME_ITEM_BG_MENU_ITEM_SELECTED);
-		displayFillRect(x, (y - 1), w, 9, false);
-		displayPrintCore((x + 2), y, word, FONT_SIZE_1_BOLD, TEXT_ALIGN_LEFT, true);
-		displayThemeResetToDefault();
+		displayThemeApply(c, THEME_ITEM_BG);
+		displayDrawRect(x, (y - 1), w, 9, false);
+		displayPrintCore((x + 2), y, word, FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
 	}
 	else
 	{
-		emcomUiChip((DISPLAY_SIZE_X - 2), y, word, (sel ? THEME_ITEM_BG : (quiet ? THEME_ITEM_FG_RSSI_BAR_S9P : THEME_ITEM_FG_RSSI_BAR)),
-				(quiet ? EMCOM_CHIP_OUTLINE : EMCOM_CHIP_SOLID), true);
+		displayThemeApply(c, (sel ? THEME_ITEM_BG_MENU_ITEM_SELECTED : THEME_ITEM_BG));
+		displayFillRect(x, (y - 1), w, 9, false);
+		displayPrintCore((x + 2), y, word, FONT_SIZE_1_BOLD, TEXT_ALIGN_LEFT, true);
 	}
+	displayThemeResetToDefault();
 }
 
 static void updateScreenEmcom(void)
@@ -239,7 +244,7 @@ static void updateScreenEmcom(void)
 			utcTime(e->inS, buf, sizeof(buf));
 			emcomUiText(62, y, buf, FONT_SIZE_1, (sel ? THEME_ITEM_BG : THEME_ITEM_FG_DECORATION), false);
 			netAgeText(buf, sizeof(buf), (uint16_t)((nowS >= e->lastS) ? (nowS - e->lastS) : 0U));
-			emcomUiText(120, y, buf, FONT_SIZE_1, (sel ? THEME_ITEM_BG : (quiet ? THEME_ITEM_FG_RSSI_BAR_S9P : THEME_ITEM_FG_DEFAULT)), true);
+			emcomUiText(AGE_RIGHT, y, buf, FONT_SIZE_1, (sel ? THEME_ITEM_BG : (quiet ? THEME_ITEM_FG_RSSI_BAR_S9P : THEME_ITEM_FG_DEFAULT)), true);
 			statusChip(y, quiet, sel);
 		}
 	}
@@ -361,7 +366,7 @@ static void updateScreen(void)
 			netAgeText(age, sizeof(age), (uint16_t)((nowS >= e->lastS) ? (nowS - e->lastS) : 0U));
 			snprintf(buf, sizeof(buf), "%-9s %s %3s", call, t, age);
 			text(2, ry, buf, FONT_SIZE_1, THEME_ITEM_FG_MENU_ITEM);
-			text((DISPLAY_SIZE_X - 2 - (quiet ? 30 : 12)), ry, (quiet ? "QUIET" : "IN"), FONT_SIZE_1_BOLD,
+			text((DISPLAY_SIZE_X - 3 - (quiet ? 30 : 12)), ry, (quiet ? "QUIET" : "IN"), FONT_SIZE_1_BOLD,
 					(quiet ? THEME_ITEM_FG_TX_COUNTER : THEME_ITEM_FG_RSSI_BAR));
 		}
 	}
@@ -417,6 +422,11 @@ static void handleKeys(uiEvent_t *ev)
 	if (KEYCHECK_SHORTUP(ev->keys, KEY_RED))
 	{
 		menuSystemPopPreviousMenu();
+		return;
+	}
+	if (KEYCHECK_SHORTUP_NUMBER(ev->keys) && BUTTONCHECK_DOWN(ev, BUTTON_SK2))
+	{
+		saveQuickkeyMenuIndex(ev->keys.key, menuSystemGetCurrentMenuNumber(), 0, 0); // stored as a quickkey action
 		return;
 	}
 
