@@ -42,7 +42,10 @@ static themeItem_t typeColour(uint8_t type)
 		case EVENT_LOG_SSTV:
 			return THEME_ITEM_FG_RX_FREQ;
 		case EVENT_LOG_DTMF:
+		case EVENT_LOG_NET:
 			return THEME_ITEM_FG_RSSI_BAR_S9P;
+		case EVENT_LOG_QSO:
+			return THEME_ITEM_FG_RSSI_BAR;
 		default:
 			return THEME_ITEM_FG_DECORATION;
 	}

@@ -203,7 +203,7 @@ void eventLogClear(void)
 
 const char *eventLogTypeName(uint8_t type)
 {
-	static const char *names[EVENT_LOG_TYPE_MAX] = { "SYS", "TX", "RX", "DMR", "APR", "MS<", "MS>", "DTM", "SOS", "SST" };
+	static const char *names[EVENT_LOG_TYPE_MAX] = { "SYS", "TX", "RX", "DMR", "APR", "MS<", "MS>", "DTM", "SOS", "SST", "QSO", "NET" };
 
 	return ((type < EVENT_LOG_TYPE_MAX) ? names[type] : "?");
 }

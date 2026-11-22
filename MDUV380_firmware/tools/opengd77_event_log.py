@@ -25,7 +25,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 LOG_ADDR = 14 * 1024 * 1024
 LOG_SIZE = 64 * 1024
-TYPES = ['SYS', 'TX', 'RX', 'DMR', 'APRS', 'MSG IN', 'MSG OUT', 'DTMF', 'SOS', 'SSTV']
+TYPES = ['SYS', 'TX', 'RX', 'DMR', 'APRS', 'MSG IN', 'MSG OUT', 'DTMF', 'SOS', 'SSTV', 'QSO', 'NET']
 
 
 def parse(data):
