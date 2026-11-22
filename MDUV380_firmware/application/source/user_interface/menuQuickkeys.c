@@ -84,6 +84,7 @@ static const uint16_t quickkeyChoices[] =
 	QUICKKEY_ACTIONVALUE(QUICKKEY_ACTION_MENU_RADIO_CHECK),
 	QUICKKEY_ACTIONVALUE(QUICKKEY_ACTION_MENU_NET_CONTROL),
 	QUICKKEY_ACTIONVALUE(QUICKKEY_ACTION_MENU_WAYPOINTS),
+	QUICKKEY_ACTIONVALUE(QUICKKEY_ACTION_MENU_SKED),
 	QUICKKEY_MENUVALUE_CHECKED(MENU_SSTV, 0, 0),
 #endif
 };
@@ -127,6 +128,8 @@ const char *quickkeyActionGetName(quickkeyAction_t action)
 			return "Net control";
 		case QUICKKEY_ACTION_MENU_WAYPOINTS:
 			return "Waypoints";
+		case QUICKKEY_ACTION_MENU_SKED:
+			return "Sked";
 #endif
 		default:
 			break;
@@ -146,6 +149,7 @@ static int quickkeyActionMenu(quickkeyAction_t action)
 		case QUICKKEY_ACTION_MENU_RADIO_CHECK:  return MENU_RADIO_CHECK;
 		case QUICKKEY_ACTION_MENU_NET_CONTROL:  return MENU_NET_CONTROL;
 		case QUICKKEY_ACTION_MENU_WAYPOINTS:    return MENU_WAYPOINTS;
+		case QUICKKEY_ACTION_MENU_SKED:         return MENU_SKED;
 #endif
 		default:                                return -1;
 	}
@@ -249,6 +253,7 @@ bool quickkeyActionExecute(quickkeyAction_t action, bool isChannelMode)
 		case QUICKKEY_ACTION_MENU_RADIO_CHECK:
 		case QUICKKEY_ACTION_MENU_NET_CONTROL:
 		case QUICKKEY_ACTION_MENU_WAYPOINTS:
+		case QUICKKEY_ACTION_MENU_SKED:
 			// called from the Channel / VFO screen only (applicationMain.c), as the menu quickkeys
 			menuSystemPushNewMenu(quickkeyActionMenu(action));
 			return true;

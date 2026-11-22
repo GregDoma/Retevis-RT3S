@@ -4,7 +4,9 @@
  * Four channels, as in military / rescue comms plans:
  *   P Primary, A Alternate, C Contingency, E Emergency.
  * '1'..'4' or GREEN switch the radio to that channel (channel mode), '*' stores the
- * current channel in the selected slot, '0' clears it, UP / DOWN select, RED leaves.
+ * current channel in the selected slot, '0' clears it, '#' opens the comms schedule
+ * (skeds, menuSked.c), UP / DOWN select, RED leaves. The next sked is counted down in the
+ * EMCOM strip / the classic key bar.
  * The plan is kept in the SPI flash (functions/fieldData.c).
  *
  * Use of this source code or binary releases for commercial purposes is
@@ -18,6 +20,7 @@
 #include "functions/settings.h"
 #include "functions/sound.h"
 #include "functions/fieldData.h"
+#include "functions/sked.h"
 #include "user_interface/uiEmcom.h"
 
 #if defined(HAS_FIELD_TOOLS)
@@ -57,6 +60,34 @@ static bool slotIsCurrent(const paceSlot_t *s)
 static void formatFreq(uint32_t freq, char *buf, size_t size)
 {
 	snprintf(buf, size, "%u.%04u", (unsigned)(freq / 100000U), (unsigned)((freq % 100000U) / 10U));
+}
+
+// The second drawn last (the sked count-down), in the CCM scratch: no static RAM
+#define paceDrawnSecs (fieldToolsScratch[0])
+
+// "S2 12:34" (next start in mm:ss), "S2 NOW", "" (no sked / no clock)
+static bool skedText(char *buf, size_t size)
+{
+	skedNext_t next;
+	char cd[12];
+
+	skedNextGet(&next);
+	if (next.slot < 0)
+	{
+		buf[0] = 0;
+		return false;
+	}
+
+	if (next.on)
+	{
+		snprintf(buf, size, "S%d NOW", (next.slot + 1));
+	}
+	else
+	{
+		skedFormatCountdown(next.secs, cd, sizeof(cd));
+		snprintf(buf, size, "S%d %s", (next.slot + 1), cd);
+	}
+	return true;
 }
 
 #if defined(HAS_EMCOM_UI)
@@ -139,19 +170,35 @@ static void updateScreenEmcom(void)
 
 	// status strip: the slot the radio is on now
 	emcomUiStrip();
+	// right: the next sked count-down when one is set, else the slots set
+	char sked[16];
+	int16_t rightW;
+
+	if (skedText(sked, sizeof(sked)))
+	{
+		rightW = emcomUiText((DISPLAY_SIZE_X - 3), (EMCOM_UI_STRIP_Y + 2), sked, FONT_SIZE_1, THEME_ITEM_FG_RSSI_BAR_S9P, true);
+		rightW = (int16_t)(rightW + emcomUiText((DISPLAY_SIZE_X - 3 - rightW - 4), (EMCOM_UI_STRIP_Y + 2), "SKED", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, true) + 4);
+	}
+	else
+	{
+		snprintf(buf, sizeof(buf), "%d/%d SET", set, PACE_SLOTS);
+		rightW = emcomUiText((DISPLAY_SIZE_X - 3), (EMCOM_UI_STRIP_Y + 2), buf, FONT_SIZE_1, THEME_ITEM_FG_DECORATION, true);
+	}
+
 	if (active >= 0)
 	{
 		snprintf(buf, sizeof(buf), "ON %c", paceLetters[active]);
 		int16_t x = (int16_t)(2 + emcomUiChip(2, (EMCOM_UI_STRIP_Y + 2), buf, slotColour(active), EMCOM_CHIP_SOLID, false) + 4);
-		emcomUiText(x, (EMCOM_UI_STRIP_Y + 2), paceNames[active], FONT_SIZE_1, THEME_ITEM_FG_HEADER_TEXT, false);
+		if ((x + (int16_t)(strlen(paceNames[active]) * 6) + 4) <= (DISPLAY_SIZE_X - 3 - rightW)) // the slot name when it fits
+		{
+			emcomUiText(x, (EMCOM_UI_STRIP_Y + 2), paceNames[active], FONT_SIZE_1, THEME_ITEM_FG_HEADER_TEXT, false);
+		}
 	}
 	else
 	{
 		emcomUiChip(2, (EMCOM_UI_STRIP_Y + 2), (onChannelScreen() ? "OFF PLAN" : "VFO"), (onChannelScreen() ? THEME_ITEM_FG_DECORATION : THEME_ITEM_FG_RSSI_BAR_S9P),
 				EMCOM_CHIP_OUTLINE, false);
 	}
-	snprintf(buf, sizeof(buf), "%d/%d SET", set, PACE_SLOTS);
-	emcomUiText((DISPLAY_SIZE_X - 3), (EMCOM_UI_STRIP_Y + 2), buf, FONT_SIZE_1, THEME_ITEM_FG_DECORATION, true);
 
 	if (confirmClear)
 	{
@@ -160,8 +207,9 @@ static void updateScreenEmcom(void)
 	}
 	else
 	{
-		emcomUiKeyBar(onChannelScreen() ? "1-4 GO  * STORE  0 CLEAR" : "1-4 GO  (VFO: no STORE)");
+		emcomUiKeyBar(onChannelScreen() ? "1-4 GO * STO 0 CLR # SKED" : "1-4 GO  # SKED  (VFO)");
 	}
+	paceDrawnSecs = uiDataGlobal.dateTimeSecs;
 	displayRender();
 }
 #endif
@@ -248,24 +296,37 @@ static void updateScreen(void)
 	}
 	else
 	{
+		char sked[16];
+
 		displayThemeApply(THEME_ITEM_FG_HEADER_TEXT, THEME_ITEM_BG_HEADER_TEXT);
-		displayPrintCore(3, (fy + 2), (onChannelScreen() ? "1-4 GO  * STORE  0 CLEAR" : "1-4 GO  (VFO: no STORE)"), FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
+		if (skedText(sked, sizeof(sked)))
+		{
+			// the next sked replaces the key hints (# opens the schedule)
+			snprintf(buf, sizeof(buf), "%s  # SKED %s", (onChannelScreen() ? "* STORE" : "1-4 GO"), sked);
+		}
+		else
+		{
+			snprintf(buf, sizeof(buf), "%s", (onChannelScreen() ? "1-4 GO * STO 0 CLR # SKED" : "1-4 GO  # SKED  (VFO)"));
+		}
+		displayPrintCore(3, (fy + 2), buf, FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
 	}
 
 	displayThemeResetToDefault();
+	paceDrawnSecs = uiDataGlobal.dateTimeSecs;
 	displayRender();
 }
 
-// Switch the radio to the channel of a slot (channel mode). Returns false when the slot is empty.
-static bool activateSlot(int i)
+// Switch the radio to a zone / channel (channel mode). Returns false when the channel is deleted.
+// Also used by the sked "NOW" card (functions/sked.c).
+bool paceActivateChannel(const paceSlot_t *data)
 {
-	paceSlot_t slot;
+	paceSlot_t slot = *data;
 	CodeplugZone_t zone;
 	int zones = codeplugZonesGetCount();
 	int zoneNumber;
 	int position = -1; // index in the zone, -2: the All Channels zone
 
-	if ((fieldPaceGet(i, &slot) == false) || (codeplugAllChannelsIndexIsInUse(slot.channelNumber) == false))
+	if ((slot.zoneNumber < 0) || (codeplugAllChannelsIndexIsInUse(slot.channelNumber) == false))
 	{
 		return false;
 	}
@@ -313,6 +374,14 @@ static bool activateSlot(int i)
 	menuSystemPopAllAndDisplaySpecificRootMenu(UI_CHANNEL_MODE, true);
 	uiDataGlobal.displayQSOState = QSO_DISPLAY_DEFAULT_SCREEN;
 	return true;
+}
+
+// Switch the radio to the channel of a slot (channel mode). Returns false when the slot is empty.
+static bool activateSlot(int i)
+{
+	paceSlot_t slot;
+
+	return (fieldPaceGet(i, &slot) && paceActivateChannel(&slot));
 }
 
 static void storeCurrent(void)
@@ -395,6 +464,11 @@ menuStatus_t menuPACE(uiEvent_t *ev, bool isFirstRun)
 				storeCurrent();
 				updateScreen();
 			}
+			else if (KEYCHECK_SHORTUP(ev->keys, KEY_HASH))
+			{
+				menuSystemPushNewMenu(MENU_SKED);
+				return MENU_STATUS_SUCCESS;
+			}
 			else if (KEYCHECK_SHORTUP(ev->keys, KEY_0))
 			{
 				paceSlot_t slot;
@@ -420,6 +494,12 @@ menuStatus_t menuPACE(uiEvent_t *ev, bool isFirstRun)
 				updateScreen();
 			}
 		}
+	}
+
+	// the sked count-down, once per second (only reads the flash when the clock ticked)
+	if ((confirmClear == false) && (paceDrawnSecs != uiDataGlobal.dateTimeSecs) && skedClockValid())
+	{
+		updateScreen();
 	}
 
 	return MENU_STATUS_SUCCESS;

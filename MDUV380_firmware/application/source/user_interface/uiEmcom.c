@@ -1982,6 +1982,7 @@ static bool sosScreenAllowsTx(int menu)
 		case MENU_RADIO_CHECK:
 		case MENU_NET_CONTROL:
 		case MENU_WAYPOINTS:
+		case MENU_SKED:
 		case MENU_EVENT_LOG:
 #endif
 			return true;

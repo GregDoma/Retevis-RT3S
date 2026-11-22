@@ -128,6 +128,7 @@ typedef struct
 } uiNotificationBearingInfo_t;
 
 #define NOTIFICATION_ID_USER_APO (NOTIFICATION_ID_USER)
+#define NOTIFICATION_ID_USER_SKED (NOTIFICATION_ID_USER + 1) // Fork: "SKED NOW" card (GREEN tunes)
 
 typedef struct
 {
@@ -349,6 +350,7 @@ enum MENU_SCREENS
 	MENU_RADIO_CHECK,// Fork: radio check (signal report)
 	MENU_NET_CONTROL,// Fork: EMCOM net control (roster, QSO log)
 	MENU_WAYPOINTS,// Fork: saved waypoints
+	MENU_SKED,// Fork: comms schedule reminders
 #endif
 	// *** Add new menus to be accessed using quickkey (ID: 0..31) above this line ***
 	UI_MESSAGE_BOX,
@@ -448,6 +450,7 @@ typedef enum
 	QUICKKEY_ACTION_MENU_NET_CONTROL,
 	QUICKKEY_ACTION_BLACKOUT,       // Fork: blackout / silent mode (same as SK1 + 5)
 	QUICKKEY_ACTION_MENU_WAYPOINTS, // Fork: saved waypoints
+	QUICKKEY_ACTION_MENU_SKED,      // Fork: comms schedule
 	QUICKKEY_ACTION_MAX
 } quickkeyAction_t;
 
@@ -526,6 +529,7 @@ menuStatus_t menuCoverage(uiEvent_t *event, bool isFirstRun);
 menuStatus_t menuRadioCheck(uiEvent_t *event, bool isFirstRun);
 menuStatus_t menuNetControl(uiEvent_t *event, bool isFirstRun);
 menuStatus_t menuWaypoints(uiEvent_t *event, bool isFirstRun);
+menuStatus_t menuSked(uiEvent_t *event, bool isFirstRun);
 #endif
 menuStatus_t menuLastHeard(uiEvent_t *event, bool isFirstRun);
 menuStatus_t menuGeneralOptions(uiEvent_t *event, bool isFirstRun);

@@ -103,6 +103,7 @@ menuDataGlobal_t menuDataGlobal =
 				NULL,// Radio check
 				NULL,// Net control
 				NULL,// Waypoints
+				NULL,// Sked
 #endif
 				// *** Add new menus to be accessed using quickkey (ID: 0..31) above this line ***
 				NULL,// MessageBox
@@ -174,6 +175,7 @@ static menuFunctionData_t menuFunctions[] =
 		{ menuRadioCheck,           NULL, NULL, 0 },
 		{ menuNetControl,           NULL, NULL, 0 },
 		{ menuWaypoints,            NULL, NULL, 0 },
+		{ menuSked,                 NULL, NULL, 0 },
 #endif
 		// *** Add new menus to be accessed using quickkey (ID: 0..31) above this line ***
 		{ uiMessageBox,             NULL, NULL, 0 },
