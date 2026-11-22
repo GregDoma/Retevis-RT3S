@@ -900,6 +900,13 @@ static void aprsMonDrawMessagesEmcom(void)
 	char clock[8];
 	char age[8];
 	uint32_t now = ticksGetMillis();
+	uint32_t count = aprsRxMessageCount();
+
+	if ((count > 0) && (aprsMonMsgSelected >= count))
+	{
+		aprsMonMsgSelected = (count - 1);
+	}
+
 	uint32_t first = ((aprsMonMsgSelected >= APRS_MSG_ROWS) ? (aprsMonMsgSelected - APRS_MSG_ROWS + 1) : 0);
 
 	for (uint32_t r = 0; r < APRS_MSG_ROWS; r++)
