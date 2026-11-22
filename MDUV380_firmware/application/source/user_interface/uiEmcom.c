@@ -51,27 +51,63 @@ extern int8_t lastVolume;
 typedef struct
 {
 	uint32_t bg, fg, mut, line, bar, barFg, rx, tx, scan, info, seg;
+	uint32_t txFg;  // text on the TX colour (TX status bar, SOS banner)
+	bool     cues;  // state also by shape: outlined / solid / inverse chips, striped S9+ segments, '!' battery
+	bool     large; // bold small text, 8x16 channel frequency, thick S-meter
 } emcomPalette_t;
 
 static const emcomPalette_t PALETTE_DARK =
 {
 	.bg = 0x0B0E0C, .fg = 0xF2F5F0, .mut = 0x86928A, .line = 0x28302B, .bar = 0x18201B, .barFg = 0xE9EEE7,
-	.rx = 0x3BD16F, .tx = 0xFF3B30, .scan = 0xFFB000, .info = 0x5AC8FA, .seg = 0x202823
+	.rx = 0x3BD16F, .tx = 0xFF3B30, .scan = 0xFFB000, .info = 0x5AC8FA, .seg = 0x202823,
+	.txFg = 0xFFFFFF, .cues = false, .large = false
 };
 // Night: red only (keeps the night vision, low light signature)
 static const emcomPalette_t PALETTE_NIGHT =
 {
 	.bg = 0x000000, .fg = 0xD22A2A, .mut = 0x7A1414, .line = 0x3A0808, .bar = 0x120202, .barFg = 0xD22A2A,
-	.rx = 0xE23A3A, .tx = 0xFF4A4A, .scan = 0xA51C1C, .info = 0xC02626, .seg = 0x250505
+	.rx = 0xE23A3A, .tx = 0xFF4A4A, .scan = 0xA51C1C, .info = 0xC02626, .seg = 0x250505,
+	.txFg = 0xFFFFFF, .cues = false, .large = false
+};
+// Mono (colour-blind safe): grey shades only, the state is a word plus a shape
+static const emcomPalette_t PALETTE_MONO =
+{
+	.bg = 0x000000, .fg = 0xFFFFFF, .mut = 0x9A9A9A, .line = 0x4A4A4A, .bar = 0x1E1E1E, .barFg = 0xF0F0F0,
+	.rx = 0xFFFFFF, .tx = 0xFFFFFF, .scan = 0xB4B4B4, .info = 0xD8D8D8, .seg = 0x343434,
+	.txFg = 0x000000, .cues = true, .large = false
+};
+// Mono at night: the night reds, with the same shape cues (black text on the TX bar)
+static const emcomPalette_t PALETTE_MONO_NIGHT =
+{
+	.bg = 0x000000, .fg = 0xD22A2A, .mut = 0x7A1414, .line = 0x3A0808, .bar = 0x120202, .barFg = 0xD22A2A,
+	.rx = 0xE23A3A, .tx = 0xFF4A4A, .scan = 0xA51C1C, .info = 0xC02626, .seg = 0x250505,
+	.txFg = 0x000000, .cues = true, .large = false
+};
+// Contrast (low vision): white and yellow on black, bold text
+static const emcomPalette_t PALETTE_CONTRAST =
+{
+	.bg = 0x000000, .fg = 0xFFFFFF, .mut = 0xFFFF00, .line = 0x808080, .bar = 0x000000, .barFg = 0xFFFFFF,
+	.rx = 0xFFFFFF, .tx = 0xFFFF00, .scan = 0xFFFF00, .info = 0xFFFFFF, .seg = 0x404040,
+	.txFg = 0x000000, .cues = true, .large = true
+};
+// Contrast at night: amber and red on black, as bright as the night allows
+static const emcomPalette_t PALETTE_CONTRAST_NIGHT =
+{
+	.bg = 0x000000, .fg = 0xFFA000, .mut = 0xFF4020, .line = 0x802000, .bar = 0x000000, .barFg = 0xFFA000,
+	.rx = 0xFFA000, .tx = 0xFFA000, .scan = 0xFF4020, .info = 0xFFA000, .seg = 0x401000,
+	.txFg = 0x000000, .cues = true, .large = true
 };
 
 #define STATUS_H        11
 #define METER_Y         12
 #define METER_H         3
+#define METER_H_LARGE   4    // contrast style (row 16 stays clear above the zone row)
 #define ZONE_Y          17
 #define HERO_Y          20   // 16x32 cell, glyphs in rows 6..24
 #define NAME_Y          24   // 8x16 cell, glyphs in rows 2..12
 #define FREQ_Y          40
+#define NAME_Y_LARGE    19   // contrast: name and 8x16 frequency (glyphs 21..31 and 35..45)
+#define FREQ_Y_LARGE    33
 #define DIV1_Y          50
 #define PANEL_Y1        54
 #define PANEL_Y2        64
@@ -138,8 +174,8 @@ static int16_t fontWidth(ucFont_t font)
 	return ((font == FONT_SIZE_4) ? 16 : (((font == FONT_SIZE_3) || (font == FONT_SIZE_2)) ? 8 : 6));
 }
 
-// Draws 'str' (clipped to the screen), returns its width. alignRight: x is the right edge.
-static int16_t text(int16_t x, int16_t y, const char *str, ucFont_t font, uint32_t rgb, bool alignRight)
+// Draws 'str' (clipped to the screen) in exactly 'font', returns its width. alignRight: x is the right edge.
+static int16_t textRaw(int16_t x, int16_t y, const char *str, ucFont_t font, uint32_t rgb, bool alignRight)
 {
 	int16_t w = (int16_t)(strlen(str) * fontWidth(font));
 
@@ -153,6 +189,26 @@ static int16_t text(int16_t x, int16_t y, const char *str, ucFont_t font, uint32
 	}
 	colour(rgb);
 	displayPrintCore(x, y, str, font, TEXT_ALIGN_LEFT, false);
+	return w;
+}
+
+// As textRaw(), the contrast style uses the bold small font (same width)
+static int16_t text(int16_t x, int16_t y, const char *str, ucFont_t font, uint32_t rgb, bool alignRight)
+{
+	return textRaw(x, y, str, (((font == FONT_SIZE_1) && pal->large) ? FONT_SIZE_1_BOLD : font), rgb, alignRight);
+}
+
+// Inverse video chip: 'str' in the background colour on a 'rgb' block (y is the text row)
+static int16_t inverseChip(int16_t x, int16_t y, const char *str, uint32_t rgb, bool alignRight)
+{
+	int16_t w = (int16_t)((strlen(str) * 6) + 4);
+
+	if (alignRight)
+	{
+		x -= w;
+	}
+	fill(x, (y - 1), w, 10, rgb);
+	textRaw((x + 2), y, str, FONT_SIZE_1_BOLD, pal->bg, false);
 	return w;
 }
 
@@ -170,13 +226,66 @@ static void divider(int16_t y)
 
 static void selectPalette(void)
 {
-	pal = ((DAYTIME_CURRENT == NIGHT) ? &PALETTE_NIGHT : &PALETTE_DARK);
+	bool night = (DAYTIME_CURRENT == NIGHT);
+
+	switch (emcomStyleGet())
+	{
+		case EMCOM_STYLE_MONO:
+			pal = (night ? &PALETTE_MONO_NIGHT : &PALETTE_MONO);
+			break;
+		case EMCOM_STYLE_CONTRAST:
+			pal = (night ? &PALETTE_CONTRAST_NIGHT : &PALETTE_CONTRAST);
+			break;
+		default:
+			pal = (night ? &PALETTE_NIGHT : &PALETTE_DARK);
+			break;
+	}
 }
 
 // --- state ----------------------------------------------------------------------------
+// Classic bit set: classic. Else the variant bits (both clear in settings from before the
+// variants existed, so those keep the plain EMCOM style).
+emcomStyle_t emcomStyleGet(void)
+{
+	if (settingsIsOptionBitSet(BIT_UI_CLASSIC_STYLE))
+	{
+		return EMCOM_STYLE_CLASSIC;
+	}
+	if (settingsIsOptionBitSet(BIT_UI_EMCOM_CONTRAST))
+	{
+		return EMCOM_STYLE_CONTRAST;
+	}
+	if (settingsIsOptionBitSet(BIT_UI_EMCOM_MONO))
+	{
+		return EMCOM_STYLE_MONO;
+	}
+	return EMCOM_STYLE_EMCOM;
+}
+
+void emcomStyleSet(emcomStyle_t style)
+{
+	settingsSetOptionBit(BIT_UI_CLASSIC_STYLE, (style == EMCOM_STYLE_CLASSIC));
+	settingsSetOptionBit(BIT_UI_EMCOM_MONO, (style == EMCOM_STYLE_MONO));
+	settingsSetOptionBit(BIT_UI_EMCOM_CONTRAST, (style == EMCOM_STYLE_CONTRAST));
+}
+
+const char *emcomStyleName(emcomStyle_t style)
+{
+	static const char *const names[EMCOM_STYLE_COUNT] = { "Classic", "EMCOM", "EMCOM mono", "EMCOM contr" };
+
+	return names[((style < EMCOM_STYLE_COUNT) ? style : EMCOM_STYLE_EMCOM)];
+}
+
 bool emcomStyleEnabled(void)
 {
 	return (settingsIsOptionBitSet(BIT_UI_CLASSIC_STYLE) == false);
+}
+
+bool emcomShapeCues(void)
+{
+	emcomStyle_t style = emcomStyleGet();
+
+	return ((style == EMCOM_STYLE_MONO) || (style == EMCOM_STYLE_CONTRAST));
 }
 
 // Applies the screen style setting to the whole UI: flat boxes and the default colours
@@ -303,11 +412,12 @@ void emcomRenderStatusBar(void)
 	emcomState_t st = currentState();
 	bool isTx = (st == ST_TX);
 	bool digital = (trxGetMode() == RADIO_MODE_DIGITAL);
-	uint32_t barCol = (isTx ? pal->tx : pal->bar);
-	uint32_t fg = (isTx ? 0xFFFFFF : pal->barFg);
+	uint32_t barCol, fg;
 	int16_t x;
 
 	selectPalette();
+	barCol = (isTx ? pal->tx : pal->bar);
+	fg = (isTx ? pal->txFg : pal->barFg);
 
 	fill(0, 0, DISPLAY_SIZE_X, STATUS_H, barCol);
 	fill(0, STATUS_H, DISPLAY_SIZE_X, 1, pal->bg); // the classic header clear uses the theme colour
@@ -317,7 +427,7 @@ void emcomRenderStatusBar(void)
 		bool phase = (((ticksGetMillis() / 600U) & 1U) == 0U);
 
 		fill(0, 0, DISPLAY_SIZE_X, STATUS_H, (phase ? pal->tx : pal->bar));
-		text(((DISPLAY_SIZE_X - (13 * 6)) / 2), 2, "EMERGENCY SOS", FONT_SIZE_1_BOLD, (phase ? 0xFFFFFF : pal->tx), false);
+		text(((DISPLAY_SIZE_X - (13 * 6)) / 2), 2, "EMERGENCY SOS", FONT_SIZE_1_BOLD, (phase ? pal->txFg : pal->tx), false);
 		displayThemeResetToDefault();
 		return;
 	}
@@ -325,11 +435,21 @@ void emcomRenderStatusBar(void)
 	// State chip: the mode when idle, else the state
 	const char *mode = (digital ? "DMR" : (trxGetBandwidthIs25kHz() ? "FM" : "FMN"));
 	const char *chip = ((st == ST_RX) ? "RX" : ((st == ST_TX) ? "TX" : ((st == ST_SCAN) ? "SCAN" : mode)));
-	uint32_t chipCol = ((st == ST_RX) ? pal->rx : ((st == ST_TX) ? 0xFFFFFF : ((st == ST_SCAN) ? pal->scan : pal->barFg)));
+	uint32_t chipCol = ((st == ST_RX) ? pal->rx : ((st == ST_TX) ? pal->txFg : ((st == ST_SCAN) ? pal->scan : pal->barFg)));
 	int16_t chipW = (int16_t)((strlen(chip) * 6) + 4);
 
-	fill(1, 1, chipW, 9, chipCol);
-	text(3, 2, chip, FONT_SIZE_1_BOLD, (isTx ? pal->tx : pal->bar), false);
+	if (pal->cues && (st == ST_STBY))
+	{
+		// mono / contrast: idle = outlined chip, RX / SCAN = solid chip, TX = inverse status bar
+		colour(chipCol);
+		displayDrawRect(1, 1, chipW, 9, false);
+		text(3, 2, chip, FONT_SIZE_1_BOLD, chipCol, false);
+	}
+	else
+	{
+		fill(1, 1, chipW, 9, chipCol);
+		text(3, 2, chip, FONT_SIZE_1_BOLD, (isTx ? pal->tx : pal->bar), false);
+	}
 	x = chipW + 4;
 
 	if (st != ST_STBY)
@@ -356,7 +476,7 @@ void emcomRenderStatusBar(void)
 	if (currentChannelData->aprsConfigIndex != 0)
 	{
 		bool beaconing = ((aprsBeaconingGetMode() != APRS_BEACONING_MODE_OFF) && (aprsBeaconingIsSuspended() == false));
-		text(x, 2, "a", (beaconing ? FONT_SIZE_1_BOLD : FONT_SIZE_1), (isTx ? fg : (beaconing ? pal->rx : pal->mut)), false);
+		textRaw(x, 2, "a", (beaconing ? FONT_SIZE_1_BOLD : FONT_SIZE_1), (isTx ? fg : (beaconing ? pal->rx : pal->mut)), false);
 	}
 
 	// Right side: battery icon + %, volume, GPS
@@ -365,13 +485,25 @@ void emcomRenderStatusBar(void)
 	bool low = batteryIsLowWarning();
 	uint32_t battCol = (low ? pal->tx : fg);
 
+	if (pal->cues)
+	{
+		battCol = fg; // low battery: '!' and an inverse chip instead of a colour
+	}
 	colour(battCol);
 	displayDrawRect((r - 13), 2, 12, 7, false);
 	displayFillRect((r - 1), 4, 1, 3, false);
 	displayFillRect((r - 12), 3, (int16_t)CLAMP(((pct * 10) + 50) / 100, 0, 10), 5, false);
 	r -= 16;
-	snprintf(buf, sizeof(buf), "%d%%", pct);
-	r -= text(r, 2, buf, FONT_SIZE_1, battCol, true) + 4;
+	if (pal->cues && low)
+	{
+		snprintf(buf, sizeof(buf), "!%d%%", pct);
+		r -= inverseChip((r + 2), 2, buf, fg, true) + 2;
+	}
+	else
+	{
+		snprintf(buf, sizeof(buf), "%d%%", pct);
+		r -= text(r, 2, buf, FONT_SIZE_1, battCol, true) + 4;
+	}
 
 	int vol = volumeLevel();
 	if (vol < 0)
@@ -395,7 +527,9 @@ void emcomRenderStatusBar(void)
 #if defined(HAS_GPS)
 	if (SETTINGS_GPS_MODE_GET(nonVolatileSettings) >= GPS_MODE_ON)
 	{
-		text(r, 2, "GPS", FONT_SIZE_1_BOLD, (gpsHasFix() ? (isTx ? fg : pal->rx) : pal->mut), true);
+		bool fix = gpsHasFix();
+		// mono / contrast: no fix also in the thin font
+		textRaw(r, 2, "GPS", ((fix || (pal->cues == false)) ? FONT_SIZE_1_BOLD : FONT_SIZE_1), (fix ? (isTx ? fg : pal->rx) : pal->mut), true);
 	}
 #endif
 
@@ -406,8 +540,10 @@ void emcomRenderStatusBar(void)
 void emcomDrawBar(int barWidth, bool isTx)
 {
 	int lit = CLAMP((barWidth + 2) / 5, 0, 32);
+	int16_t h;
 
 	selectPalette();
+	h = (pal->large ? METER_H_LARGE : METER_H);
 	for (int i = 0; i < 32; i++)
 	{
 		uint32_t c = pal->seg;
@@ -416,9 +552,20 @@ void emcomDrawBar(int barWidth, bool isTx)
 		{
 			c = (isTx ? pal->tx : ((i < S9_SEGMENT) ? pal->rx : pal->scan));
 		}
-		fill((int16_t)(i * 5), METER_Y, 4, METER_H, c);
+
+		if (pal->cues && (i < lit) && (isTx == false) && (i >= S9_SEGMENT))
+		{
+			// mono / contrast: over S9 the segments are hollow
+			fill((int16_t)(i * 5), METER_Y, 4, h, pal->seg);
+			colour(c);
+			displayDrawRect((int16_t)(i * 5), METER_Y, 4, h, false);
+		}
+		else
+		{
+			fill((int16_t)(i * 5), METER_Y, 4, h, c);
+		}
 	}
-	fill(0, (METER_Y + METER_H), DISPLAY_SIZE_X, 1, pal->bg);
+	fill(0, (METER_Y + h), DISPLAY_SIZE_X, 1, pal->bg);
 	displayThemeResetToDefault();
 }
 
@@ -548,23 +695,29 @@ static void drawHero(const emcomMainInfo_t *info, emcomState_t st)
 	{
 		name[maxChars] = 0;
 	}
-	text(nameX, NAME_Y, name, FONT_SIZE_3, pal->fg, false);
+	text(nameX, (pal->large ? NAME_Y_LARGE : NAME_Y), name, FONT_SIZE_3, pal->fg, false);
+
+	const char *suffix = (txFreqShown ? " TX" : (uiDataGlobal.reverseRepeaterChannel ? " REV" : (uiDataGlobal.talkaround ? " TA" : "")));
+	uint32_t freqCol = (txFreqShown ? pal->tx : pal->info);
+
+	if (pal->large)
+	{
+		// contrast: the frequency in 8x16 under the name, without the unit if it does not fit
+		for (int withUnit = 1; withUnit >= 0; withUnit--)
+		{
+			formatFreq((txFreqShown ? txFreq : rxFreq), buf, sizeof(buf), (withUnit != 0));
+			strncat(buf, suffix, (sizeof(buf) - strlen(buf) - 1));
+			if (strlen(buf) <= maxChars)
+			{
+				text(nameX, FREQ_Y_LARGE, buf, FONT_SIZE_3, freqCol, false);
+				return;
+			}
+		}
+	}
 
 	formatFreq((txFreqShown ? txFreq : rxFreq), buf, sizeof(buf), true);
-	size_t l = strlen(buf);
-	if (txFreqShown)
-	{
-		snprintf(&buf[l], (sizeof(buf) - l), " TX");
-	}
-	else if (uiDataGlobal.reverseRepeaterChannel)
-	{
-		snprintf(&buf[l], (sizeof(buf) - l), " REV");
-	}
-	else if (uiDataGlobal.talkaround)
-	{
-		snprintf(&buf[l], (sizeof(buf) - l), " TA");
-	}
-	text(nameX, FREQ_Y, buf, FONT_SIZE_1, (txFreqShown ? pal->tx : pal->info), false);
+	strncat(buf, suffix, (sizeof(buf) - strlen(buf) - 1));
+	text(nameX, FREQ_Y, buf, FONT_SIZE_1, freqCol, false);
 }
 
 static void drawZoneRow(const emcomMainInfo_t *info)
@@ -924,6 +1077,7 @@ static void drawFooter(emcomState_t st)
 	char buf[24];
 	const char *right = NULL;
 	uint32_t rightCol = pal->barFg;
+	bool alert = false; // SOS / TX OFF / TX: an inverse chip in the mono and contrast styles
 
 	fill(0, FOOTER_Y, DISPLAY_SIZE_X, (DISPLAY_SIZE_Y - FOOTER_Y), pal->bar);
 
@@ -951,6 +1105,7 @@ static void drawFooter(emcomState_t st)
 	{
 		right = "SOS";
 		rightCol = pal->tx;
+		alert = true;
 	}
 	else if (st == ST_SCAN)
 	{
@@ -961,6 +1116,7 @@ static void drawFooter(emcomState_t st)
 	{
 		right = "TX OFF";
 		rightCol = pal->tx;
+		alert = true;
 	}
 	else if (keypadLocked && PTTLocked)
 	{
@@ -981,11 +1137,19 @@ static void drawFooter(emcomState_t st)
 	{
 		right = "TX";
 		rightCol = pal->tx;
+		alert = true;
 	}
 
 	if (right)
 	{
-		text((DISPLAY_SIZE_X - 2), (FOOTER_Y + 2), right, FONT_SIZE_1_BOLD, rightCol, true);
+		if (pal->cues && alert)
+		{
+			inverseChip((DISPLAY_SIZE_X - 1), (FOOTER_Y + 2), right, rightCol, true); // SOS, TX OFF, TX
+		}
+		else
+		{
+			text((DISPLAY_SIZE_X - 2), (FOOTER_Y + 2), right, FONT_SIZE_1_BOLD, rightCol, true);
+		}
 	}
 }
 
@@ -1143,12 +1307,57 @@ void emcomThemePreset(bool night, uint16_t *items)
 		[THEME_ITEM_FG_POLAR_DRAWING] = 0x86928A, [THEME_ITEM_FG_SATELLITE_COLOUR] = 0x3BD16F, [THEME_ITEM_FG_GPS_NUMBER] = 0xF2F5F0,
 		[THEME_ITEM_FG_GPS_COLOUR] = 0x5AC8FA, [THEME_ITEM_FG_BD_COLOUR] = 0xFF3B30
 	};
+	// Mono: grey shades, brightness ladder alert > good > info > warning > decoration (the
+	// screens also say it in words / shapes), selected row in inverse video (white block)
+	static const uint32_t mono[THEME_ITEM_MAX] =
+	{
+		[THEME_ITEM_FG_DEFAULT] = 0xFFFFFF, [THEME_ITEM_BG] = 0x000000, [THEME_ITEM_FG_DECORATION] = 0x8A8A8A,
+		[THEME_ITEM_FG_TEXT_INPUT] = 0xFFFFFF, [THEME_ITEM_FG_SPLASHSCREEN] = 0xFFFFFF, [THEME_ITEM_BG_SPLASHSCREEN] = 0x000000,
+		[THEME_ITEM_FG_NOTIFICATION] = 0xFFFFFF, [THEME_ITEM_FG_WARNING_NOTIFICATION] = 0xFFFFFF, [THEME_ITEM_FG_ERROR_NOTIFICATION] = 0xFFFFFF,
+		[THEME_ITEM_BG_NOTIFICATION] = 0x1E1E1E, [THEME_ITEM_FG_MENU_NAME] = 0xF0F0F0, [THEME_ITEM_BG_MENU_NAME] = 0x1E1E1E,
+		[THEME_ITEM_FG_MENU_ITEM] = 0xFFFFFF, [THEME_ITEM_BG_MENU_ITEM_SELECTED] = 0xFFFFFF, [THEME_ITEM_FG_OPTIONS_VALUE] = 0xBEBEBE,
+		[THEME_ITEM_FG_HEADER_TEXT] = 0xF0F0F0, [THEME_ITEM_BG_HEADER_TEXT] = 0x1E1E1E, [THEME_ITEM_FG_RSSI_BAR] = 0xDCDCDC,
+		[THEME_ITEM_FG_RSSI_BAR_S9P] = 0xA0A0A0, [THEME_ITEM_FG_CHANNEL_NAME] = 0xFFFFFF, [THEME_ITEM_FG_CHANNEL_CONTACT] = 0xFFFFFF,
+		[THEME_ITEM_FG_CHANNEL_CONTACT_INFO] = 0xBEBEBE, [THEME_ITEM_FG_ZONE_NAME] = 0x8A8A8A, [THEME_ITEM_FG_RX_FREQ] = 0xBEBEBE,
+		[THEME_ITEM_FG_TX_FREQ] = 0xFFFFFF, [THEME_ITEM_FG_CSS_SQL_VALUES] = 0x8A8A8A, [THEME_ITEM_FG_TX_COUNTER] = 0xFFFFFF,
+		[THEME_ITEM_FG_POLAR_DRAWING] = 0x8A8A8A, [THEME_ITEM_FG_SATELLITE_COLOUR] = 0xDCDCDC, [THEME_ITEM_FG_GPS_NUMBER] = 0xFFFFFF,
+		[THEME_ITEM_FG_GPS_COLOUR] = 0xFFFFFF, [THEME_ITEM_FG_BD_COLOUR] = 0xA0A0A0
+	};
+	// Contrast: white text, yellow accents / values / warnings, selected row as a yellow block
+	static const uint32_t contrast[THEME_ITEM_MAX] =
+	{
+		[THEME_ITEM_FG_DEFAULT] = 0xFFFFFF, [THEME_ITEM_BG] = 0x000000, [THEME_ITEM_FG_DECORATION] = 0xFFFF00,
+		[THEME_ITEM_FG_TEXT_INPUT] = 0xFFFFFF, [THEME_ITEM_FG_SPLASHSCREEN] = 0xFFFFFF, [THEME_ITEM_BG_SPLASHSCREEN] = 0x000000,
+		[THEME_ITEM_FG_NOTIFICATION] = 0xFFFFFF, [THEME_ITEM_FG_WARNING_NOTIFICATION] = 0xFFFF00, [THEME_ITEM_FG_ERROR_NOTIFICATION] = 0xFFFF00,
+		[THEME_ITEM_BG_NOTIFICATION] = 0x202020, [THEME_ITEM_FG_MENU_NAME] = 0xFFFFFF, [THEME_ITEM_BG_MENU_NAME] = 0x202020,
+		[THEME_ITEM_FG_MENU_ITEM] = 0xFFFFFF, [THEME_ITEM_BG_MENU_ITEM_SELECTED] = 0xFFFF00, [THEME_ITEM_FG_OPTIONS_VALUE] = 0xFFFF00,
+		[THEME_ITEM_FG_HEADER_TEXT] = 0xFFFFFF, [THEME_ITEM_BG_HEADER_TEXT] = 0x202020, [THEME_ITEM_FG_RSSI_BAR] = 0xFFFFFF,
+		[THEME_ITEM_FG_RSSI_BAR_S9P] = 0xFFFF00, [THEME_ITEM_FG_CHANNEL_NAME] = 0xFFFFFF, [THEME_ITEM_FG_CHANNEL_CONTACT] = 0xFFFFFF,
+		[THEME_ITEM_FG_CHANNEL_CONTACT_INFO] = 0xFFFF00, [THEME_ITEM_FG_ZONE_NAME] = 0xFFFF00, [THEME_ITEM_FG_RX_FREQ] = 0xFFFFFF,
+		[THEME_ITEM_FG_TX_FREQ] = 0xFFFF00, [THEME_ITEM_FG_CSS_SQL_VALUES] = 0xFFFF00, [THEME_ITEM_FG_TX_COUNTER] = 0xFFFF00,
+		[THEME_ITEM_FG_POLAR_DRAWING] = 0x808080, [THEME_ITEM_FG_SATELLITE_COLOUR] = 0xFFFFFF, [THEME_ITEM_FG_GPS_NUMBER] = 0xFFFFFF,
+		[THEME_ITEM_FG_GPS_COLOUR] = 0xFFFFFF, [THEME_ITEM_FG_BD_COLOUR] = 0xFFFF00
+	};
+	emcomStyle_t style = emcomStyleGet();
+	const uint32_t *table = ((style == EMCOM_STYLE_MONO) ? mono : ((style == EMCOM_STYLE_CONTRAST) ? contrast : day));
 
 	for (int i = 0; i < THEME_ITEM_MAX; i++)
 	{
-		uint32_t c = day[i];
+		uint32_t c = table[i];
 
-		if (night)
+		if (night && (style == EMCOM_STYLE_MONO))
+		{
+			// the grey ladder in reds (white -> 0xD22A2A, as the night palette)
+			uint32_t r = (((c & 0xFFU) * 210U) / 255U);
+			c = ((r << 16) | ((r / 5U) << 8) | (r / 5U));
+		}
+		else if (night && (style == EMCOM_STYLE_CONTRAST))
+		{
+			// white -> amber, yellow -> red-orange, greys -> dark red
+			uint32_t g = (c & 0xFFU);
+			c = ((c == 0xFFFFFFU) ? 0xFFA000U : ((c == 0xFFFF00U) ? 0xFF4020U : ((g << 16) | ((g / 4U) << 8))));
+		}
+		else if (night)
 		{
 			// red only: keep the brightness order of the day palette
 			bool isBg = ((i == THEME_ITEM_BG) || (i == THEME_ITEM_BG_SPLASHSCREEN));

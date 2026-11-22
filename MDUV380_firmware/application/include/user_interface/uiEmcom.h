@@ -40,7 +40,21 @@ typedef struct
 	bool        entryTx;        // VFO: the TX frequency is selected / entered
 } emcomMainInfo_t;
 
-bool emcomStyleEnabled(void);       // the setting
+// Options > Display > Screen. Mono and contrast are EMCOM variants (emcomStyleEnabled() is true)
+typedef enum
+{
+	EMCOM_STYLE_CLASSIC = 0,
+	EMCOM_STYLE_EMCOM,
+	EMCOM_STYLE_MONO,      // colour-blind safe: grey shades, state by shape / inverse video / words
+	EMCOM_STYLE_CONTRAST,  // low vision: white / yellow on black, bold text, larger frequency, thick S-meter
+	EMCOM_STYLE_COUNT
+} emcomStyle_t;
+
+emcomStyle_t emcomStyleGet(void);
+void emcomStyleSet(emcomStyle_t style); // setting only, call emcomApplyStyle() afterwards
+const char *emcomStyleName(emcomStyle_t style);
+bool emcomStyleEnabled(void);       // the setting: any EMCOM variant
+bool emcomShapeCues(void);          // mono / contrast: state also shown by shape (stripes, inverse chips)
 void emcomApplyStyle(void);         // flat boxes + default colours for the whole UI (boot, setting change)
 bool emcomScreenActive(void);       // the setting + a VFO / channel / TX screen that uses it now
 void emcomSetVfoAllowed(bool allowed); // VFO mode: false in sweep / dual watch / frequency entry

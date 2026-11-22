@@ -297,6 +297,12 @@ static void emcomRssiScreen(void)
 	for (int i = 0; i < 32; i++)
 	{
 		displayThemeApply(((i < lit) ? ((i < 20) ? THEME_ITEM_FG_RSSI_BAR : THEME_ITEM_FG_RSSI_BAR_S9P) : THEME_ITEM_BG_HEADER_TEXT), THEME_ITEM_BG);
+		if ((i < lit) && (i >= 20) && emcomShapeCues())
+		{
+			// mono / contrast: over S9 the segments are hollow, not only another colour
+			displayDrawRect((int16_t)(i * 5), EM_METER_Y, 4, EM_METER_H, false);
+			continue;
+		}
 		displayFillRect((int16_t)(i * 5), EM_METER_Y, 4, EM_METER_H, false);
 	}
 #if defined(FOX_HUNT_SUPPORTED)

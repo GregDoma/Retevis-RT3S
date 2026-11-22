@@ -2436,11 +2436,19 @@ static void handleDownKey(uiEvent_t *ev)
 static void vfoSweepBuildWaterfallPalette(void)
 {
 	static const uint32_t stops[5] = { 0x000040, 0x0000FF, 0x00FFFF, 0xFFFF00, 0xFF0000 };
+#if defined(HAS_EMCOM_UI)
+	// Fork: mono / contrast styles: a brightness ramp (grey, red at night), readable without hue
+	static const uint32_t greyStops[5] = { 0x101010, 0x404040, 0x808080, 0xC0C0C0, 0xFFFFFF };
+	static const uint32_t redStops[5]  = { 0x100000, 0x400404, 0x800808, 0xC01010, 0xFF2020 };
+	const uint32_t *ramp = (emcomShapeCues() ? ((DAYTIME_CURRENT == NIGHT) ? redStops : greyStops) : stops);
+#else
+	const uint32_t *ramp = stops;
+#endif
 
 	for (int i = 0; i < 32; i++)
 	{
-		uint32_t a = stops[i >> 3];
-		uint32_t b = stops[(i >> 3) + 1];
+		uint32_t a = ramp[i >> 3];
+		uint32_t b = ramp[(i >> 3) + 1];
 		int t = (i & 0x7);
 		uint32_t r  = ((((a >> 16) & 0xFF) * (8 - t)) + (((b >> 16) & 0xFF) * t)) / 8;
 		uint32_t g  = ((((a >> 8)  & 0xFF) * (8 - t)) + (((b >> 8)  & 0xFF) * t)) / 8;
