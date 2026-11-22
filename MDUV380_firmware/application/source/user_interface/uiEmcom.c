@@ -30,6 +30,8 @@
 #include "functions/sound.h"
 #include "functions/aprs.h"
 #include "functions/eventLog.h"
+#include "functions/blackout.h"
+#include "functions/batteryRuntime.h"
 #include "interfaces/batteryAndPowerManagement.h"
 #include "interfaces/i2s.h"
 #include "io/LEDs.h"
@@ -145,6 +147,7 @@ static struct
 	int16_t  rxDbm;
 	uint32_t lastFull;
 	bool     valid;
+	bool     blackout;
 } drawn;
 
 // SOS
@@ -1245,16 +1248,30 @@ static void drawFooter(emcomState_t st)
 		alert = true;
 	}
 
+	int16_t r = (DISPLAY_SIZE_X - 2); // right edge of the next item
+
 	if (right)
 	{
 		if (pal->cues && alert)
 		{
-			inverseChip((DISPLAY_SIZE_X - 1), (FOOTER_Y + 2), right, rightCol, pal->bar, true); // SOS, TX OFF, TX
+			r = (int16_t)((DISPLAY_SIZE_X - 1) - inverseChip((DISPLAY_SIZE_X - 1), (FOOTER_Y + 2), right, rightCol, pal->bar, true) - 3); // SOS, TX OFF, TX
 		}
 		else
 		{
-			text((DISPLAY_SIZE_X - 2), (FOOTER_Y + 2), right, FONT_SIZE_1_BOLD, rightCol, true);
+			r -= (text(r, (FOOTER_Y + 2), right, FONT_SIZE_1_BOLD, rightCol, true) + 4);
 		}
+	}
+	else if (batteryTimeLeftMinutes() != BATT_RT_UNKNOWN)
+	{
+		// Fork: battery runtime estimate, when nothing more important is shown
+		batteryTimeLeftString(buf, sizeof(buf));
+		r -= (text(r, (FOOTER_Y + 2), buf, FONT_SIZE_1, pal->barFg, true) + 4);
+	}
+
+	if (blackoutActive())
+	{
+		// solid chip in every style: shape-distinct from the text items
+		inverseChip((r + 1), (FOOTER_Y + 2), "BLK", pal->barFg, pal->bar, true);
 	}
 }
 
@@ -1271,6 +1288,7 @@ static void rememberDrawn(emcomState_t st)
 	drawn.sosPhase = (((ticksGetMillis() / 600U) & 1U) == 0U);
 	drawn.rxDbm = (int16_t)trxGetRSSIdBm(RADIO_DEVICE_PRIMARY);
 	drawn.lastFull = ticksGetMillis();
+	drawn.blackout = blackoutActive();
 	drawn.valid = true;
 }
 
@@ -1352,7 +1370,7 @@ bool emcomNeedsFullRedraw(uint32_t now)
 	}
 
 	if (((uint8_t)st != drawn.state) || (volumeLevel() != drawn.volume) ||
-			((uiDataGlobal.dateTimeSecs / 60U) != drawn.minute) || (gpsHasFix() != drawn.gpsFix))
+			((uiDataGlobal.dateTimeSecs / 60U) != drawn.minute) || (gpsHasFix() != drawn.gpsFix) || (blackoutActive() != drawn.blackout))
 	{
 		return true;
 	}
