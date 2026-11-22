@@ -41,6 +41,7 @@
 #include "hardware/radioHardwareInterface.h"
 #include "interfaces/gps.h"
 #include "interfaces/settingsStorage.h"
+#include "functions/batteryRuntime.h"
 
 //#define DEBUG_HARDWARE_SCREEN 1
 
@@ -57,6 +58,9 @@ static int batteryVoltageCallbackTick = 0;
 static int batteryVoltageTick = BATTERY_VOLTAGE_TICK_RELOAD;
 
 volatile float averageBatteryVoltage = 0;
+volatile float averageBatteryVoltageFine = 0; // Fork: same average, without the 0.1 V truncation
+static batteryRuntime_t batteryRuntime;       // Fork: "time left" estimate
+static uint32_t batteryRuntimeLastTxMs;
 static volatile float previousAverageBatteryVoltage;
 volatile int batteryVoltage = 0;
 volatile uint16_t micLevel = 0;
@@ -249,6 +253,36 @@ void batteryChecking(uiEvent_t *ev)
 	}
 }
 
+// Fork: battery runtime estimate, see batteryRuntime.h
+static void batteryRuntimeUpdate(void)
+{
+	uint32_t now = ticksGetMillis();
+
+	if (batteryRuntime.vEmpty == 0)
+	{
+		batteryRuntimeInit(&batteryRuntime, (int16_t)(CUTOFF_VOLTAGE_UPPER_HYST * 10));
+	}
+
+	if (trxTransmissionEnabled)
+	{
+		batteryRuntimeLastTxMs = now;
+	}
+
+	// TX and the first seconds after it sag the voltage: not a rest voltage
+	batteryRuntimeAddSample(&batteryRuntime, now, (int16_t)((averageBatteryVoltageFine * 10.0f) + 0.5f),
+			(trxTransmissionEnabled || ((now - batteryRuntimeLastTxMs) < 5000U)));
+}
+
+int batteryTimeLeftMinutes(void)
+{
+	return batteryRuntimeMinutes(&batteryRuntime);
+}
+
+void batteryTimeLeftString(char *buf, size_t size)
+{
+	batteryRuntimeFormat(batteryRuntimeMinutes(&batteryRuntime), buf, size);
+}
+
 void batteryUpdate(void)
 {
 	batteryVoltageTick++;
@@ -256,6 +290,8 @@ void batteryUpdate(void)
 	{
 		if (powerRotarySwitchIsOn())
 		{
+			batteryRuntimeUpdate();
+
 			if (previousAverageBatteryVoltage != averageBatteryVoltage)
 			{
 				previousAverageBatteryVoltage = averageBatteryVoltage;

@@ -92,13 +92,18 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
 		lastValidBatteryVoltage = batteryVoltage;
 	}
 
+	// Fork: the same average without the 0.1 V truncation, for the battery runtime estimate
+	float fineVoltage = (((float)adcVal[1] / BATTERY_ADC_COEFF) + (float)((nonVolatileSettings.batteryCalibration & 0x0F) - 5));
+
 	if (ticksGetMillis() < (BATTERY_VOLTAGE_STABILISATION_TIME + resumeTicks))
 	{
 		averageBatteryVoltage = batteryVoltage;
+		averageBatteryVoltageFine = fineVoltage;
 	}
 	else
 	{
 		averageBatteryVoltage = (averageBatteryVoltage * (AVERAGE_BATTERY_VOLTAGE_SAMPLE_WINDOW - 1) + batteryVoltage) / AVERAGE_BATTERY_VOLTAGE_SAMPLE_WINDOW;
+		averageBatteryVoltageFine = (averageBatteryVoltageFine * (AVERAGE_BATTERY_VOLTAGE_SAMPLE_WINDOW - 1) + fineVoltage) / AVERAGE_BATTERY_VOLTAGE_SAMPLE_WINDOW;
 	}
 }
 

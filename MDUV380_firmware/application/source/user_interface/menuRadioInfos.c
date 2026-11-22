@@ -412,6 +412,20 @@ static void updateScreen(uiEvent_t *ev, bool forceRedraw)
 						h = battLevelHeight;
 					}
 
+					// Fork: runtime estimate from the voltage trend ("--" while unknown / charging)
+					{
+						char est[8];
+						const int16_t estY = (dblHeight ? 58 : 54);
+
+						batteryTimeLeftString(est, sizeof(est));
+						displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+						displayFillRect(0, estY, (x - 2), (FONT_SIZE_3_HEIGHT + 10), true);
+						displayThemeResetToDefault();
+						displayPrintCore(((x - ((int)strlen(est) * 8)) >> 1), estY, est, FONT_SIZE_3, TEXT_ALIGN_LEFT, false);
+						displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+						displayPrintCore(((x - (9 * 6)) >> 1), (estY + FONT_SIZE_3_HEIGHT + 2), "time left", FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
+					}
+
 					displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
 					// Draw Level
 					displayFillRoundRect(x + 4, 23 + battLevelHeight - h , 20 + DISPLAY_H_EXTRA_PIXELS, h, 2, (averageBatteryVoltage < BATTERY_CRITICAL_VOLTAGE) ? blink : true);
