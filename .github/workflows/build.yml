@@ -11,6 +11,18 @@ permissions:
   contents: write  # release job needs to create releases on tag pushes
 
 jobs:
+  host-tests:
+    name: Host tests (APRS / DTMF / CW / SSTV decoders, APRS parser)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Plain host gcc + libm (preinstalled on the runner), no hardware or container
+      - name: Run host tests
+        run: make -C MDUV380_firmware/tests/aprs_rx
+
   build:
     name: ${{ matrix.name }}
     runs-on: ubuntu-latest
@@ -79,7 +91,7 @@ jobs:
 
   release:
     name: Publish GitHub Release
-    needs: build
+    needs: [host-tests, build]
     if: startsWith(github.ref, 'refs/tags/R') && (contains(github.ref, '-EA4IPW') || contains(github.ref, '-SP7TQ'))
     runs-on: ubuntu-latest
 
