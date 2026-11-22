@@ -30,16 +30,25 @@
 #include "user_interface/uiUtilities.h"
 #include "user_interface/uiLocalisation.h"
 #include "user_interface/uiEmcom.h"
+#include "functions/netControl.h"
 
 
 #if defined(PLATFORM_RT84_DM1701) || defined(PLATFORM_MDUV380) || defined(PLATFORM_MD2017)
 #if defined(PLATFORM_VARIANT_DM1701)
-static const int DISPLAYED_LINES_MAX = 6;
+static const int DISPLAYED_LINES_BASE = 6;
 #else
-static const int DISPLAYED_LINES_MAX = 7;
+static const int DISPLAYED_LINES_BASE = 7;
 #endif
 #else
-static const int DISPLAYED_LINES_MAX = 3;
+static const int DISPLAYED_LINES_BASE = 3;
+#endif
+
+#if defined(HAS_EMCOM_UI)
+// Fork: the EMCOM style keeps the bottom rows for the key bar
+#define EMCOM_LINES_MAX ((EMCOM_UI_KEYBAR_Y - 16) / MENU_ENTRY_HEIGHT)
+#define DISPLAYED_LINES_MAX ((emcomStyleEnabled() && (DISPLAYED_LINES_BASE > EMCOM_LINES_MAX)) ? EMCOM_LINES_MAX : DISPLAYED_LINES_BASE)
+#else
+#define DISPLAYED_LINES_MAX DISPLAYED_LINES_BASE
 #endif
 
 static bool displayLHDetails = false;
@@ -310,6 +319,17 @@ void menuLastHeardUpdateScreen(bool showTitleOrHeader, bool displayDetails, bool
 		promptsPlayNotAfterTx();
 	}
 
+#if defined(HAS_EMCOM_UI)
+	if (emcomStyleEnabled() && showTitleOrHeader && (confirmClear == false))
+	{
+#if defined(HAS_NET_CONTROL)
+		emcomUiKeyBar((uiDataGlobal.lastHeardCount > 0) ? "GRN CALL  * QSO  RED EXIT" : "RED EXIT");
+#else
+		emcomUiKeyBar((uiDataGlobal.lastHeardCount > 0) ? "GRN CALL  RED EXIT" : "RED EXIT");
+#endif
+	}
+#endif
+
 	if (confirmClear && showTitleOrHeader)
 	{
 		// Fork: clear confirmation over the bottom of the list
@@ -453,6 +473,18 @@ void menuLastHeardHandleEvent(uiEvent_t *ev)
 			menuSystemPopAllAndDisplayRootMenu();
 			return;
 		}
+#if defined(HAS_NET_CONTROL)
+		else if ((currentMenu == MENU_LAST_HEARD) && KEYCHECK_SHORTUP(ev->keys, KEY_STAR) && (BUTTONCHECK_DOWN(ev, (BUTTON_SK1 | BUTTON_SK2)) == 0) &&
+				(selectedItem != NULL)) // Fork: log a QSO with the selected station (report 59)
+		{
+			char call[SCREEN_LINE_BUFFER_SIZE];
+
+			netStationName(selectedItem, call, sizeof(call));
+			menuLastHeardUpdateScreen(true, displayLHDetails, false);
+			netLogQso(call);
+			return;
+		}
+#endif
 		else if (KEYCHECK_LONGDOWN(ev->keys, KEY_HASH) && (BUTTONCHECK_DOWN(ev, (BUTTON_SK1 | BUTTON_SK2)) == 0)) // Clear LH list
 		{
 			if (currentMenu == MENU_LAST_HEARD) // Only allowed within LH menu
