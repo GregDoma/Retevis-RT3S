@@ -287,7 +287,7 @@ position beacons with the emergency symbol and `EMERGENCY SOS` (3 at one
 minute, then every two minutes) through the channel APRS configuration
 (its QSY frequency when set), and a flashing banner; the same again stops it.
 The beacons also go out while the Position, PACE, Coverage, Radio check,
-Net control, GPS, APRS RX, Event log, Last heard or lock screen is open. On the TX,
+Net control, Waypoints, Sked, GPS, APRS RX, Event log, Last heard or lock screen is open. On the TX,
 satellite and SSTV screens, in menus and while editing they wait
 (`SOS PAUSED` shows once) and go out as soon as you are back.
 
@@ -296,7 +296,8 @@ satellite and SSTV screens, in menus and while editing they wait
 card. The backlight stays off until a key is pressed and then lights at 5 % for
 the normal timeout; no key beeps, alert or RX / TX beeps, no voice prompts, RX /
 TX LEDs off. TX (1750 Hz and DTMF included), receive audio, SOS beacons and the
-on-screen alerts are unchanged. The EMCOM footer shows a solid `BLK` chip. Not
+on-screen alerts are unchanged (sked cards too, without the beep). Voice prompts
+are not queued meanwhile, so nothing stale plays afterwards. The EMCOM footer shows a solid `BLK` chip. Not
 kept over a power cycle: the radio always boots with your own backlight settings.
 
 **Battery time left:** an estimate such as `~3h20` from the voltage trend of the
@@ -326,9 +327,10 @@ cancels). On a computer:
 
 ### Field tools — *main menu → PACE / Position / Coverage / Radio check / Net control*
 
-Five screens for working in the field, also available as quickkeys. The
-PACE, Coverage and Radio check data lives in the last 64 KB of the SPI flash
-and survives a power cycle.
+Five screens for working in the field, also available as quickkeys, plus the
+saved waypoints and the comms schedule (sked). The PACE, sked, waypoint,
+Coverage and Radio check data lives in the last 64 KB of the SPI flash and
+survives a power cycle.
 
 | ![PACE plan](docs/screens/field_pace.png) | ![Position](docs/screens/field_position.png) |
 |---|---|
@@ -337,7 +339,19 @@ and survives a power cycle.
 * **PACE plan**: Primary / Alternate / Contingency / Emergency channels.
   `1`–`4` (or `GREEN` on the selected slot) switch the radio to that
   channel, `*` stores the current channel in the selected slot (channel
-  mode only), `0` then `GREEN` clears the slot.
+  mode only), `0` then `GREEN` clears the slot, `#` opens the sked list.
+  With a sked set, the strip (classic: the key bar) counts down to the next one.
+* **Sked (comms schedule)** *(untested)*: up to 4 skeds — *PACE → `#`* or the
+  *Sked* quickkey action. Each: every 15 / 20 / 30 min, 1–12 h or daily, from
+  a UTC time (e.g. `HOURLY :00`, `EVERY 30M :15`, `DAILY 18:00`), 1–60 min long,
+  optionally with a PACE slot or the current channel. List: `GREEN` edits
+  (`▲` / `▼` field, `◄` / `►` value, `GREEN` save, `RED` cancel), `0` then
+  `GREEN` deletes; rows show `ON` / `OFF` / `NOW` and the count-down. One
+  minute before a sked: a `SKED in 1 min` card and a beep; at the start: a
+  `SKED n NOW` card with the channel, a beep and `SYS SKED n` in the event log.
+  On the channel / VFO screen `GREEN` on that card tunes to the sked channel;
+  the radio never changes channel by itself. Needs the UTC clock (GPS / CPS);
+  no beeps in a blackout.
 * **Position**: own position in MGRS (large) and UTM, decimal degrees,
   locator, altitude, GPS fix / satellites / HDOP, sunrise and sunset, and
   distance and bearing to the waypoint; `*` marks the current position as
@@ -367,6 +381,11 @@ and survives a power cycle.
   keeps the whole history.
 
 ![Net control](docs/screens/field_net.png)
+
+| ![Saved waypoints](docs/screens/field_waypoints.png) | ![Sked](docs/screens/field_sked.png) |
+|---|---|
+
+![Sked cards](docs/screens/field_sked_cards.png)
 
 In **Last heard**, `*` logs a QSO with the selected station (report 59) and
 shows *QSO logged*. QSOs and net events are event log entries of type `QSO`
@@ -406,6 +425,8 @@ Satellite, GPS, APRS), a slot can run a fork **action**:
 | Band scope | long `#` in VFO (also works from the Channel screen) |
 | Scope: to peak | `SK1 + 0` while sweeping |
 | Blackout | `SK1 + 5` |
+| Waypoints | GPS waypoint page `*` |
+| Sked | PACE `#` |
 
 Actions are stored as out-of-range contact indices. Upstream firmware ignores
 these, so going back to upstream with the same codeplug is harmless.
@@ -486,6 +507,18 @@ view**: `GPS 8/10` in the strip = 8 heard of 10 in view.
   * `#` types the decimal point and `*` toggles the minus sign (S / W);
   * ▲ / ▼ switch between the lat and lon fields, RED deletes a character;
   * GREEN sets the waypoint.
+* **`*`** opens the **saved waypoints** *(untested)* (also the *Waypoints*
+  quickkey action): 8 named positions kept in the flash, each row with its
+  distance, compass point and a north-up arrow from the GPS fix (`--` without
+  a fix, `>` on the current target):
+  * GREEN navigates: sets the waypoint and shows this page;
+  * `*` saves the current position (`WP1`..`WP8`), `#` types lat / lon (same
+    keypad entry as above) into a free slot;
+  * ► renames (A-Z, 0-9, `-`), `0` then GREEN deletes;
+  * on the APRS RX stations / radar view, long `*` sets a station as the
+    waypoint and saves it under its callsign;
+  * `MDUV380_firmware/tools/opengd77_coverage.py --waypoints wpts.gpx` exports
+    them to a GPX file.
 
 ### Radiosonde hunting
 

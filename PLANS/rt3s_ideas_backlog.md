@@ -38,7 +38,7 @@ Status legend: **done**, **in progress**, *idea*.
 | 6b | CW decoder (repeater IDs on FM) | **done** | `toneRxDecoders.c`, host tests |
 | 7 | Roaming++: auto-switch to the nearest repeater on low RSSI | *idea* | upstream already has auto re-sort on distance and a bearing notification, so little is left |
 | 8 | GPS navigation: waypoint page (GREEN marks, arrow/distance/bearing back) | **done** | `menuGPS.c`; speed/course/alt already on the Direction page; waypoint is RAM-only; untested on hardware |
-| 8b | Waypoint: persist in settings, pick a contact/channel location as target | *idea* | |
+| 8b | Saved waypoints: 8 named positions in the field data flash, list with distance / bearing, navigate / save here / keypad entry / rename / delete, APRS station saved | **done** (2026-11-22) | see *Saved waypoints and sked* below; a contact / channel location as target is still an idea; untested on hardware |
 | 9 | Satellite: automatic Doppler retune during a pass, cross-band hints | *idea* | `menuSatelliteScreen.c` |
 | 10 | APRS RX decode (AFSK 1200): station list with distance/bearing, radar view | **done** (2026-11-19) | AFSK/AX.25 decoder on I2S RX audio; RSSI `9` monitor: frames / raw (TNC2+hex) / stations (dist, bearing) / radar views (`#`); positions: uncompressed, compressed, Mic-E, objects, items; background RX on `SK1+4` / quickkey with notifications. Background setting persisted (bit 29); APRS messages with auto ACK and canned replies; station -> GPS waypoint |
 | 16 | Radiosonde hunting: 401/403/405 MHz scope presets + keypad waypoint entry + fox-hunt | **done** | no RS41/M20 decode: only 8 kHz voice-band audio reaches the MCU, the sondes send 4800/9600 bd GFSK |
@@ -56,6 +56,7 @@ Status legend: **done**, **in progress**, *idea*.
 | 21 | Net control + QSO log: roster of stations heard since the net start (DMR last heard / APRS), FM manual check-ins, silence alarm, QSO from the roster / Last heard into the event log | **done** (2026-11-22) | see *Net control* below; untested on hardware |
 | 22 | Blackout / silent mode: minimum backlight on key press only, no beeps / voice prompts / LEDs; `SK1+5` / quickkey | **done** (2026-11-22) | see *Blackout and battery time left* below; untested on hardware |
 | 23 | Battery runtime estimate ("time left") on Radio infos and the EMCOM footer | **done** (2026-11-22) | see *Blackout and battery time left* below; untested on hardware |
+| 24 | Comms schedule (sked) reminders: 4 skeds (every 15 min .. daily, UTC), 1 min warning + NOW card, GREEN tunes the PACE slot / channel, SYS log, countdown in the PACE strip | **done** (2026-11-22) | see *Saved waypoints and sked* below; untested on hardware |
 
 ## EMCOM mono style (done, #18)
 
@@ -220,10 +221,13 @@ saved in flash across a power cycle, a net summary export, FM check-in by DTMF A
   taken, 0/3 are sweep keys; 5..8 were free) or `QUICKKEY_ACTION_BLACKOUT` (appended, the stored
   action numbers of the others are unchanged). The backlight mode / timeout / day, night and "off"
   levels are swapped for `BUTTONS` / user timeout (10 s for *never*) / 5 % / 0 % in RAM;
-  `settingsSaveSettings()` writes the user values around the flash write (`blackoutSettingsForSave()`),
-  so the radio always boots normal; a backlight value the user changes during the blackout is
-  adopted. Beeps (`soundSetMelody()`, except the transmitted 1750 Hz / DTMF), voice prompts
-  (`voicePromptsPlay()`) and the LEDs (`LedWrite()`, `LEDsState` still tracks RX for the EMCOM
+  `settingsSaveSettings()` writes a stack copy of the settings with the user values
+  (`blackoutSettingsForSave()`; the live values stay dark, so the backlight timer never sees full
+  brightness), so the radio always boots normal; a backlight value changed in *Options → Display*
+  during the blackout (compared with the values when the menu was opened, so e.g. 5 % or *Buttons*
+  count too) and a settings reset to the defaults are adopted as the user values. Beeps (`soundSetMelody()`, except the transmitted 1750 Hz / DTMF), voice prompts
+  (`voicePromptsInit()` / `Append*()` / `Play()`: nothing is queued while active, the queue is
+  cleared when the blackout is turned off) and the LEDs (`LedWrite()`, `LEDsState` still tracks RX for the EMCOM
   state) are gated by `blackoutActive()`. 7 B of RAM.
 * **Battery time left** (`functions/batteryRuntime.c`, pure, host test `tests/aprs_rx/test_batt.c`):
   the existing average is truncated to 0.1 V (one step per ~35 min at a typical drain), so
@@ -235,3 +239,39 @@ saved in flash across a power cycle, a net summary export, FM check-in by DTMF A
 
 **Ideas:** a classic-style indicator (the header has no room), blackout in the event log, a
 non-linear Li-ion curve for the percentage and the estimate, the estimate in the voice prompt.
+
+
+## Saved waypoints and sked (done, #8b, #24)
+
+**Done (2026-11-22).** Mock-ups `tools_waypoints.png`, `tools_sked.png`, `field_sked_cards.png`,
+`field_waypoints.png`, `field_sked.png` (`render_waypoints_sked.py`), PACE strip in `tools_pace.png`.
+
+* **Field data, sector 0** (`fieldData.h`): `0x800` 8 waypoints x 24 B (magic `WWP1`, lat / lon
+  i32 deg * 1e6, name 8 chars, flags GPS / keypad / APRS), `0x900` 4 skeds x 16 B (magic `SKD1`,
+  `skedTime_t`, stored channel). PACE (`0x000`) and the replies (`0x400`) do not move; each record
+  carries its own magic, as sector 0 may still hold old GPS log bytes (only ever rewritten by the
+  read-modify-write of `SPI_Flash_write()`). `_Static_assert`s for every boundary.
+* **Saved waypoints** (`menuWaypoints.c`, `MENU_WAYPOINTS`, quickkey action *Waypoints*, GPS
+  waypoint page `*`): rows name / distance / compass point / arrow (north up), `--` without a fix,
+  `>` marks the current target. `GREEN` sets the GPS waypoint and opens the GPS waypoint page,
+  `*` saves the fix (auto name `WP<n>`), `#` the keypad lat / lon entry of the GPS page (now shared:
+  `gpsWaypointEdit*()`), `RIGHT` renames (`uiTextEdit`, A-Z 0-9 -), `0` + `GREEN` deletes. APRS RX:
+  long `*` on a station sets the waypoint and saves it under the callsign. State in the CCM scratch;
+  the selection is the menu's `currentItemIndex`.
+* **Sked** (`functions/skedMath.c` pure + host test `tests/aprs_rx/test_sked.c`; `functions/sked.c`;
+  `menuSked.c`, `MENU_SKED`, PACE `#`, quickkey action *Sked*): period 15 / 20 / 30 min, 1 / 2 / 3 /
+  4 / 6 / 8 / 12 h or a day (divides 1440, so no midnight special case), offset from 00:00 UTC,
+  length 1..60 min, tune none / PACE slot / stored channel, alert on / off. `skedTick()` reads the
+  flash once per UTC minute (the clock must be set, 2024+): `SKED in 1 min` warning card + beep,
+  `SKED n NOW` card + beep + `SYS SKED n`; `GREEN` on that card (`NOTIFICATION_ID_USER_SKED`, on the
+  channel / VFO screen) calls `paceActivateChannel()` — never automatically. No card on the TX / CPS
+  screens or while transmitting (still logged); no beep in a blackout. The PACE strip / classic key
+  bar count down to the next sked (redrawn once per second).
+* **ROM**: the code before the fixed codec address (0x0807537C) was full; the field tool screens
+  (`menuSked`, `menuWaypoints`, `sked`, `skedMath`, net control, PACE, coverage, radio check,
+  position, event log screen) go to a new `.upper_text` section after the codec
+  (`STM32F405VGTX_FLASH.ld`), ~21 KB left before the codec.
+* RAM: 48 B (two menu table entries, the sked tick state).
+
+**Ideas:** a contact / channel location as waypoint target, waypoint names from the keypad entry,
+sked per weekday, sked TX reminder with a callsign / net name, skeds in the event log export.
