@@ -56,39 +56,44 @@ static void writeSettings(const blackoutBacklight_t *b)
 	nonVolatileSettings.displayBacklightPercentageOff = b->percentageOff;
 }
 
-// A value the user changed during the blackout (display options) is kept as the user value
-static void adoptUserChanges(void)
-{
-	blackoutBacklight_t now, dark;
-
-	readSettings(&now);
-	blackoutValues(&dark);
-	if (now.backlightMode != dark.backlightMode) { userValues.backlightMode = now.backlightMode; }
-	if (now.backLightTimeout != dark.backLightTimeout) { userValues.backLightTimeout = now.backLightTimeout; }
-	if (now.percentage[DAY] != dark.percentage[DAY]) { userValues.percentage[DAY] = now.percentage[DAY]; }
-	if (now.percentage[NIGHT] != dark.percentage[NIGHT]) { userValues.percentage[NIGHT] = now.percentage[NIGHT]; }
-	if (now.percentageOff != dark.percentageOff) { userValues.percentageOff = now.percentageOff; }
-}
-
-void blackoutSettingsForSave(bool saving)
+// Display options saved during the blackout: a backlight value the user changed there
+// (compared with the values when the menu was opened, not with the blackout values, so
+// picking e.g. 5 % or "Buttons" is kept too) becomes the user value.
+void blackoutAdoptBacklightEdits(const settingsStruct_t *before)
 {
 	if (active == false)
 	{
 		return;
 	}
 
-	if (saving)
-	{
-		adoptUserChanges();
-		writeSettings(&userValues); // the flash gets the user values, never the blackout ones
-	}
-	else
+	if (nonVolatileSettings.backlightMode != before->backlightMode) { userValues.backlightMode = nonVolatileSettings.backlightMode; }
+	if (nonVolatileSettings.backLightTimeout != before->backLightTimeout) { userValues.backLightTimeout = nonVolatileSettings.backLightTimeout; }
+	if (nonVolatileSettings.displayBacklightPercentage[DAY] != before->displayBacklightPercentage[DAY]) { userValues.percentage[DAY] = nonVolatileSettings.displayBacklightPercentage[DAY]; }
+	if (nonVolatileSettings.displayBacklightPercentage[NIGHT] != before->displayBacklightPercentage[NIGHT]) { userValues.percentage[NIGHT] = nonVolatileSettings.displayBacklightPercentage[NIGHT]; }
+	if (nonVolatileSettings.displayBacklightPercentageOff != before->displayBacklightPercentageOff) { userValues.percentageOff = nonVolatileSettings.displayBacklightPercentageOff; }
+}
+
+// Settings reset to the defaults during the blackout: the defaults are the user values now
+void blackoutSettingsWereReset(void)
+{
+	if (active)
 	{
 		blackoutBacklight_t dark;
 
+		readSettings(&userValues);
 		blackoutValues(&dark);
 		writeSettings(&dark);
 	}
+}
+
+// The copy of the settings written to the flash gets the user values (the live ones stay dark)
+void blackoutSettingsForSave(settingsStruct_t *copy)
+{
+	copy->backlightMode = userValues.backlightMode;
+	copy->backLightTimeout = userValues.backLightTimeout;
+	copy->displayBacklightPercentage[DAY] = userValues.percentage[DAY];
+	copy->displayBacklightPercentage[NIGHT] = userValues.percentage[NIGHT];
+	copy->displayBacklightPercentageOff = userValues.percentageOff;
 }
 
 void blackoutToggle(void)
@@ -119,9 +124,9 @@ void blackoutToggle(void)
 	}
 	else
 	{
-		adoptUserChanges();
 		writeSettings(&userValues);
 		active = false;
+		voicePromptsInit(); // drop anything queued while silent, so no stale prompt plays
 
 #if ! defined(PLATFORM_GD77S)
 		if (settingsIsOptionBitSet(BIT_ALL_LEDS_DISABLED) == false)

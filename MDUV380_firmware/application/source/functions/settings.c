@@ -105,9 +105,21 @@ bool settingsSaveSettings(bool includeVFOs)
 	nonVolatileSettings.audioPromptMode = AUDIO_PROMPT_MODE_VOICE_LEVEL_3;
 #endif
 
-	blackoutSettingsForSave(true); // Fork: the user backlight values, not the blackout ones
-	bool ret = settingsStorageWrite((uint8_t *)&nonVolatileSettings, sizeof(settingsStruct_t));
-	blackoutSettingsForSave(false);
+	bool ret;
+
+	if (blackoutActive())
+	{
+		// Fork: the flash gets the user backlight values from a copy, the live values stay dark
+		settingsStruct_t copy;
+
+		memcpy(&copy, &nonVolatileSettings, sizeof(settingsStruct_t));
+		blackoutSettingsForSave(&copy);
+		ret = settingsStorageWrite((uint8_t *)&copy, sizeof(settingsStruct_t));
+	}
+	else
+	{
+		ret = settingsStorageWrite((uint8_t *)&nonVolatileSettings, sizeof(settingsStruct_t));
+	}
 
 	if (ret)
 	{
@@ -438,6 +450,8 @@ bool settingsRestoreDefaultSettings(void)
 	//readDone: // Used when upgrading
 
 	settingsDirty = true;
+
+	blackoutSettingsWereReset(); // Fork: during a blackout the defaults become the user backlight values
 
 	settingsSaveSettings(false);
 

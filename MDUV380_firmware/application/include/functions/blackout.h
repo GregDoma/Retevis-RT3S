@@ -9,7 +9,7 @@
  * The backlight settings are swapped for the blackout values in RAM and back on exit;
  * when the settings are written to the flash (power off...) the user values are written,
  * so the radio always boots normal. A backlight setting changed by the user during the
- * blackout is kept. Beeps, voice prompts and LEDs are gated by blackoutActive().
+ * blackout (display options) is kept. Beeps, voice prompts and LEDs are gated by blackoutActive().
  *
  * Use of this source code or binary releases for commercial purposes is
  * strictly forbidden (see license.txt).
@@ -18,12 +18,15 @@
 #define _OPENGD77_BLACKOUT_H_
 
 #include <stdbool.h>
+#include "functions/settings.h"
 
 #define BLACKOUT_BACKLIGHT_PERCENT   5U  // lit level after a key press
 #define BLACKOUT_BACKLIGHT_TIMEOUT   10U // seconds, when the user timeout is "never"
 
 bool blackoutActive(void);
 void blackoutToggle(void);          // shows the "BLACKOUT ON / OFF" card
-void blackoutSettingsForSave(bool saving); // settingsSaveSettings(): true before the write (user values), false after
+void blackoutSettingsForSave(settingsStruct_t *copy); // settingsSaveSettings(), active only: the user values into the copy written
+void blackoutAdoptBacklightEdits(const settingsStruct_t *before); // display options saved: changed backlight values become the user values
+void blackoutSettingsWereReset(void); // settingsRestoreDefaultSettings(): the defaults become the user values
 
 #endif

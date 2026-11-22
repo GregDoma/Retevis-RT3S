@@ -37,6 +37,7 @@
 #include "user_interface/uiEmcom.h"
 #include "user_interface/uiLocalisation.h"
 #include "user_interface/uiUtilities.h"
+#include "functions/blackout.h"
 
 
 static void updateScreen(bool isFirstRun);
@@ -1069,6 +1070,7 @@ static void applySettings(void)
 	daytimeThemeApply(DAYTIME_CURRENT);
 	daytimeThemeChangeUpdate(true);
 #endif
+	blackoutAdoptBacklightEdits(&originalNonVolatileSettings); // Fork: backlight values changed during a blackout
 	// All parameters has already been applied
 	settingsSaveIfNeeded(true);
 	resetOriginalSettingsData();
