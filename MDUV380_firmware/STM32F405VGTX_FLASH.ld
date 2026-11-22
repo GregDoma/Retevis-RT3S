@@ -85,8 +85,10 @@ SECTIONS
   .text :
   {
     . = ALIGN(4);
-    *(.text)           /* .text sections (code) */
-    *(.text*)          /* .text* sections (code) */
+    /* Fork: the field tool screens go after the codec (.upper_text below), as the code
+       before the fixed codec address is full. Keep this list the same as in .rodata and .upper_text. */
+    *(EXCLUDE_FILE(*menuSked.o *menuWaypoints.o *sked.o *skedMath.o *menuNetControl.o *netControl.o *netRoster.o *menuPACE.o *menuCoverage.o *menuRadioCheck.o *menuPosition.o *menuEventLog.o) .text)
+    *(EXCLUDE_FILE(*menuSked.o *menuWaypoints.o *sked.o *skedMath.o *menuNetControl.o *netControl.o *netRoster.o *menuPACE.o *menuCoverage.o *menuRadioCheck.o *menuPosition.o *menuEventLog.o) .text*)
     *(.glue_7)         /* glue arm to thumb code */
     *(.glue_7t)        /* glue thumb to arm code */
     *(.eh_frame)
@@ -102,8 +104,8 @@ SECTIONS
   .rodata :
   {
     . = ALIGN(4);
-    *(.rodata)         /* .rodata sections (constants, strings, etc.) */
-    *(.rodata*)        /* .rodata* sections (constants, strings, etc.) */
+    *(EXCLUDE_FILE(*menuSked.o *menuWaypoints.o *sked.o *skedMath.o *menuNetControl.o *netControl.o *netRoster.o *menuPACE.o *menuCoverage.o *menuRadioCheck.o *menuPosition.o *menuEventLog.o) .rodata)
+    *(EXCLUDE_FILE(*menuSked.o *menuWaypoints.o *sked.o *skedMath.o *menuNetControl.o *netControl.o *netRoster.o *menuPACE.o *menuCoverage.o *menuRadioCheck.o *menuPosition.o *menuEventLog.o) .rodata*)
     . = ALIGN(4);
   } >FLASH
 
@@ -158,6 +160,26 @@ SECTIONS
 	   *(.codec_bin_section_1)
 	    KEEP(*(.codec_bin_section_1))
 	} >FLASH AT>FLASH
+
+  /* Fork: code and constants of the field tool screens, after the codec (see .text) */
+  .upper_text :
+  {
+    . = ALIGN(4);
+    *menuSked.o(.text .text* .rodata .rodata*)
+    *menuWaypoints.o(.text .text* .rodata .rodata*)
+    *sked.o(.text .text* .rodata .rodata*)
+    *skedMath.o(.text .text* .rodata .rodata*)
+    *menuNetControl.o(.text .text* .rodata .rodata*)
+    *netControl.o(.text .text* .rodata .rodata*)
+    *netRoster.o(.text .text* .rodata .rodata*)
+    *menuPACE.o(.text .text* .rodata .rodata*)
+    *menuCoverage.o(.text .text* .rodata .rodata*)
+    *menuRadioCheck.o(.text .text* .rodata .rodata*)
+    *menuPosition.o(.text .text* .rodata .rodata*)
+    *menuEventLog.o(.text .text* .rodata .rodata*)
+    *(.upper_text)
+    . = ALIGN(4);
+  } >FLASH
 
   /* Initialized data sections into "RAM" Ram type memory */
   .data :
