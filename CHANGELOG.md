@@ -7,6 +7,9 @@ marked *(untested)* build and pass host tests but still need on-air checking.
 
 ## Unreleased
 
+* **Net control + QSO log** *(untested)*: new main menu tile *Net control*. `GREEN` starts a net; every station heard on DMR (callsign, else the DMR ID) or APRS checks in by itself. Rows: station, check-in time (UTC), time since last heard, `IN` (solid chip) / `QUIET` (outlined: not heard for the quiet limit; logged once with a warning card and a beep, re-armed when heard again). `*` adds an FM check-in `FM#n`, `GREEN` on it marks it heard now; `GREEN` on another row logs a QSO (report 59); `#` quiet limit 10 / 15 / 30 / 5 min; `0` then `GREEN` ends the net; `RED` leaves, the net keeps running in the background. 18 stations in RAM.
+  * **Last heard**: `*` logs a QSO with the selected station (report 59), *QSO logged* card; EMCOM key bar (`GRN CALL  * QSO  RED EXIT`, one row less).
+  * **Event log**: two new record types, `QSO` (`SP7ABC 59`, `2601234 59`, `FM#3 59`) and `NET` (`START <channel>`, `IN <station>`, `QUIET <station>`, `END <n>`), also in `opengd77_event_log.py`.
 * **UI refresh, stage 2 (EMCOM styles)** *(untested)*: the field tool screens get the title bar with a counter, a status strip, state chips (a word and a shape as well as a colour) and a key bar with the real keys; classic style unchanged, keys unchanged.
   * **PACE**: the slot the radio is on in the strip (`ON P`, `OFF PLAN`, `VFO`), rows with name, frequency, role and `ON` / `EMPTY` / `DELETED`.
   * **Radio check**: live `RX` / `IDLE`, S units and over length in the strip; the last report big with `OK` / `WEAK` / `POOR`; older reports with the same chips.

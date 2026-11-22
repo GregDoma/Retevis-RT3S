@@ -53,6 +53,7 @@ Status legend: **done**, **in progress**, *idea*.
 | 19 | SSTV++ (issue #13): frequency on the SSTV screen, Doppler from the satellite mode, pictures saved to flash + web download | *in progress* | see *SSTV++* below |
 | 20 | UI refresh, stage 1 (EMCOM styles): TX view, APRS messages, message boxes / notifications | **done** (2026-11-22) | see *UI refresh* below; untested on hardware |
 | 20b | UI refresh, stage 2 (EMCOM styles): PACE, Radio check, Event log, Coverage, Position, SSTV | **done** (2026-11-22) | see *UI refresh* below; untested on hardware |
+| 21 | Net control + QSO log: roster of stations heard since the net start (DMR last heard / APRS), FM manual check-ins, silence alarm, QSO from the roster / Last heard into the event log | **done** (2026-11-22) | see *Net control* below; untested on hardware |
 
 ## EMCOM mono style (done, #18)
 
@@ -177,4 +178,28 @@ unchanged; the clear confirmations (`0`, then `GREEN` on its release) show `CLEA
 
 **Next stages (ideas):** PIN code entry, bearing notification, channel details / VFO special
 modes, contact list and the quick menus in the EMCOM card look.
+
+## Net control (done, #21)
+
+**Done (2026-11-22).** `functions/netRoster.c` (pure: roster, quiet alarm, QSO text; host test
+`tests/aprs_rx/test_net.c`), `functions/netControl.c` (state + `netTick()` in the main loop, once
+per second), `user_interface/menuNetControl.c` (screen, EMCOM + classic), mock-ups
+`tools_net.png` / `field_net.png`.
+
+* **Event log format (shared with the web tools):** types `EVENT_LOG_QSO = 10` (`QSO`) and
+  `EVENT_LOG_NET = 11` (`NET`). QSO text `<STATION> <REPORT>[ OK|RPT|NIL]` (station truncated to
+  fit 19 chars): `SP7ABC-9 59`, `2601234 59`, `FM#3 59`. NET text `START[ <channel>]`,
+  `IN <STATION>`, `QUIET <STATION>`, `END <n>`. Record time = event time (UTC, 0 without a clock).
+* **Roster:** 18 x 18 B in RAM (key = DMR ID / APRS callsign hash / FM number, check-in and last
+  heard in seconds since the start, 9 char name, alarm flag); 392 B of new RAM for the whole
+  feature (incl. the menu tables). Stations beyond 18 are not added. Times are 16 bit seconds,
+  so a net longer than 18 h stops updating.
+* **Keys:** `GREEN` start / QSO 59 / FM row heard now, `*` FM check-in, `#` quiet limit
+  10 / 15 / 30 / 5 min (RAM only: no spare settings bit in bank 0), `0` + `GREEN` end, `RED` leave.
+  Last heard: `*` = QSO 59.
+* The main menu tile has a fixed English name (`menuItemName()`, `MENU_STRING_NET_CONTROL`), no
+  language string; it is not offered as a quickkey (menu IDs above 31 do not fit the 5 bit field).
+
+**Ideas:** other reports than 59 (`OK` / `RPT` / `NIL` codes picked on the radio), the roster
+saved in flash across a power cycle, a net summary export, FM check-in by DTMF ANI / CTCSS.
 

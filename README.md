@@ -287,7 +287,7 @@ position beacons with the emergency symbol and `EMERGENCY SOS` (3 at one
 minute, then every two minutes) through the channel APRS configuration
 (its QSY frequency when set), and a flashing banner; the same again stops it.
 The beacons also go out while the Position, PACE, Coverage, Radio check,
-GPS, APRS RX, Event log, Last heard or lock screen is open. On the TX,
+Net control, GPS, APRS RX, Event log, Last heard or lock screen is open. On the TX,
 satellite and SSTV screens, in menus and while editing they wait
 (`SOS PAUSED` shows once) and go out as soon as you are back.
 
@@ -306,10 +306,11 @@ full with its date in the footer; `0` then `GREEN` clears it (any other key
 cancels). On a computer:
 `MDUV380_firmware/tools/opengd77_event_log.py --csv log.csv`.
 
-### Field tools — *main menu → PACE / Position / Coverage / Radio check*
+### Field tools — *main menu → PACE / Position / Coverage / Radio check / Net control*
 
-Four screens for working in the field, also available as quickkeys. Their
-data lives in the last 64 KB of the SPI flash and survives a power cycle.
+Five screens for working in the field. PACE, Position, Coverage and Radio
+check are also available as quickkeys; their data lives in the last 64 KB of
+the SPI flash and survives a power cycle.
 
 | ![PACE plan](docs/screens/field_pace.png) | ![Position](docs/screens/field_position.png) |
 |---|---|
@@ -332,6 +333,26 @@ data lives in the last 64 KB of the SPI flash and survives a power cycle.
 * **Radio check**: every received over is measured (length, average and
   peak level) and rated readability / strength ("5 by 9"), with the last
   reports below. `0` then `GREEN` clears the reports.
+* **Net control** *(untested)*: runs an EMCOM net. `GREEN` starts it
+  (logged `NET START <channel>`); from then on every station heard on DMR
+  (last heard list: callsign, else the DMR ID) or APRS checks in by itself
+  (`NET IN <station>`). Each row: station, check-in time (UTC), time since
+  last heard and `IN` (solid chip) or `QUIET` (outlined chip: not heard for
+  the quiet limit, which also logs `NET QUIET <station>` once, beeps and
+  shows a warning card, re-armed when the station is heard again). FM
+  speakers cannot be identified: `*` adds `FM#1`, `FM#2`... at the current
+  time, `GREEN` on an `FM#` row marks it heard now. `GREEN` on another row
+  logs a QSO with report 59 (`QSO <station> 59`). `#` steps the quiet limit
+  10 / 15 / 30 / 5 min (RAM, back to 10 after power off), `0` then `GREEN`
+  ends the net (`NET END <n>`), `RED` leaves with the net still running.
+  The roster holds 18 stations (RAM, not kept after power off); the event log
+  keeps the whole history.
+
+![Net control](docs/screens/field_net.png)
+
+In **Last heard**, `*` logs a QSO with the selected station (report 59) and
+shows *QSO logged*. QSOs and net events are event log entries of type `QSO`
+and `NET` (`opengd77_event_log.py` exports them).
 
 Every clear asks first: the key bar shows the question, `GREEN` confirms
 and any other key cancels (you stay on the screen). The same goes for the
