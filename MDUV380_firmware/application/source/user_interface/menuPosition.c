@@ -20,6 +20,7 @@
 #include "functions/ticks.h"
 #include "functions/fieldData.h"
 #include "functions/fieldNav.h"
+#include "user_interface/uiEmcom.h"
 #if defined(HAS_GPS)
 #include "interfaces/gps.h"
 #endif
@@ -112,12 +113,223 @@ static void sunLine(double lat, double lon, char *buf, size_t size)
 			(int)(ss / 3600), (int)((ss / 60) % 60), ((off != 0) ? "LT" : "UTC"));
 }
 
+#if defined(HAS_EMCOM_UI)
+// "WPT 1250m  245 WSW" (false: no waypoint)
+static bool waypointLine(double lat, double lon, char *buf, size_t size, bool compact)
+{
+	double wLat, wLon;
+
+#if defined(HAS_GPS)
+	if (gpsWaypointGet(&wLat, &wLon))
+#else
+	UNUSED_PARAMETER(wLat);
+	UNUSED_PARAMETER(wLon);
+	if (false)
+#endif
+	{
+		double km = distanceBetweenTwoCoords(lat, lon, wLat, wLon, true);
+		int brg = ((int)(courseTo(lat, lon, wLat, wLon) + 0.5) % 360);
+
+		if (compact) // "1250m 245"
+		{
+			snprintf(buf, size, ((km < 10.0) ? "%um %03d" : "%ukm %03d"), (unsigned)((km < 10.0) ? ((km * 1000.0) + 0.5) : (km + 0.5)), brg);
+		}
+		else
+		{
+			snprintf(buf, size, ((km < 10.0) ? "WPT %um  %03d %s" : "WPT %ukm  %03d %s"), (unsigned)((km < 10.0) ? ((km * 1000.0) + 0.5) : (km + 0.5)), brg,
+					fieldNavCompass((double)brg));
+		}
+		return true;
+	}
+	return false;
+}
+
+// EMCOM style: the source and fix on the status strip, MGRS big (in the contrast style as large
+// as fits: zone / square 8x16, easting and northing 16x32, one per line), then UTM, lat / lon,
+// locator, sun and waypoint
+static void updateScreenEmcom(void)
+{
+	char buf[SCREEN_LINE_BUFFER_SIZE + 12];
+	double lat = 0.0, lon = 0.0;
+	posSource_t src = getPosition(&lat, &lon);
+	bool large = emcomUiLarge();
+	int16_t y = EMCOM_UI_BODY_Y;
+	char loc[12] = { 0 };
+
+	displayClearBuf();
+	buf[0] = 0;
+	if (uiDataGlobal.dateTimeSecs > 86400U)
+	{
+		time_t_custom now = uiDataGlobal.dateTimeSecs;
+		struct tm t;
+
+		gmtime_r_Custom(&now, &t);
+		snprintf(buf, sizeof(buf), "%02d:%02dZ", t.tm_hour, t.tm_min);
+	}
+	emcomUiTitle("POSITION", (buf[0] ? buf : NULL));
+
+	// status strip: source, fix, HDOP / altitude
+	emcomUiStrip();
+	{
+		const char *word = ((src == SRC_GPS) ? "GPS" : ((src == SRC_MANUAL) ? "MANUAL" : "NO POS"));
+		themeItem_t c = ((src == SRC_GPS) ? THEME_ITEM_FG_RSSI_BAR : ((src == SRC_MANUAL) ? THEME_ITEM_FG_RSSI_BAR_S9P : THEME_ITEM_FG_TX_COUNTER));
+		int16_t x = (int16_t)(2 + emcomUiChip(2, (EMCOM_UI_STRIP_Y + 2), word, c, EMCOM_CHIP_SOLID, false) + 4);
+
+#if defined(HAS_GPS)
+		if (src == SRC_GPS)
+		{
+			snprintf(buf, sizeof(buf), "%s SAT %u", ((gpsData.Status & GPS_STATUS_3D_FIX) ? "3D" : "2D"), (unsigned)(gpsData.SatsInViewGP + gpsData.SatsInViewBD));
+			emcomUiText(x, (EMCOM_UI_STRIP_Y + 2), buf, FONT_SIZE_1, THEME_ITEM_FG_HEADER_TEXT, false);
+			if (gpsData.Status & GPS_STATUS_HAS_HDOP)
+			{
+				snprintf(buf, sizeof(buf), "%u.%u", (unsigned)(gpsData.AccuracyInCm / 100U), (unsigned)((gpsData.AccuracyInCm % 100U) / 10U));
+				int16_t w = emcomUiText((DISPLAY_SIZE_X - 3), (EMCOM_UI_STRIP_Y + 2), buf, FONT_SIZE_1, THEME_ITEM_FG_HEADER_TEXT, true);
+				emcomUiText((DISPLAY_SIZE_X - 3 - w - 4), (EMCOM_UI_STRIP_Y + 2), "HDOP", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, true);
+			}
+		}
+		else
+#endif
+		{
+			emcomUiText(x, (EMCOM_UI_STRIP_Y + 2), ((src == SRC_MANUAL) ? "from the settings" : "no GPS fix"), FONT_SIZE_1, THEME_ITEM_FG_DECORATION, false);
+		}
+	}
+
+	if (src == SRC_NONE)
+	{
+		emcomUiText(4, (y + 10), "No position", FONT_SIZE_3, THEME_ITEM_FG_DEFAULT, false);
+		emcomUiText(4, (y + 32), "Turn the GPS on, or set", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, false);
+		emcomUiText(4, (y + 42), "the location in Options.", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, false);
+		emcomUiKeyBar("RED EXIT");
+		displayRender();
+		return;
+	}
+
+	coordsToMaidenhead((uint8_t *)loc, lat, lon);
+	loc[6] = 0;
+
+	// MGRS "34U EC 00833 86586"
+	char *digits = NULL;
+	if (fieldNavToMgrs(lat, lon, buf, sizeof(buf)))
+	{
+		digits = strchr(strchr(buf, ' ') + 1, ' ');
+		*digits++ = 0;
+	}
+
+	if (large)
+	{
+		emcomUiText(2, (y + 4), "MGRS", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, false);
+		if (digits)
+		{
+			char *northing = strchr(digits, ' ');
+
+			*northing++ = 0;
+			emcomUiText(32, y, buf, FONT_SIZE_3, THEME_ITEM_FG_RSSI_BAR, false);
+			emcomUiText(2, (y + 17), digits, FONT_SIZE_4, THEME_ITEM_FG_DEFAULT, false);
+			emcomUiText(2, (y + 50), northing, FONT_SIZE_4, THEME_ITEM_FG_DEFAULT, false);
+		}
+		else
+		{
+			emcomUiText(32, y, "polar (UPS)", FONT_SIZE_3, THEME_ITEM_FG_DEFAULT, false);
+		}
+
+		// beside the digits: E / N, locator, altitude, waypoint
+		int16_t w = emcomUiText((DISPLAY_SIZE_X - 2), (y + 4), loc, FONT_SIZE_1, THEME_ITEM_FG_RX_FREQ, true);
+		emcomUiText((DISPLAY_SIZE_X - 2 - w - 4), (y + 4), "LOC", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, true);
+		if (digits)
+		{
+			emcomUiText(86, (y + 39), "E", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, false);
+			emcomUiText(86, (y + 72), "N", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, false);
+		}
+#if defined(HAS_GPS)
+		if ((src == SRC_GPS) && (gpsData.Status & GPS_STATUS_HAS_HEIGHT))
+		{
+			snprintf(buf, sizeof(buf), "%dm", (int)gpsData.HeightInM);
+			emcomUiText((DISPLAY_SIZE_X - 2), (y + 22), buf, FONT_SIZE_1, THEME_ITEM_FG_DEFAULT, true);
+			emcomUiText(102, (y + 22), "ALT", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, false);
+		}
+#endif
+		if (waypointLine(lat, lon, buf, sizeof(buf), true))
+		{
+			emcomUiText(102, (y + 55), "WPT", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, false);
+			emcomUiText((DISPLAY_SIZE_X - 2), (y + 65), buf, FONT_SIZE_1, THEME_ITEM_FG_RX_FREQ, true);
+		}
+	}
+	else
+	{
+		fieldUtm_t utm;
+
+		emcomUiText(2, (y + 4), "MGRS", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, false);
+		if (digits)
+		{
+			emcomUiText(32, y, buf, FONT_SIZE_3, THEME_ITEM_FG_RSSI_BAR, false);
+			emcomUiText(32, (y + 16), digits, FONT_SIZE_3, THEME_ITEM_FG_DEFAULT, false);
+		}
+		else
+		{
+			emcomUiText(32, y, "polar (UPS)", FONT_SIZE_3, THEME_ITEM_FG_DEFAULT, false);
+		}
+
+		y += 34;
+		if (fieldNavToUtm(lat, lon, &utm))
+		{
+			snprintf(buf, sizeof(buf), "%d%c %06uE %07uN", utm.zone, utm.band, (unsigned)utm.easting, (unsigned)utm.northing);
+			emcomUiKeyValue(2, y, "UTM", buf, THEME_ITEM_FG_DEFAULT);
+		}
+
+		y += 10;
+		uint32_t la = (uint32_t)((fabs(lat) * 100000.0) + 0.5);
+		uint32_t lo = (uint32_t)((fabs(lon) * 100000.0) + 0.5);
+		snprintf(buf, sizeof(buf), "%u.%05u%c %u.%05u%c", (unsigned)(la / 100000U), (unsigned)(la % 100000U), ((lat >= 0.0) ? 'N' : 'S'),
+				(unsigned)(lo / 100000U), (unsigned)(lo % 100000U), ((lon >= 0.0) ? 'E' : 'W'));
+		emcomUiKeyValue(2, y, "DEG", buf, THEME_ITEM_FG_DEFAULT);
+
+		y += 10;
+		emcomUiKeyValue(2, y, "LOC", loc, THEME_ITEM_FG_RX_FREQ);
+#if defined(HAS_GPS)
+		if ((src == SRC_GPS) && (gpsData.Status & GPS_STATUS_HAS_HEIGHT))
+		{
+			snprintf(buf, sizeof(buf), "%dm", (int)gpsData.HeightInM);
+			int16_t w = emcomUiText((DISPLAY_SIZE_X - 2), y, buf, FONT_SIZE_1, THEME_ITEM_FG_DEFAULT, true);
+			emcomUiText((DISPLAY_SIZE_X - 2 - w - 4), y, "ALT", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, true);
+		}
+#endif
+
+		y += 10;
+		emcomUiDivider(y);
+		y += 3;
+		sunLine(lat, lon, buf, sizeof(buf));
+		emcomUiText(2, y, buf, FONT_SIZE_1, THEME_ITEM_FG_RSSI_BAR_S9P, false);
+
+		y += 10;
+		if (waypointLine(lat, lon, buf, sizeof(buf), false))
+		{
+			emcomUiText(2, y, buf, FONT_SIZE_1, THEME_ITEM_FG_RX_FREQ, false);
+		}
+		else
+		{
+			emcomUiText(2, y, "WPT none (* marks)", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, false);
+		}
+	}
+
+	emcomUiKeyBar("* MARK WAYPOINT  RED EXIT");
+	displayRender();
+}
+#endif
+
 static void updateScreen(void)
 {
 	char buf[SCREEN_LINE_BUFFER_SIZE + 12];
 	double lat = 0.0, lon = 0.0;
 	posSource_t src = getPosition(&lat, &lon);
 	int16_t y;
+
+#if defined(HAS_EMCOM_UI)
+	if (emcomStyleEnabled())
+	{
+		updateScreenEmcom();
+		return;
+	}
+#endif
 
 	displayClearBuf();
 	menuDisplayTitle("POSITION");
