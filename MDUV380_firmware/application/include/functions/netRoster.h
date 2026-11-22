@@ -16,7 +16,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-#define NET_ROSTER_MAX       20U
+#define NET_ROSTER_MAX       18U        // RAM: 18 x 18 bytes
 #define NET_CALL_LEN         9U          // stored without the NUL when 9 long ("SP5ABC-15")
 #define NET_CALL_BUF         (NET_CALL_LEN + 1U)
 
