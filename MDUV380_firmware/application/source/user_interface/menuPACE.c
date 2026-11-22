@@ -189,7 +189,7 @@ static void updateScreenEmcom(void)
 	{
 		snprintf(buf, sizeof(buf), "ON %c", paceLetters[active]);
 		int16_t x = (int16_t)(2 + emcomUiChip(2, (EMCOM_UI_STRIP_Y + 2), buf, slotColour(active), EMCOM_CHIP_SOLID, false) + 4);
-		if ((x + (int16_t)(strlen(paceNames[active]) * 6) + 4) <= (DISPLAY_SIZE_X - 3 - rightW)) // the slot name when it fits
+		if ((x + (int16_t)(strlen(paceNames[active]) * 6) + 10) <= (DISPLAY_SIZE_X - 3 - rightW)) // the slot name when it fits, clear of the right text
 		{
 			emcomUiText(x, (EMCOM_UI_STRIP_Y + 2), paceNames[active], FONT_SIZE_1, THEME_ITEM_FG_HEADER_TEXT, false);
 		}

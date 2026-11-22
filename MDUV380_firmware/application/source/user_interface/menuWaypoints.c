@@ -99,18 +99,18 @@ static void formatDistance(int meters, char *buf, size_t size)
 	}
 }
 
-// Small arrow (north up) at the end of a row
+// Small arrow (north up) at the end of a row: tip and wings 5 px from the centre, wings at +-150 deg
 static void drawArrow(int16_t cy, double bearing, themeItem_t colour)
 {
 	double a = bearing * DEG_TO_RAD;
-	double aL = (bearing + 140.0) * DEG_TO_RAD;
-	double aR = (bearing - 140.0) * DEG_TO_RAD;
+	double aL = (bearing + 150.0) * DEG_TO_RAD;
+	double aR = (bearing - 150.0) * DEG_TO_RAD;
 	int16_t tipX = ARROW_CX + (int16_t)lround(sin(a) * 5.0);
 	int16_t tipY = cy - (int16_t)lround(cos(a) * 5.0);
-	int16_t lX = ARROW_CX + (int16_t)lround(sin(aL) * 4.0);
-	int16_t lY = cy - (int16_t)lround(cos(aL) * 4.0);
-	int16_t rX = ARROW_CX + (int16_t)lround(sin(aR) * 4.0);
-	int16_t rY = cy - (int16_t)lround(cos(aR) * 4.0);
+	int16_t lX = ARROW_CX + (int16_t)lround(sin(aL) * 5.0);
+	int16_t lY = cy - (int16_t)lround(cos(aL) * 5.0);
+	int16_t rX = ARROW_CX + (int16_t)lround(sin(aR) * 5.0);
+	int16_t rY = cy - (int16_t)lround(cos(aR) * 5.0);
 
 	displayThemeApply(colour, THEME_ITEM_BG);
 	displayFillTriangle(tipX, tipY, lX, lY, ARROW_CX, cy, true);
@@ -165,7 +165,7 @@ static void drawRow(int i, int16_t y, bool fix, double lat, double lon, int *use
 	if (meters >= 5)
 	{
 		emcomUiText(COMPASS_R, (y + 1), fieldNavCompass(bearing), FONT_SIZE_1, muted, true);
-		drawArrow((int16_t)(y + 4), bearing, (sel ? THEME_ITEM_BG : THEME_ITEM_FG_RSSI_BAR));
+		drawArrow((int16_t)(y + 5), bearing, (sel ? THEME_ITEM_BG : THEME_ITEM_FG_RSSI_BAR));
 	}
 	else
 	{

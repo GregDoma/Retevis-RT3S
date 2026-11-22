@@ -184,7 +184,7 @@ static void drawListRow(int i, int16_t y, int16_t rowH)
 	{
 		skedFormatCountdown((on ? skedSecondsSinceStart(uiDataGlobal.dateTimeSecs, &s.time) : skedSecondsToStart(uiDataGlobal.dateTimeSecs, &s.time)), cd, sizeof(cd));
 		int16_t w = emcomUiText((DISPLAY_SIZE_X - 2), (y + 12), cd, FONT_SIZE_1, (sel ? THEME_ITEM_BG : (on ? THEME_ITEM_FG_RSSI_BAR : THEME_ITEM_FG_RSSI_BAR_S9P)), true);
-		int maxChars = ((DISPLAY_SIZE_X - 2 - w - 4 - TEXT_X) / 6);
+		int maxChars = ((DISPLAY_SIZE_X - 2 - w - 6 - TEXT_X) / 6); // a char of space before the count-down
 
 		if ((int)strlen(buf) > maxChars)
 		{
