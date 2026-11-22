@@ -144,6 +144,18 @@ def glyph(s, P, x, y, kind, c):
         s.fill(x + 6, y + 3, 3, 2, bg); s.fill(x + 6, y + 6, 3, 6, bg)
 
 
+MAIN_ROWS = (12, 17, R.DIV1_Y, R.DIV2_Y, R.EMCOM_Y2 - 1, R.EMCOM_Y3 - 1, R.EMCOM_Y3 + 9, R.FOOTER_Y)
+
+
+def band(s, P, h):
+    # uiEmcom.c alertBand(): clear whole text rows of the main screen around the card, centre the card
+    y = (H - h) // 2
+    top = max([r for r in MAIN_ROWS if r <= y - 2] or [0])
+    bottom = min([r for r in MAIN_ROWS if r >= y + h + 2] or [H])
+    s.fill(0, top, W, bottom - top, P['bg'])
+    return top + ((bottom - top) - h) // 2
+
+
 def card(s, P, kind, title, y, h):
     c = kind_colour(P, kind)
     t = 2 if (P.get('large') or (P.get('cues') and kind in ('warning', 'error'))) else 1
@@ -177,7 +189,7 @@ def alert(P, kind, message, title=None, keys=None, full=False, under=None):
             s.fill(0, bottom, W, 11, P['bar']); s.text(3, bottom + 2, keys, f1(P), P['barFg'])
     else:
         h = STRIP + max(1, len(lines)) * 16 + 6
-        y = (H - h) // 2
+        y = band(s, P, h)
     c = card(s, P, kind, title, y, h)
     by, bh = y + STRIP, h - STRIP - 2
     glyph(s, P, AX + 5, by + (bh - GLYPH) // 2, kind, c)
@@ -191,7 +203,7 @@ def alert(P, kind, message, title=None, keys=None, full=False, under=None):
 def level(P, title, value, percent, under):
     s = under
     h = STRIP + 16 + 8
-    y = (H - h) // 2
+    y = band(s, P, h)
     ty = y + STRIP + 3
     card(s, P, 'info', title, y, h)
     if percent < 0:
@@ -357,7 +369,12 @@ def aprs_read(T, idx=0, contrast=False):
 
 def main():
     tx_panels, alert_panels, aprs_panels = [], [], []
-    for name, P in STYLES:
+    for name, P in STYLES + (('mono night', R.MONO_NIGHT), ('contrast night', R.CONTRAST_NIGHT)):
+        if name.endswith(' night'):
+            alert_panels += [alert(P, 'warning', 'APRS msg: no ACK', under=standby(P)), level(P, 'Squelch', '45%', 45, standby(P)),
+                             alert(P, 'error', 'Out of band', title='TX blocked', full=True),
+                             alert(P, 'info', 'SP7ABC-9:Punkt 2 gotowy, QRV 145.500', under=standby(P)), tx_screen(P, elapsed=172)]
+            continue
         tx_panels += [tx_screen(P), tx_screen(P, elapsed=172), tx_screen(P, elapsed=754, total=None, digital=True)]
         alert_panels += [
             alert(P, 'question', 'Private call\nAccept call?\nSP5ABC Jan', keys='GRN YES     RED NO', full=True),

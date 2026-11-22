@@ -1474,6 +1474,40 @@ static void alertGlyph(int16_t x, int16_t y, uiAlertKind_t kind, uint32_t rgb)
 	}
 }
 
+// Overlay card of height 'h': clears a full width band from the top of the first text row it covers to the
+// bottom of the last one (no half glyphs of the screen below), returns the card top, centred in the band.
+// EMCOM main screen: its own row boundaries; other screens: 16 px rows.
+static int16_t alertBand(int16_t h)
+{
+	static const uint8_t mainRows[] = { 12, 17, DIV1_Y, DIV2_Y, (EMCOM_Y2 - 1), (EMCOM_Y3 - 1), (EMCOM_Y3 + 9), FOOTER_Y };
+	int16_t y = (int16_t)((DISPLAY_SIZE_Y - h) / 2);
+	int16_t top = 0;
+	int16_t bottom = DISPLAY_SIZE_Y;
+
+	if (emcomScreenActive())
+	{
+		for (size_t i = 0; i < (sizeof(mainRows) / sizeof(mainRows[0])); i++)
+		{
+			if (mainRows[i] <= (y - 2))
+			{
+				top = mainRows[i];
+			}
+			else if ((mainRows[i] >= (y + h + 2)) && (bottom == DISPLAY_SIZE_Y))
+			{
+				bottom = mainRows[i];
+			}
+		}
+	}
+	else
+	{
+		top = (int16_t)(((y - 2) / 16) * 16);
+		bottom = (int16_t)MIN(DISPLAY_SIZE_Y, ((((y + h + 2) + 15) / 16) * 16));
+	}
+
+	fill(0, top, DISPLAY_SIZE_X, (bottom - top), pal->bg);
+	return (int16_t)(top + (((bottom - top) - h) / 2));
+}
+
 // Card frame + title strip (kind colour, title in capitals in the background colour); returns the colour
 static uint32_t alertCard(uiAlertKind_t kind, const char *title, int16_t y, int16_t h)
 {
@@ -1574,7 +1608,7 @@ void emcomDrawAlert(uiAlertKind_t kind, const char *title, const char *message, 
 	else
 	{
 		h = (int16_t)(ALERT_STRIP_H + (((count > 0) ? count : 1) * FONT_SIZE_3_HEIGHT) + 6);
-		y = (int16_t)((DISPLAY_SIZE_Y - h) / 2);
+		y = alertBand(h);
 	}
 
 	c = alertCard(kind, title, y, h);
@@ -1598,10 +1632,11 @@ void emcomDrawAlert(uiAlertKind_t kind, const char *title, const char *message, 
 void emcomDrawLevelAlert(const char *title, const char *value, int percent)
 {
 	int16_t h = (ALERT_STRIP_H + FONT_SIZE_3_HEIGHT + 8);
-	int16_t y = (int16_t)((DISPLAY_SIZE_Y - h) / 2);
-	int16_t ty = (y + ALERT_STRIP_H + 3);
+	int16_t y, ty;
 
 	selectPalette();
+	y = alertBand(h);
+	ty = (y + ALERT_STRIP_H + 3);
 	alertCard(UI_ALERT_INFO, title, y, h);
 
 	if (percent < 0)
