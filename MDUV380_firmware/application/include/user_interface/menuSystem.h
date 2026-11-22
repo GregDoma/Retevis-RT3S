@@ -417,6 +417,8 @@ enum VFO_SCREEN_QUICK_MENU_ITEMS
 #define QUICKKEY_FUNCTIONID(f)        (f & 0x1f)         // 5 bits
 #define QUICKKEY_LONGENTRYID(f)       (f & 0x3ff)        // 10 bits   (Zones)
 #define QUICKKEY_MENUVALUE(m, e, f)   ((QUICKKEY_MENU << 15) | ((m & 0x1f) << 10) | ((e & 0x1f) << 5) | (f & 0x1f))
+// Fork: as QUICKKEY_MENUVALUE() for constant tables, fails to compile when the menu ID does not fit 5 bits
+#define QUICKKEY_MENUVALUE_CHECKED(m, e, f) ((0 * sizeof(char[((m) < 32) ? 1 : -1])) + QUICKKEY_MENUVALUE(m, e, f))
 #define QUICKKEY_MENULONGVALUE(m, e)  ((QUICKKEY_MENU << 15) | ((m & 0x1f) << 10) | (e & 0x1ff))
 #define QUICKKEY_CONTACTVALUE(c)      (c)
 
@@ -438,11 +440,17 @@ typedef enum
 	QUICKKEY_ACTION_SWEEP_TUNE_PEAK,
 	QUICKKEY_ACTION_APRS_RX_TOGGLE, // Fork: APRS receive in background
 	QUICKKEY_ACTION_SOS,            // Fork: EMCOM SOS (press twice)
+	// Fork: menus whose ID does not fit the 5 bit QUICKKEY_MENUID field (>= 32) are opened by an action
+	QUICKKEY_ACTION_MENU_POSITION,
+	QUICKKEY_ACTION_MENU_COVERAGE,
+	QUICKKEY_ACTION_MENU_RADIO_CHECK,
+	QUICKKEY_ACTION_MENU_NET_CONTROL,
 	QUICKKEY_ACTION_MAX
 } quickkeyAction_t;
 
 const char *quickkeyActionGetName(quickkeyAction_t action);
 bool quickkeyActionExecute(quickkeyAction_t action, bool isChannelMode);
+quickkeyAction_t quickkeyActionForMenu(int menuId); // menus with an ID >= 32, else QUICKKEY_ACTION_NONE
 
 enum QUICK_FUNCTIONS
 {

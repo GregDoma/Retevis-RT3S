@@ -3552,7 +3552,22 @@ void saveQuickkeyMenuIndex(char key, uint8_t menuId, uint8_t entryId, uint8_t fu
 {
 	uint16_t functionID;
 
-	functionID = QUICKKEY_MENUVALUE(menuId, entryId, function);
+	if (menuId >= 32) // Fork: does not fit QUICKKEY_MENUID, stored as an action
+	{
+		quickkeyAction_t action = quickkeyActionForMenu(menuId);
+
+		if (action == QUICKKEY_ACTION_NONE)
+		{
+			nextKeyBeepMelody = (int16_t *)MELODY_ERROR_BEEP;
+			return;
+		}
+		functionID = QUICKKEY_ACTIONVALUE(action);
+	}
+	else
+	{
+		functionID = QUICKKEY_MENUVALUE(menuId, entryId, function);
+	}
+
 	if (setQuickkeyFunctionID(key, functionID, false))
 	{
 		menuDataGlobal.menuOptionsTimeout = -1;// Flag to indicate that a QuickKey has just been set.
