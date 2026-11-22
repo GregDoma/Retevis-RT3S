@@ -13,6 +13,8 @@ marked *(untested)* build and pass host tests but still need on-air checking.
   * Every picture (30 lines or more) is saved to the flash with UTC time, mode and frequency, 8 newest kept; *SSTV* tab on sp7tq.pl/rt3s/narzedzia and `tools/opengd77_sstv.py` export PNG. The GPS NMEA log is 320 KB shorter.
   * APRS beacons and message replies wait while the SSTV screen is open.
 * Python tools find the radio by its real USB IDs (1FC9:0094).
+* **Scan on a busy channel** (report: scan held on a DMR repeater with a continuous net could not be left) *(untested)*: `▲` / knob clockwise now skip on also while the signal is still being checked (they did nothing then), `▼` held on a signal stops the scan instead of silently reversing it, and a scan that had just skipped a nuisance-deleted channel no longer stalls on the old channel. RED, GREEN, digits, `#` and PTT stopped the scan before and still do.
+* GPS screen in the EMCOM style: the page number was drawn twice (top right).
 
 ## R20260131-SP7TQ.4 — 2026-11-20
 

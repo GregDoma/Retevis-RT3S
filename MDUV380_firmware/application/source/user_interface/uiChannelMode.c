@@ -1199,12 +1199,15 @@ static void handleEvent(uiEvent_t *ev)
 			}
 
 			// KEY_DOWN/KEY_LEFT reverse the scan direction
+			// (Fork: only while it is moving; held on a signal it stops the scan, so a busy
+			// channel can always be left with the arrows too)
 			if (
 #if defined(PLATFORM_MDUV380) || defined(PLATFORM_MD380)
 					(ev->keys.key == KEY_FRONT_DOWN)
 #else
 					(ev->keys.key == KEY_LEFT)
 #endif
+					&& (uiDataGlobal.Scan.state == SCAN_STATE_SCANNING)
 			)
 			{
 				uiDataGlobal.Scan.direction *= -1;
@@ -2006,7 +2009,8 @@ static void handleUpKey(uiEvent_t *ev)
 		if (uiDataGlobal.Scan.active)
 		{
 			// We are scanning downward
-			if (uiDataGlobal.Scan.state == SCAN_STATE_PAUSED)
+			// Fork: also while the signal is being checked (short pause), else the key did nothing on a busy channel
+			if ((uiDataGlobal.Scan.state == SCAN_STATE_PAUSED) || (uiDataGlobal.Scan.state == SCAN_STATE_SHORT_PAUSED))
 			{
 				if (uiDataGlobal.Scan.direction == -1)
 				{
@@ -2093,7 +2097,8 @@ static void handleDownKey(uiEvent_t *ev)
 		if (uiDataGlobal.Scan.active)
 		{
 			// We are scanning downward
-			if (uiDataGlobal.Scan.state == SCAN_STATE_PAUSED)
+			// Fork: also while the signal is being checked (short pause)
+			if ((uiDataGlobal.Scan.state == SCAN_STATE_PAUSED) || (uiDataGlobal.Scan.state == SCAN_STATE_SHORT_PAUSED))
 			{
 				if (uiDataGlobal.Scan.direction == 1)
 				{
@@ -3078,6 +3083,13 @@ static void scanning(void)
 	}
 	else
 	{
+		// Fork: the search may still be pending (it skipped a nuisance deleted channel on the
+		// last tick): without this the scan stayed on the old channel forever
+		if (scanNextChannelReady == false)
+		{
+			scanSearchForNextChannel();
+		}
+
 		if (scanNextChannelReady)
 		{
 			hidesChannelDetails();

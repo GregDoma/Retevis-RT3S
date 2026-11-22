@@ -77,6 +77,7 @@ static void waypointEditDraw(void);
 // Fork: trip computer page (distance, moving time, avg/max speed, altitude
 // gain/loss), accumulated in the background by functions/gpsTrip.c.
 #include "functions/gpsTrip.h"
+#include "user_interface/uiEmcom.h"
 #if defined(GPS_TRIP_COMPUTER)
 static bool displayTrip(bool isFirstRun, bool forceRedraw);
 #endif
@@ -1264,10 +1265,15 @@ static void updateScreen(bool isFirstRun, bool forceRedraw)
 		displayClearBuf();
 		menuDisplayTitle(currentLanguage->gps);
 
-		snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%d/%d", (menuDataGlobal.currentItemIndex + 1), PAGES_MAX);
-		displayThemeApply(THEME_ITEM_FG_MENU_NAME, THEME_ITEM_BG);
-		displayPrintCore(0, 3, buffer, FONT_SIZE_1, TEXT_ALIGN_RIGHT, false);
-		displayThemeResetToDefault();
+#if defined(HAS_EMCOM_UI)
+		if (emcomStyleEnabled() == false) // the EMCOM title bar shows the page number itself
+#endif
+		{
+			snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%d/%d", (menuDataGlobal.currentItemIndex + 1), PAGES_MAX);
+			displayThemeApply(THEME_ITEM_FG_MENU_NAME, THEME_ITEM_BG);
+			displayPrintCore(0, 3, buffer, FONT_SIZE_1, TEXT_ALIGN_RIGHT, false);
+			displayThemeResetToDefault();
+		}
 	}
 
 	res = displayGPSData(isFirstRun, forceRedraw);
