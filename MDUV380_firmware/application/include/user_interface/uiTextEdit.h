@@ -29,6 +29,7 @@ typedef enum
 void uiTextEditStart(char *buf, uint8_t maxLen, bool callsign);
 textEditResult_t uiTextEditHandleEvent(uiEvent_t *ev);
 void uiTextEditStop(void);
+bool uiTextEditIsActive(void);
 // Whole screen: title, optional label line ("TO SP5ABC"), the text, the key bar.
 void uiTextEditDraw(const char *title, const char *label);
 

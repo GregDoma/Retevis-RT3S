@@ -72,6 +72,7 @@ typedef struct
 	bool     hasPos;
 	char     symTable;
 	char     symCode;
+	bool     isObject;   // object / item (named by another station), not a station heard itself
 	int16_t  courseDeg;
 	int16_t  speedKmh;
 	uint16_t count;      // frames heard

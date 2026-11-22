@@ -35,6 +35,7 @@
 #include "user_interface/uiLocalisation.h"
 #include "functions/ticks.h"
 #include "functions/rxPowerSaving.h"
+#include "functions/blackout.h"
 #if defined(HAS_GPS)
 #include "interfaces/gps.h"
 #endif
@@ -104,7 +105,21 @@ bool settingsSaveSettings(bool includeVFOs)
 	nonVolatileSettings.audioPromptMode = AUDIO_PROMPT_MODE_VOICE_LEVEL_3;
 #endif
 
-	bool ret = settingsStorageWrite((uint8_t *)&nonVolatileSettings, sizeof(settingsStruct_t));
+	bool ret;
+
+	if (blackoutActive())
+	{
+		// Fork: the flash gets the user backlight values from a copy, the live values stay dark
+		settingsStruct_t copy;
+
+		memcpy(&copy, &nonVolatileSettings, sizeof(settingsStruct_t));
+		blackoutSettingsForSave(&copy);
+		ret = settingsStorageWrite((uint8_t *)&copy, sizeof(settingsStruct_t));
+	}
+	else
+	{
+		ret = settingsStorageWrite((uint8_t *)&nonVolatileSettings, sizeof(settingsStruct_t));
+	}
 
 	if (ret)
 	{
@@ -435,6 +450,8 @@ bool settingsRestoreDefaultSettings(void)
 	//readDone: // Used when upgrading
 
 	settingsDirty = true;
+
+	blackoutSettingsWereReset(); // Fork: during a blackout the defaults become the user backlight values
 
 	settingsSaveSettings(false);
 

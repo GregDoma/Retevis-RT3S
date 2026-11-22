@@ -53,7 +53,11 @@ Revision: $Rev: 24316 $
 #if (defined __GNUC__) && !(defined __SES_ARM) && !(defined __CROSSWORKS_ARM) && !(defined __ARMCC_VERSION) && !(defined __CC_ARM)
 
 #include <reent.h>  // required for _write_r
+// OpenGD77: without USING_EXTERNAL_DEBUGGER nothing references the RTT code, so the linker
+// drops it with its buffers (_SEGGER_RTT + 1 KB up buffer + down buffer, ~1.2 KB of RAM).
+#if defined(USING_EXTERNAL_DEBUGGER)
 #include "../../SeggerRTT/RTT/SEGGER_RTT.h"
+#endif
 
 
 /*********************************************************************
@@ -96,7 +100,11 @@ _ssize_t _write_r(struct _reent *r, int file, const void *ptr, size_t len);
 */
 _ssize_t _write(int file, const void *ptr, size_t len) {
   (void) file;  /* Not used, avoid warning */
+#if defined(USING_EXTERNAL_DEBUGGER)
   SEGGER_RTT_Write(0, ptr, len);
+#else
+  (void) ptr;   /* OpenGD77: no RTT without the debugger, output dropped */
+#endif
   return len;
 }
 
@@ -113,7 +121,11 @@ _ssize_t _write(int file, const void *ptr, size_t len) {
 _ssize_t _write_r(struct _reent *r, int file, const void *ptr, size_t len) {
   (void) file;  /* Not used, avoid warning */
   (void) r;     /* Not used, avoid warning */
+#if defined(USING_EXTERNAL_DEBUGGER)
   SEGGER_RTT_Write(0, ptr, len);
+#else
+  (void) ptr;   /* OpenGD77: no RTT without the debugger, output dropped */
+#endif
   return len;
 }
 

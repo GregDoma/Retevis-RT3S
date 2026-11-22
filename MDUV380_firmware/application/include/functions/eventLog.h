@@ -2,7 +2,8 @@
  * Fork: EMCOM event log (station log), by Marcin SP7TQ.
  *
  * Every transmission, FM reception, DMR call, new APRS station, APRS
- * message, DTMF sequence, SOS and SSTV picture is written with its UTC time
+ * message, DTMF sequence, SOS, SSTV picture, logged QSO and net control event
+ * (net start / check-in / silence alarm / end) is written with its UTC time
  * into a 64 KB ring in the SPI flash (2048 records of 32 bytes), so it
  * survives a power cycle. Shown by main menu > Event log, exported with
  * tools/opengd77_event_log.py.
@@ -38,6 +39,8 @@ typedef enum
 	EVENT_LOG_DTMF,
 	EVENT_LOG_SOS,
 	EVENT_LOG_SSTV,
+	EVENT_LOG_QSO = 10,                   // "<station> <report>[ OK|RPT|NIL]"
+	EVENT_LOG_NET = 11,                   // "START[ <name>]", "IN <station>", "QUIET <station>", "END <n>"
 	EVENT_LOG_TYPE_MAX
 } eventLogType_t;
 

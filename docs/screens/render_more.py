@@ -109,20 +109,9 @@ def aprs_radar():
 
 
 def aprs_msgs():
-    s = R.Screen(P['bg']); aprs_strip(s, 'APRS MESSAGES', '4/6')
-    msgs = [('<', P['rx'], 'SP7ABC-9', None, None, '2m', 'Punkt 2 gotowy, QRV na 145.500'),
-            ('>', P['info'], 'SP7ABC-9', 'ACK', P['rx'], '1m', 'QSL'),
-            ('B', P['scan'], 'SR7NJ', None, None, '9m', 'Net RAYNET 20:00 kanal 3')]
-    for b, (d, dc, peer, st, sc, age, text) in enumerate(msgs):
-        y = 27 + b * 25; on = b == 0
-        if on:
-            s.fill(0, y, 160, 8, P['rx']); s.fill(0, y + 2, 2, 4, P['bg'])
-        chip(s, 3, y, d, dc)
-        s.text(16, y, peer, '1b', P['bg'] if on else P['fg']); s.text(157, y, age, 1, P['bg'] if on else P['mut'], True)
-        if st: chip(s, 157 - len(age) * 6 - 4 - (len(st) * 6 + 4), y, st, sc)
-        s.text(4, y + 8, text[:26], 1, P['fg']); s.text(4, y + 16, text[26:52], 1, P['fg'])
-        s.fill(0, y + 24, 160, 1, P['line'])
-    return s
+    # EMCOM style message list (render_refresh.py, menuAPRSRx.c aprsMonDrawMessagesEmcom)
+    import render_refresh
+    return render_refresh.aprs_list(render_refresh.THEME['day'])
 
 
 def eventlog():

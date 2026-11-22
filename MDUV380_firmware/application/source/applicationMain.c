@@ -56,6 +56,8 @@
 #include "functions/aprsRx.h"
 #include "user_interface/uiEmcom.h"
 #include "functions/eventLog.h"
+#include "functions/netControl.h"
+#include "functions/sked.h"
 
 #if defined(USING_EXTERNAL_DEBUGGER)
 #include "SeggerRTT/RTT/SEGGER_RTT.h"
@@ -526,7 +528,7 @@ void applicationMainTask(void)
 	if (!codeplugCustomDataAreaIsInitialised())
 	{
 		bool ok = codeplugResetOpenGD77CustomDataArea();
-		uiNotificationShow(NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 2500,
+		uiNotificationShowKind((ok ? UI_ALERT_INFO : UI_ALERT_ERROR), NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 2500,
 				(ok ? "Storage init." : "Init failed"), true);
 	}
 
@@ -1330,6 +1332,20 @@ void applicationMainTask(void)
 			ev.hasEvent = false;
 		}
 
+#if defined(HAS_SKED)
+		// Fork: GREEN on the "SKED NOW" card tunes to the sked channel (never automatically)
+		if (skedHandleKey(&ev))
+		{
+			keyboardReset();
+			ev.buttons = BUTTON_NONE;
+			ev.keys.event = 0;
+			ev.keys.key = 0;
+			ev.rotary = 0;
+			ev.events = NO_EVENT;
+			ev.hasEvent = false;
+		}
+#endif
+
 		menuSystemCallCurrentMenuTick(&ev);
 
 		// Restore the beep built when a menu was pushed by the quickkey above.
@@ -1426,6 +1442,12 @@ void applicationMainTask(void)
 #endif
 #if defined(HAS_EVENT_LOG)
 		eventLogTick(); // Fork: EMCOM event log (TX, FM RX, DMR calls)
+#endif
+#if defined(HAS_NET_CONTROL)
+		netTick(); // Fork: EMCOM net control (check-ins, silence alarm)
+#endif
+#if defined(HAS_SKED)
+		skedTick(); // Fork: comms schedule reminders
 #endif
 		settingsSaveIfNeeded(false);
 

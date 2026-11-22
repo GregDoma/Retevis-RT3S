@@ -7,10 +7,17 @@
 #   python3 opengd77_coverage.py --kml coverage.kml
 #   python3 opengd77_coverage.py --kml map.kml --csv points.csv --gpx track.gpx
 #   python3 opengd77_coverage.py --input dump.bin --kml map.kml   # offline, from a dump
+#   python3 opengd77_coverage.py --waypoints wpts.gpx              # the saved waypoints (GPX)
 #
-# Layout (functions/fieldData.h): the last 64 KB of the 16 MB SPI flash; the first
-# 4 KB hold the PACE plan, then 16-byte points: UTC time (u32, 0xFFFFFFFF = empty),
-# lat / lon (i32, degrees * 1e6), dBm (i16), flags (u8), frequency hint (u8).
+# Layout (functions/fieldData.h): the last 64 KB of the 16 MB SPI flash. Sector 0 (4 KB):
+#   0x000 PACE plan, 0x400 APRS canned replies (12 x 72 B),
+#   0x800 saved waypoints (8 x 24 B: magic u32 "WWP1", lat / lon i32 degrees * 1e6,
+#         name 8 chars NUL padded, flags u8 (1 GPS, 2 keypad, 4 APRS), 3 reserved),
+#   0x900 skeds (4 x 16 B: magic u32 "SKD1", period u16 min, offset u16 min from 00:00 UTC,
+#         duration u8 min, tune u8 (0 none, 1..4 PACE P/A/C/E, 5 channel), enabled u8,
+#         reserved u8, zone i16, channel i16).
+# Records without their magic are empty. Then 16-byte coverage points: UTC time (u32,
+# 0xFFFFFFFF = empty), lat / lon (i32, degrees * 1e6), dBm (i16), flags (u8), frequency hint (u8).
 #
 # Colours: green >= -100 dBm (good), yellow -100..-110, orange -110..-118, red below.
 #
@@ -22,12 +29,14 @@ import datetime
 import os
 import struct
 import sys
+from xml.sax.saxutils import escape
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 AREA_ADDR = 16 * 1024 * 1024 - 64 * 1024
 POINTS_ADDR = AREA_ADDR + 4096
 POINTS_SIZE = 64 * 1024 - 4096
+WAYPOINTS_ADDR, WAYPOINT_SLOTS, WAYPOINT_MAGIC = AREA_ADDR + 0x800, 8, 0x31505757
 FLAG_FIX, FLAG_CARRIER, FLAG_DMR, FLAG_SESSION = 0x01, 0x02, 0x04, 0x08
 
 
@@ -46,6 +55,28 @@ def parse(data):
             'session': max(session, 1),
         })
     return points
+
+
+def parse_waypoints(data):
+    wpts = []
+    for i in range(WAYPOINT_SLOTS):
+        magic, lat, lon, name, flags = struct.unpack_from('<Iii8sB', data, i * 24)
+        if magic != WAYPOINT_MAGIC or abs(lat) > 90000000 or abs(lon) > 180000000:
+            continue
+        wpts.append({'slot': i + 1, 'lat': lat / 1e6, 'lon': lon / 1e6,
+                     'name': name.split(b'\0')[0].decode('ascii', 'replace') or f'WP{i + 1}',
+                     'source': 'APRS' if flags & 4 else 'keypad' if flags & 2 else 'GPS'})
+    return wpts
+
+
+def write_waypoints_gpx(path, wpts):
+    out = ['<?xml version="1.0" encoding="UTF-8"?>',
+           '<gpx version="1.1" creator="SP7TEAM OpenGD77" xmlns="http://www.topografix.com/GPX/1/1">']
+    for w in wpts:
+        out.append(f'<wpt lat="{w["lat"]:.6f}" lon="{w["lon"]:.6f}"><name>{escape(w["name"])}</name><desc>slot {w["slot"]}, {w["source"]}</desc></wpt>')
+    out.append('</gpx>')
+    with open(path, 'w', encoding='utf-8') as f:
+        f.write('\n'.join(out))
 
 
 def colour(dbm):
@@ -104,7 +135,17 @@ def main():
     ap.add_argument('--kml', help='write a coloured KML map')
     ap.add_argument('--gpx', help='write a GPX track (one per session)')
     ap.add_argument('--csv', help='write CSV')
+    ap.add_argument('--waypoints', help='write the saved waypoints (GPS > Waypoint > *) as GPX, from the radio')
     args = ap.parse_args()
+
+    if args.waypoints:
+        from opengd77_custom_data import find_port, open_port, read_flash
+        with open_port(args.port or find_port()) as ser:
+            wpts = parse_waypoints(read_flash(ser, WAYPOINTS_ADDR, WAYPOINT_SLOTS * 24))
+        write_waypoints_gpx(args.waypoints, wpts)
+        print(f'{len(wpts)} waypoints -> {args.waypoints}')
+        if not (args.kml or args.gpx or args.csv or args.input):
+            return
 
     if args.input:
         data = open(args.input, 'rb').read()

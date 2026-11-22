@@ -28,6 +28,7 @@
  */
 #include "interfaces/gpio.h"
 #include "io/LEDs.h"
+#include "functions/blackout.h"
 
 #if ! defined(PLATFORM_GD77S)
 uint8_t LEDsState[NUM_LEDS] = { 0, 0 };
@@ -53,7 +54,7 @@ void LedWrite(LEDs_t theLED, uint8_t output)
 #if ! defined(PLATFORM_GD77S)
 	LEDsState[theLED] = output;
 
-	if (settingsIsOptionBitSet(BIT_ALL_LEDS_DISABLED) == 0)
+	if ((settingsIsOptionBitSet(BIT_ALL_LEDS_DISABLED) == 0) && (blackoutActive() == false)) // Fork: blackout
 #endif
 	{
 		LedWriteDirect(theLED, output);

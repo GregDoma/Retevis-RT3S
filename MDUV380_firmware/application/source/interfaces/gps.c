@@ -51,7 +51,7 @@ static
 
 // Fork: the first 64 KB of the last 2 MB hold the EMCOM event log (functions/eventLog.h)
 #define LOG_FLASH_16MB_START_ADDRESS  ((14 * 1024 * 1024) + (64 * 1024)) // Last 2MB - 64KB
-#define LOG_FLASH_16MB_MEM_SIZE        ((2 * 1024 * 1024) - (128 * 1024)) // Fork: the last 64 KB hold the field tools data (functions/fieldData.h)
+#define LOG_FLASH_16MB_MEM_SIZE        ((2 * 1024 * 1024) - (128 * 1024) - (320 * 1024)) // Fork: then 320 KB of SSTV pictures (functions/sstvStore.h) and 64 KB of field tools data (functions/fieldData.h)
 #if defined(CPU_MK22FN512VLL12)
 #define LOG_FLASH_2MB_START_ADDRESS    (1 * 1024 * 1024) // Last 1MB
 #define LOG_FLASH_2MB_MEM_SIZE         (1 * 1024 * 1024)
@@ -120,6 +120,10 @@ static uint8_t gpsDMABuf[GPS_DMA_BUFFER_SIZE]; // double buffer (two halves) for
 // This prevents to get some "Fix lost" -> "Fix acquired" sequences.
 #define GPS_FIX_GRACE_MAX        15U
 static uint8_t gpsFixGraceCount = 0U;
+
+// Fork: time to first fix, for the GPS status page (bookkeeping only)
+static uint32_t gpsSearchStartTime = 0U; // ticks when the receiver was turned on or lost its fix
+static uint16_t gpsTtffSecs = 0U;        // last search duration, 0 = no fix since power on
 
 //#define GNSS_MULTI_GSV 1 // Uncomment this to support GB, GA and GL GSVs sentences (not with genuine GPS modules).
 
@@ -398,6 +402,8 @@ void gpsOn(void)
 {
 	memset((uint8_t *)&gpsData, 0x00, sizeof(gpsData_t));// reset everything
 	gpsFixGraceCount = 0U;
+	gpsSearchStartTime = ticksGetMillis();
+	gpsTtffSecs = 0U;
 	gpsData.Status |= (GPS_STATUS_FIX_UPDATED | GPS_STATUS_FIXTYPE_UPDATED);
 #if ! defined(PLATFORM_MD9600)
 	gpsPower(true);			//Turn on the power to the GPS module, except on MD9600 where it also powers the mic so is turned on all the time in application main
@@ -413,6 +419,16 @@ void gpsOn(void)
 	{
 		gpsDataInputStartStop(true);
 	}
+}
+
+uint32_t gpsSearchStartMs(void)
+{
+	return gpsSearchStartTime;
+}
+
+uint16_t gpsLastTtffSecs(void)
+{
+	return gpsTtffSecs;
 }
 
 void gpsOff(void)
@@ -940,6 +956,7 @@ void gpsTick(void)
 					if ((gpsData.Status & GPS_STATUS_HAS_FIX) == 0)
 					{
 						gpsData.Status |= (GPS_STATUS_HAS_FIX | GPS_STATUS_FIX_UPDATED);
+						gpsTtffSecs = (uint16_t)MIN(((ticksGetMillis() - gpsSearchStartTime) / 1000U), 0xFFFFU);
 					}
 				}
 				else // Have no fix
@@ -962,6 +979,7 @@ void gpsTick(void)
 						{
 							gpsData.Status &= ~(GPS_STATUS_HAS_FIX | GPS_STATUS_HAS_POSITION | GPS_STATUS_HAS_HDOP | GPS_STATUS_HAS_COURSE | GPS_STATUS_HAS_SPEED | GPS_STATUS_HAS_HEIGHT | GPS_STATUS_HAS_TIME);
 							gpsData.Status |= GPS_STATUS_FIX_UPDATED;
+							gpsSearchStartTime = ticksGetMillis();
 						}
 					}
 

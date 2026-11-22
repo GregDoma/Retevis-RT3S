@@ -7,6 +7,7 @@
  */
 #include "functions/codeplug.h"
 #include "functions/settings.h"
+#include "functions/blackout.h"
 #if !defined(PLATFORM_GD77S)
 #include "functions/aprs.h"
 #endif
@@ -61,26 +62,30 @@ static const uint16_t quickkeyChoices[] =
 #if defined(HAS_EMCOM_UI)
 	QUICKKEY_ACTIONVALUE(QUICKKEY_ACTION_SOS),
 #endif
-	QUICKKEY_MENUVALUE(MENU_RSSI_SCREEN, 0, 0),
-	QUICKKEY_MENUVALUE(MENU_LAST_HEARD, 0, 0),
+	QUICKKEY_ACTIONVALUE(QUICKKEY_ACTION_BLACKOUT),
+	QUICKKEY_MENUVALUE_CHECKED(MENU_RSSI_SCREEN, 0, 0),
+	QUICKKEY_MENUVALUE_CHECKED(MENU_LAST_HEARD, 0, 0),
 	QUICKKEY_MENULONGVALUE(MENU_ZONE_LIST, 0),
-	QUICKKEY_MENUVALUE(MENU_CONTACTS_MENU, 0, 0),
-	QUICKKEY_MENUVALUE(MENU_RADIO_INFOS, 0, 0),
-	QUICKKEY_MENUVALUE(MENU_SATELLITE, 0, 0),
+	QUICKKEY_MENUVALUE_CHECKED(MENU_CONTACTS_MENU, 0, 0),
+	QUICKKEY_MENUVALUE_CHECKED(MENU_RADIO_INFOS, 0, 0),
+	QUICKKEY_MENUVALUE_CHECKED(MENU_SATELLITE, 0, 0),
 #if defined(HAS_GPS)
-	QUICKKEY_MENUVALUE(MENU_GPS, 0, 0),
+	QUICKKEY_MENUVALUE_CHECKED(MENU_GPS, 0, 0),
 #endif
 #if !defined(PLATFORM_GD77S)
-	QUICKKEY_MENUVALUE(MENU_APRS, 0, 0),
+	QUICKKEY_MENUVALUE_CHECKED(MENU_APRS, 0, 0),
 #endif
 #if defined(HAS_SSTV_MENU)
-	QUICKKEY_MENUVALUE(MENU_APRS_RX, 0, 0),
-	QUICKKEY_MENUVALUE(MENU_EVENT_LOG, 0, 0),
-	QUICKKEY_MENUVALUE(MENU_PACE, 0, 0),
-	QUICKKEY_MENUVALUE(MENU_POSITION, 0, 0),
-	QUICKKEY_MENUVALUE(MENU_COVERAGE, 0, 0),
-	QUICKKEY_MENUVALUE(MENU_RADIO_CHECK, 0, 0),
-	QUICKKEY_MENUVALUE(MENU_SSTV, 0, 0),
+	QUICKKEY_MENUVALUE_CHECKED(MENU_APRS_RX, 0, 0),
+	QUICKKEY_MENUVALUE_CHECKED(MENU_EVENT_LOG, 0, 0),
+	QUICKKEY_MENUVALUE_CHECKED(MENU_PACE, 0, 0),
+	QUICKKEY_ACTIONVALUE(QUICKKEY_ACTION_MENU_POSITION),   // menu IDs >= 32: actions
+	QUICKKEY_ACTIONVALUE(QUICKKEY_ACTION_MENU_COVERAGE),
+	QUICKKEY_ACTIONVALUE(QUICKKEY_ACTION_MENU_RADIO_CHECK),
+	QUICKKEY_ACTIONVALUE(QUICKKEY_ACTION_MENU_NET_CONTROL),
+	QUICKKEY_ACTIONVALUE(QUICKKEY_ACTION_MENU_WAYPOINTS),
+	QUICKKEY_ACTIONVALUE(QUICKKEY_ACTION_MENU_SKED),
+	QUICKKEY_MENUVALUE_CHECKED(MENU_SSTV, 0, 0),
 #endif
 };
 #define QUICKKEYS_NUM_CHOICES ((int)(sizeof(quickkeyChoices) / sizeof(quickkeyChoices[0])))
@@ -110,11 +115,56 @@ const char *quickkeyActionGetName(quickkeyAction_t action)
 			return "APRS RX on/off";
 		case QUICKKEY_ACTION_SOS:
 			return "SOS (press x2)";
+		case QUICKKEY_ACTION_BLACKOUT:
+			return "Blackout";
+#if defined(HAS_SSTV_MENU)
+		case QUICKKEY_ACTION_MENU_POSITION:
+			return currentLanguage->position;
+		case QUICKKEY_ACTION_MENU_COVERAGE:
+			return currentLanguage->coverage;
+		case QUICKKEY_ACTION_MENU_RADIO_CHECK:
+			return currentLanguage->radio_check;
+		case QUICKKEY_ACTION_MENU_NET_CONTROL:
+			return "Net control";
+		case QUICKKEY_ACTION_MENU_WAYPOINTS:
+			return "Waypoints";
+		case QUICKKEY_ACTION_MENU_SKED:
+			return "Sked";
+#endif
 		default:
 			break;
 	}
 
 	return currentLanguage->none;
+}
+
+// Fork: menu opened by a QUICKKEY_ACTION_MENU_* action, -1: not a menu action
+static int quickkeyActionMenu(quickkeyAction_t action)
+{
+	switch (action)
+	{
+#if defined(HAS_SSTV_MENU)
+		case QUICKKEY_ACTION_MENU_POSITION:     return MENU_POSITION;
+		case QUICKKEY_ACTION_MENU_COVERAGE:     return MENU_COVERAGE;
+		case QUICKKEY_ACTION_MENU_RADIO_CHECK:  return MENU_RADIO_CHECK;
+		case QUICKKEY_ACTION_MENU_NET_CONTROL:  return MENU_NET_CONTROL;
+		case QUICKKEY_ACTION_MENU_WAYPOINTS:    return MENU_WAYPOINTS;
+		case QUICKKEY_ACTION_MENU_SKED:         return MENU_SKED;
+#endif
+		default:                                return -1;
+	}
+}
+
+quickkeyAction_t quickkeyActionForMenu(int menuId)
+{
+	for (int a = (QUICKKEY_ACTION_NONE + 1); a < QUICKKEY_ACTION_MAX; a++)
+	{
+		if ((menuId >= 32) && (quickkeyActionMenu((quickkeyAction_t)a) == menuId))
+		{
+			return (quickkeyAction_t)a;
+		}
+	}
+	return QUICKKEY_ACTION_NONE;
 }
 
 // Runs a quickkey action from the Channel or VFO screen.
@@ -193,6 +243,21 @@ bool quickkeyActionExecute(quickkeyAction_t action, bool isChannelMode)
 			emcomSosRequest();
 			return true;
 #endif
+		case QUICKKEY_ACTION_BLACKOUT:
+			// Same as SK1 + 5
+			blackoutToggle();
+			return true;
+#if defined(HAS_SSTV_MENU)
+		case QUICKKEY_ACTION_MENU_POSITION:
+		case QUICKKEY_ACTION_MENU_COVERAGE:
+		case QUICKKEY_ACTION_MENU_RADIO_CHECK:
+		case QUICKKEY_ACTION_MENU_NET_CONTROL:
+		case QUICKKEY_ACTION_MENU_WAYPOINTS:
+		case QUICKKEY_ACTION_MENU_SKED:
+			// called from the Channel / VFO screen only (applicationMain.c), as the menu quickkeys
+			menuSystemPushNewMenu(quickkeyActionMenu(action));
+			return true;
+#endif
 
 		default:
 			break;
@@ -233,9 +298,9 @@ static const char *quickkeyMenuTitle(int menuId)
 	{
 		for (int i = 0; i < lists[l]->numItems; i++)
 		{
-			if ((lists[l]->items[i].menuNum == menuId) && (lists[l]->items[i].stringOffset >= 0))
+			if ((lists[l]->items[i].menuNum == menuId) && (menuItemName(&lists[l]->items[i]) != NULL))
 			{
-				return (currentLanguage->LANGUAGE_NAME + (lists[l]->items[i].stringOffset * LANGUAGE_TEXTS_LENGTH));
+				return menuItemName(&lists[l]->items[i]);
 			}
 		}
 	}

@@ -42,7 +42,7 @@ def launcher(title, items, sel, P=R.DARK):
 
 MAIN = [('ZONE', 'Zone'), ('CONTACTS', 'Contacts'), ('CHANNEL', 'Channel details'), ('RSSI', 'RSSI'), ('OPTIONS', 'Options'),
         ('LASTHEARD', 'Last heard'), ('PACE', 'PACE plan'), ('POSITION', 'Position'), ('COVERAGE', 'Coverage'),
-        ('RADIOCHECK', 'Radio check'), ('APRS', 'APRS RX'), ('GPS', 'GPS'), ('SSTV', 'SSTV'), ('LOG', 'Event log'),
+        ('RADIOCHECK', 'Radio check'), ('NET', 'Net control'), ('APRS', 'APRS RX'), ('GPS', 'GPS'), ('SSTV', 'SSTV'), ('LOG', 'Event log'),
         ('RADIOINFO', 'Radio infos'), ('SATELLITE', 'Satellite'), ('INFO', 'Firmware info')]
 OPTS = [('GENERAL', 'General'), ('RADIO', 'Radio'), ('DISPLAY', 'Display'), ('SOUND', 'Sound'), ('LANGUAGE', 'Language'),
         ('CALIBRATION', 'Calibration'), ('THEME', 'Theme'), ('APRSCFG', 'APRS'), ('RESET', 'Reset config'), ('QUICKKEYS', 'Quickkeys')]

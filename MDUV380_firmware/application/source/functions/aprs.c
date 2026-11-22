@@ -50,6 +50,7 @@
 #include "interfaces/gps.h"
 #endif
 #include "user_interface/menuSystem.h"
+#include "user_interface/uiEmcom.h"
 
 #define AX25_PACKET_BUFFER_SIZE        256U
 #define SMART_BEACONING_SPEED_MIN       54U // more than 1km/h (0.5399568034557235 kn == 1km/h)
@@ -1559,19 +1560,28 @@ bool aprsBeaconingSendBeacon(bool fromSatScreen, bool forcedManualBeaconing)
 			int16_t bBorder = (fromSatScreen ? -1 : 12);
 #endif
 
-			displayThemeApply(THEME_ITEM_FG_TX_COUNTER, THEME_ITEM_BG);
-#if defined(HAS_COLOURS)
-			displayFillRect(0, yPos, DISPLAY_SIZE_X, fontHeight, true);
-#else
-			displayFillRect(0, (yPos + tBorder), DISPLAY_SIZE_X, (fontHeight - bBorder), true);
+#if defined(HAS_EMCOM_UI)
+			if ((fromSatScreen == false) && emcomScreenActive())
+			{
+				emcomDrawTxBanner(buffer); // Fork: over the EMCOM panel, not across the channel name
+			}
+			else
 #endif
-			displayPrintCentered(yPos, buffer, font);
-			displayThemeResetToDefault();
+			{
+				displayThemeApply(THEME_ITEM_FG_TX_COUNTER, THEME_ITEM_BG);
+#if defined(HAS_COLOURS)
+				displayFillRect(0, yPos, DISPLAY_SIZE_X, fontHeight, true);
+#else
+				displayFillRect(0, (yPos + tBorder), DISPLAY_SIZE_X, (fontHeight - bBorder), true);
+#endif
+				displayPrintCentered(yPos, buffer, font);
+				displayThemeResetToDefault();
+			}
 			displayRender();
 		}
 		else
 		{
-			uiNotificationShow(NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 1500, buffer, true);
+			uiNotificationShowKind(UI_ALERT_ERROR, NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 1500, buffer, true);
 			soundSetMelody(MELODY_ERROR_BEEP);
 			return false;
 		}
@@ -2038,6 +2048,13 @@ void aprsBeaconingTick(uiEvent_t *ev)
 	{
 		return;
 	}
+#if defined(HAS_SSTV_MENU)
+	// Fork: nor while receiving SSTV (a beacon would ruin the picture, and the screen may be on a downlink)
+	if (currentMenu == MENU_SSTV)
+	{
+		return;
+	}
+#endif
 
 	if (((uiDataGlobal.Scan.active == false) && (aprsBcnData.settings.mode != APRS_BEACONING_MODE_OFF) && aprsBeaconingStateEnabled(APRS_BEACONING_STATE_ENABLED))
 			&& aprsBeaconingStateEnabled(APRS_BEACONING_STATE_HAS_APRS_CONFIG) &&

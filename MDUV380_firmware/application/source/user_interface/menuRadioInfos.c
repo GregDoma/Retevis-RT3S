@@ -32,6 +32,7 @@
 #include "utils.h"
 #include "interfaces/pit.h"
 #include "functions/satellite.h"
+#include "user_interface/uiEmcom.h"
 #if defined(PLATFORM_MD9600) || defined(PLATFORM_MD380) || defined(PLATFORM_MDUV380) || defined(PLATFORM_RT84_DM1701) || defined(PLATFORM_MD2017)
 #include "interfaces/batteryAndPowerManagement.h"
 #include "semphr.h"
@@ -126,14 +127,15 @@ static void circularBufferPushBack(voltageCircularBuffer_t *cb, const int32_t it
     }
 }
 
-static size_t circularBufferGetData(voltageCircularBuffer_t *cb, int32_t *data, size_t dataLen)
+// Fork: 'data' is int16_t (the voltages are in 0.1 V units, a few hundred at most): saves 208 bytes of RAM
+static size_t circularBufferGetData(voltageCircularBuffer_t *cb, int16_t *data, size_t dataLen)
 {
      size_t  count = 0;
      int32_t *p = cb->tail;
 
      while ((p != cb->head) && (count < dataLen))
      {
-    	 *(data + count) = *p;
+    	 *(data + count) = (int16_t)CLAMP(*p, 0, INT16_MAX);
 
     	 p++;
     	 count++;
@@ -228,6 +230,35 @@ menuStatus_t menuRadioInfos(uiEvent_t *ev, bool isFirstRun)
 	return menuRadioInfosExitCode;
 }
 
+#if defined(HAS_EMCOM_UI)
+// Fork: EMCOM style key hints of the location page, so that the entry can be found without the manual
+static void locationKeyBar(bool oneLine)
+{
+	const char *lines[2];
+	int n = (oneLine ? 1 : 2);
+	int16_t y = (DISPLAY_SIZE_Y - (n * 10) - 1);
+
+	if (keypadInputDigitsLength == 0)
+	{
+		lines[0] = (oneLine ? "0-9 TYPE  SK2+GRN GPS ON" : "0-9 TYPE DD.DDDD DDD.DDDD");
+		lines[1] = "SK2+GRN GPS ON  RED EXIT";
+	}
+	else
+	{
+		lines[0] = (oneLine ? "GREEN SAVE RED CLEAR < DEL" : "UP N  DN S  SK2+UP/DN E/W");
+		lines[1] = "GREEN SAVE RED CLEAR < DEL";
+	}
+
+	displayThemeApply(THEME_ITEM_BG_HEADER_TEXT, THEME_ITEM_BG);
+	displayFillRect(0, y, DISPLAY_SIZE_X, (DISPLAY_SIZE_Y - y), false);
+	displayThemeApply(THEME_ITEM_FG_HEADER_TEXT, THEME_ITEM_BG_HEADER_TEXT);
+	for (int i = 0; i < n; i++)
+	{
+		displayPrintCore(2, (y + 2 + (i * 10)), lines[i], FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
+	}
+}
+#endif
+
 static void updateScreen(uiEvent_t *ev, bool forceRedraw)
 {
 	static bool blink = false;
@@ -237,6 +268,14 @@ static void updateScreen(uiEvent_t *ev, bool forceRedraw)
 	bool dblHeight = settingsIsOptionBitSet(BIT_UI_USES_DOUBLE_HEIGHT);
 #else
 	const bool dblHeight = false;
+#endif
+
+#if defined(HAS_EMCOM_UI)
+	// The EMCOM title bar shows the page number ("4/6") from the menu position
+	if (displayMode < NUM_RADIO_INFOS_MENU_ITEMS)
+	{
+		menuDataGlobal.currentItemIndex = displayMode;
+	}
 #endif
 
 	switch (displayMode)
@@ -371,6 +410,21 @@ static void updateScreen(uiEvent_t *ev, bool forceRedraw)
 					if (h > battLevelHeight)
 					{
 						h = battLevelHeight;
+					}
+
+					// Fork: runtime estimate from the voltage trend ("--" while unknown / charging)
+					{
+						char est[8];
+						const int16_t estY = (dblHeight ? 58 : 54);
+
+						batteryTimeLeftString(est, sizeof(est));
+						const char *e = ((est[0] == '~') ? &est[1] : est); // the "time left" label says it is an estimate
+						displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+						displayFillRect(0, estY, (x - 2), (FONT_SIZE_3_HEIGHT + 10), true);
+						displayThemeResetToDefault();
+						displayPrintCore(((x - ((int)strlen(e) * 8)) >> 1), estY, e, FONT_SIZE_3, TEXT_ALIGN_LEFT, false);
+						displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+						displayPrintCore(((x - (9 * 6)) >> 1), (estY + FONT_SIZE_3_HEIGHT + 2), "time left", FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
 					}
 
 					displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
@@ -551,6 +605,13 @@ static void updateScreen(uiEvent_t *ev, bool forceRedraw)
 			}
 			renderArrowOnly = false;
 
+#if defined(HAS_EMCOM_UI)
+			if (emcomStyleEnabled())
+			{
+				locationKeyBar(dblHeight);
+				break;
+			}
+#endif
 			displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
 			// Up/Down blinking arrow
 			displayFillTriangle(63 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 1), 59 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 3), 67 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 3), blink);
@@ -643,7 +704,7 @@ static void updateScreen(uiEvent_t *ev, bool forceRedraw)
 		case RADIO_INFOS_BATTERY_GRAPH:
 		{
 #define  CHART_WIDTH 104
-			static int32_t hist[CHART_WIDTH];
+			static int16_t hist[CHART_WIDTH];
 			static size_t histLen = 0;
 			bool newHistAvailable = false;
 

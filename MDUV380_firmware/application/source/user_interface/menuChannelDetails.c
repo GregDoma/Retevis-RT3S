@@ -595,7 +595,9 @@ static void updateScreen(bool isFirstRun, bool allowedToSpeakUpdate)
 						leftSide = currentLanguage->channel_power;
 						if (uiDataGlobal.currentSelectedChannelNumber == CH_DETAILS_VFO_CHANNEL)
 						{
-							rightSideConst = currentLanguage->n_a;
+							// Fork: the VFO always uses the master power, show it (LEFT / RIGHT change it)
+							snprintf(rightSideVar, SCREEN_LINE_BUFFER_SIZE, "%s %s%s", currentLanguage->from_master,
+									getPowerLevel(nonVolatileSettings.txPowerLevel), getPowerLevelUnit(nonVolatileSettings.txPowerLevel));
 						}
 						else
 						{
@@ -1310,8 +1312,16 @@ static void handleEvent(uiEvent_t *ev)
 					codeplugChannelSetFlag(&tmpChannel, CHANNEL_FLAG_VOX, 1);
 					break;
 				case CH_DETAILS_POWER:
-					if ((uiDataGlobal.currentSelectedChannelNumber != CH_DETAILS_VFO_CHANNEL) &&
-						(tmpChannel.libreDMR_Power < (MAX_POWER_SETTING_NUM + CODEPLUG_MIN_PER_CHANNEL_POWER)))
+					if (uiDataGlobal.currentSelectedChannelNumber == CH_DETAILS_VFO_CHANNEL)
+					{
+						// Fork: VFO, change the master power at once (as SK2 + UP on the VFO screen)
+						if (nonVolatileSettings.txPowerLevel < (MAX_POWER_SETTING_NUM - 1))
+						{
+							settingsIncrement(nonVolatileSettings.txPowerLevel, 1);
+							trxSetPowerFromLevel(nonVolatileSettings.txPowerLevel);
+						}
+					}
+					else if (tmpChannel.libreDMR_Power < (MAX_POWER_SETTING_NUM + CODEPLUG_MIN_PER_CHANNEL_POWER))
 					{
 
 							tmpChannel.libreDMR_Power++;
@@ -1559,8 +1569,16 @@ static void handleEvent(uiEvent_t *ev)
 					codeplugChannelSetFlag(&tmpChannel, CHANNEL_FLAG_VOX, 0);
 					break;
 				case CH_DETAILS_POWER:
-					if ((uiDataGlobal.currentSelectedChannelNumber != CH_DETAILS_VFO_CHANNEL) &&
-						(tmpChannel.libreDMR_Power > 0))
+					if (uiDataGlobal.currentSelectedChannelNumber == CH_DETAILS_VFO_CHANNEL)
+					{
+						// Fork: VFO, change the master power at once (as SK2 + DOWN on the VFO screen)
+						if (nonVolatileSettings.txPowerLevel > 0)
+						{
+							settingsDecrement(nonVolatileSettings.txPowerLevel, 1);
+							trxSetPowerFromLevel(nonVolatileSettings.txPowerLevel);
+						}
+					}
+					else if (tmpChannel.libreDMR_Power > 0)
 					{
 						tmpChannel.libreDMR_Power--;
 					}
@@ -1809,7 +1827,7 @@ static bool saveChanges(uiEvent_t *ev)
 			char buf[NOTIFICATION_MESSAGE_LEN_MAX];
 
 			snprintf(buf, NOTIFICATION_MESSAGE_LEN_MAX, "%s\n%s", currentLanguage->aprs_channel, currentLanguage->locked);
-			uiNotificationShow(NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 3000U, buf, false);
+			uiNotificationShowKind(UI_ALERT_WARNING, NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 3000U, buf, false);
 
 			uiDataGlobal.VoicePrompts.inhibitInitial = true;
 			roamingSortZone = false;

@@ -45,6 +45,7 @@ CPS_ACCESS_FLASH = 1
 
 # STM32 USB CDC: ST Microelectronics
 STM_VID = 0x0483
+RADIO_VID = 0x1FC9  # OpenGD77 on the MD-UV380 / RT3S enumerates as 1FC9:0094 (USB_DEVICE/App/usbd_desc.c)
 
 
 # ---------- serial port plumbing ----------
@@ -53,7 +54,7 @@ def find_port():
     """Best-effort auto-detect. Return single device path or exit with hint."""
     candidates = []
     for p in list_ports.comports():
-        if p.vid == STM_VID:
+        if p.vid in (RADIO_VID, STM_VID):
             candidates.append(p.device)
     if not candidates:
         # Fall back to platform conventions

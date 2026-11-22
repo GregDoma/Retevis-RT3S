@@ -129,7 +129,7 @@ typedef enum
 {
 	BIT_INVERSE_VIDEO               = (SETTINGS_BITS_BANK_0 | (1 << 0)),
 	BIT_PTT_LATCH                   = (SETTINGS_BITS_BANK_0 | (1 << 1)),
-	BIT_UNUSED_2                    = (SETTINGS_BITS_BANK_0 | (1 << 2)),
+	BIT_UI_EMCOM_MONO               = (SETTINGS_BITS_BANK_0 | (1 << 2)), // Fork: EMCOM mono style (was unused)
 	BIT_BATTERY_VOLTAGE_IN_HEADER   = (SETTINGS_BITS_BANK_0 | (1 << 3)),
 	BIT_SETTINGS_UPDATED            = (SETTINGS_BITS_BANK_0 | (1 << 4)),
 	BIT_TX_RX_FREQ_LOCK             = (SETTINGS_BITS_BANK_0 | (1 << 5)),
@@ -139,7 +139,7 @@ typedef enum
 	BIT_POWEROFF_SUSPEND            = (SETTINGS_BITS_BANK_0 | (1 << 8)),
 #endif
 	BIT_SATELLITE_MANUAL_AUTO       = (SETTINGS_BITS_BANK_0 | (1 << 9)),
-	BIT_UNUSED_1                    = (SETTINGS_BITS_BANK_0 | (1 << 10)),
+	BIT_UI_EMCOM_CONTRAST           = (SETTINGS_BITS_BANK_0 | (1 << 10)), // Fork: EMCOM contrast style (was unused)
 #if defined(PLATFORM_MD9600)
 	BIT_SPEAKER_CLICK_SUPPRESS      = (SETTINGS_BITS_BANK_0 | (1 << 11)),
 #endif

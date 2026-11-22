@@ -97,6 +97,13 @@ menuDataGlobal_t menuDataGlobal =
 				NULL,// SSTV
 				NULL,// APRS RX
 				NULL,// Event log
+				NULL,// PACE
+				NULL,// Position
+				NULL,// Coverage
+				NULL,// Radio check
+				NULL,// Net control
+				NULL,// Waypoints
+				NULL,// Sked
 #endif
 				// *** Add new menus to be accessed using quickkey (ID: 0..31) above this line ***
 				NULL,// MessageBox
@@ -166,6 +173,9 @@ static menuFunctionData_t menuFunctions[] =
 		{ menuPosition,             NULL, NULL, 0 },
 		{ menuCoverage,             NULL, NULL, 0 },
 		{ menuRadioCheck,           NULL, NULL, 0 },
+		{ menuNetControl,           NULL, NULL, 0 },
+		{ menuWaypoints,            NULL, NULL, 0 },
+		{ menuSked,                 NULL, NULL, 0 },
 #endif
 		// *** Add new menus to be accessed using quickkey (ID: 0..31) above this line ***
 		{ uiMessageBox,             NULL, NULL, 0 },
@@ -677,6 +687,7 @@ const menuItemNewData_t mainMenuItems[] =
 	{ 286, MENU_POSITION        },// stringOffset 286 = .position field (fork)
 	{ 287, MENU_COVERAGE        },// stringOffset 287 = .coverage field (fork)
 	{ 288, MENU_RADIO_CHECK     },// stringOffset 288 = .radio_check field (fork)
+	{ MENU_STRING_NET_CONTROL, MENU_NET_CONTROL },// fork: fixed English name, see menuItemName()
 	{ 283, MENU_APRS_RX         },// stringOffset 283 = .aprs_rx field (fork)
 #endif
 #if defined(HAS_GPS)
@@ -733,6 +744,40 @@ const menuItemsList_t menuDataOptions =
 	.numItems = (sizeof(optionsMenuItems) / sizeof(optionsMenuItems[0])),
 	.items = optionsMenuItems
 };
+
+const char *menuItemName(const menuItemNewData_t *item)
+{
+	if (item->stringOffset >= 0)
+	{
+		return (currentLanguage->LANGUAGE_NAME + (item->stringOffset * LANGUAGE_TEXTS_LENGTH));
+	}
+
+	switch (item->stringOffset)
+	{
+		case MENU_STRING_NET_CONTROL:
+			return "Net control";
+		default:
+			return NULL;
+	}
+}
+
+void menuItemNamePrompt(const menuItemNewData_t *item)
+{
+	const char *name = menuItemName(item);
+
+	if (name == NULL)
+	{
+		return;
+	}
+	if (item->stringOffset >= 0)
+	{
+		voicePromptsAppendLanguageString(name);
+	}
+	else
+	{
+		voicePromptsAppendString(name);
+	}
+}
 
 void menuDisplayTitle(const char *title)
 {

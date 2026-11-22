@@ -32,6 +32,7 @@
 #include "user_interface/uiLocalisation.h"
 #include "interfaces/clockManager.h"
 #include "functions/satellite.h"
+#include "user_interface/uiEmcom.h"
 #if defined(HAS_GPS)
 #include "interfaces/gps.h"
 #endif
@@ -674,10 +675,20 @@ void menuTxScreenHandleTxTermination(uiEvent_t *ev, txTerminationReason_t reason
 	voicePromptsTerminateNoTail();
 	voicePromptsInit();
 
+#if defined(HAS_EMCOM_UI)
+	// Fork: EMCOM styles: a full screen card (error: RX only / out of band, warning: time-out)
+	bool emcom = emcomStyleEnabled();
+#else
+	const bool emcom = false;
+#endif
+
 #if !defined(PLATFORM_GD77S)
-	displayClearBuf();
-	displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG_NOTIFICATION);
-	displayDrawRoundRectWithDropShadow(4, 4, 120 + DISPLAY_H_EXTRA_PIXELS, (DISPLAY_SIZE_Y - 6), 5, true);
+	if (emcom == false)
+	{
+		displayClearBuf();
+		displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG_NOTIFICATION);
+		displayDrawRoundRectWithDropShadow(4, 4, 120 + DISPLAY_H_EXTRA_PIXELS, (DISPLAY_SIZE_Y - 6), 5, true);
+	}
 #endif
 
 	switch (reason)
@@ -685,8 +696,11 @@ void menuTxScreenHandleTxTermination(uiEvent_t *ev, txTerminationReason_t reason
 		case TXSTOP_RX_ONLY:
 		case TXSTOP_OUT_OF_BAND:
 #if !defined(PLATFORM_GD77S)
-			displayThemeApply(THEME_ITEM_FG_ERROR_NOTIFICATION, THEME_ITEM_BG_NOTIFICATION);
-			displayPrintCentered(4 + (DISPLAY_V_EXTRA_PIXELS / 4), currentLanguage->error, FONT_SIZE_4);
+			if (emcom == false)
+			{
+				displayThemeApply(THEME_ITEM_FG_ERROR_NOTIFICATION, THEME_ITEM_BG_NOTIFICATION);
+				displayPrintCentered(4 + (DISPLAY_V_EXTRA_PIXELS / 4), currentLanguage->error, FONT_SIZE_4);
+			}
 #endif
 
 			voicePromptsAppendLanguageString(currentLanguage->error);
@@ -695,14 +709,32 @@ void menuTxScreenHandleTxTermination(uiEvent_t *ev, txTerminationReason_t reason
 			if (codeplugChannelGetFlag(currentChannelData, CHANNEL_FLAG_RX_ONLY) != 0)
 			{
 #if !defined(PLATFORM_GD77S)
-				displayPrintCentered((DISPLAY_SIZE_Y - 24) - (DISPLAY_V_EXTRA_PIXELS / 4), currentLanguage->rx_only, FONT_SIZE_3);
+				if (emcom == false)
+				{
+					displayPrintCentered((DISPLAY_SIZE_Y - 24) - (DISPLAY_V_EXTRA_PIXELS / 4), currentLanguage->rx_only, FONT_SIZE_3);
+				}
+#if defined(HAS_EMCOM_UI)
+				else
+				{
+					emcomDrawAlert(UI_ALERT_ERROR, "TX blocked", currentLanguage->rx_only, NULL, true);
+				}
+#endif
 #endif
 				voicePromptsAppendLanguageString(currentLanguage->rx_only);
 			}
 			else
 			{
 #if !defined(PLATFORM_GD77S)
-				displayPrintCentered((DISPLAY_SIZE_Y - 24) - (DISPLAY_V_EXTRA_PIXELS / 4), currentLanguage->out_of_band, FONT_SIZE_3);
+				if (emcom == false)
+				{
+					displayPrintCentered((DISPLAY_SIZE_Y - 24) - (DISPLAY_V_EXTRA_PIXELS / 4), currentLanguage->out_of_band, FONT_SIZE_3);
+				}
+#if defined(HAS_EMCOM_UI)
+				else
+				{
+					emcomDrawAlert(UI_ALERT_ERROR, "TX blocked", currentLanguage->out_of_band, NULL, true);
+				}
+#endif
 #endif
 				voicePromptsAppendLanguageString(currentLanguage->out_of_band);
 			}
@@ -711,8 +743,17 @@ void menuTxScreenHandleTxTermination(uiEvent_t *ev, txTerminationReason_t reason
 
 		case TXSTOP_TIMEOUT:
 #if !defined(PLATFORM_GD77S)
-			displayThemeApply(THEME_ITEM_FG_WARNING_NOTIFICATION, THEME_ITEM_BG_NOTIFICATION);
-			displayPrintCentered(((DISPLAY_SIZE_Y - FONT_SIZE_4_HEIGHT) / 2), currentLanguage->timeout, FONT_SIZE_4);
+			if (emcom == false)
+			{
+				displayThemeApply(THEME_ITEM_FG_WARNING_NOTIFICATION, THEME_ITEM_BG_NOTIFICATION);
+				displayPrintCentered(((DISPLAY_SIZE_Y - FONT_SIZE_4_HEIGHT) / 2), currentLanguage->timeout, FONT_SIZE_4);
+			}
+#if defined(HAS_EMCOM_UI)
+			else
+			{
+				emcomDrawAlert(UI_ALERT_WARNING, "TX stopped", currentLanguage->timeout, NULL, true);
+			}
+#endif
 #endif
 
 			// From G4EML commit:

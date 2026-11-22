@@ -31,6 +31,7 @@
 #include "functions/settings.h"
 #include "user_interface/uiLocalisation.h"
 #include "functions/rxPowerSaving.h"
+#include "functions/blackout.h"
 #include "hardware/radioHardwareInterface.h"
 
 const uint32_t VOICE_PROMPTS_DATA_MAGIC = 0x5056;//'VP'
@@ -226,6 +227,16 @@ void voicePromptsTerminateNoTail(void)
 
 void voicePromptsInit(void)
 {
+	if (blackoutActive()) // Fork: blackout, nothing plays; an empty sequence so nothing stale is kept
+	{
+		if (voicePromptIsActive == false)
+		{
+			voicePromptsCurrentSequence.Length = 0;
+			voicePromptsCurrentSequence.Pos = 0;
+		}
+		return;
+	}
+
 	if ((nonVolatileSettings.audioPromptMode < AUDIO_PROMPT_MODE_VOICE_THRESHOLD) && !temporaryOverride)
 	{
 		return;
@@ -248,7 +259,7 @@ void voicePromptsInitWithOverride(void)
 
 void voicePromptsAppendPrompt(voicePrompt_t prompt)
 {
-	if ((nonVolatileSettings.audioPromptMode < AUDIO_PROMPT_MODE_VOICE_THRESHOLD) && !temporaryOverride)
+	if (((nonVolatileSettings.audioPromptMode < AUDIO_PROMPT_MODE_VOICE_THRESHOLD) && !temporaryOverride) || blackoutActive()) // Fork: blackout
 	{
 		return;
 	}
@@ -267,7 +278,7 @@ void voicePromptsAppendPrompt(voicePrompt_t prompt)
 
 void voicePromptsAppendString(const char *promptString)
 {
-	if ((nonVolatileSettings.audioPromptMode < AUDIO_PROMPT_MODE_VOICE_THRESHOLD) && !temporaryOverride)
+	if (((nonVolatileSettings.audioPromptMode < AUDIO_PROMPT_MODE_VOICE_THRESHOLD) && !temporaryOverride) || blackoutActive()) // Fork: blackout
 	{
 		return;
 	}
@@ -338,7 +349,7 @@ void voicePromptsAppendInteger(int32_t value)
 
 void voicePromptsAppendLanguageString(const char *languageStringAdd)
 {
-	if (((nonVolatileSettings.audioPromptMode < AUDIO_PROMPT_MODE_VOICE_THRESHOLD) && !temporaryOverride) || (languageStringAdd == NULL))
+	if (((nonVolatileSettings.audioPromptMode < AUDIO_PROMPT_MODE_VOICE_THRESHOLD) && !temporaryOverride) || (languageStringAdd == NULL) || blackoutActive()) // Fork: blackout
 	{
 		return;
 	}
@@ -354,7 +365,7 @@ void voicePromptsAppendLanguageString(const char *languageStringAdd)
 
 void voicePromptsPlay(void)
 {
-	if ((nonVolatileSettings.audioPromptMode < AUDIO_PROMPT_MODE_VOICE_THRESHOLD) && !temporaryOverride)
+	if (((nonVolatileSettings.audioPromptMode < AUDIO_PROMPT_MODE_VOICE_THRESHOLD) && !temporaryOverride) || blackoutActive()) // Fork: blackout
 	{
 		return;
 	}

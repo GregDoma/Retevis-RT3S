@@ -27,6 +27,7 @@
  */
 #include "user_interface/uiGlobals.h"
 #include "functions/trx.h"
+#include "functions/blackout.h"
 #include "user_interface/menuSystem.h"
 #include "user_interface/uiUtilities.h"
 #include "user_interface/uiEmcom.h"
@@ -1199,12 +1200,15 @@ static void handleEvent(uiEvent_t *ev)
 			}
 
 			// KEY_DOWN/KEY_LEFT reverse the scan direction
+			// (Fork: only while it is moving; held on a signal it stops the scan, so a busy
+			// channel can always be left with the arrows too)
 			if (
 #if defined(PLATFORM_MDUV380) || defined(PLATFORM_MD380)
 					(ev->keys.key == KEY_FRONT_DOWN)
 #else
 					(ev->keys.key == KEY_LEFT)
 #endif
+					&& (uiDataGlobal.Scan.state == SCAN_STATE_SCANNING)
 			)
 			{
 				uiDataGlobal.Scan.direction *= -1;
@@ -1894,6 +1898,10 @@ static void handleEvent(uiEvent_t *ev)
 					emcomSosRequest(); // Fork: EMCOM SOS (press twice)
 				}
 #endif
+				else if (keyval == 5)
+				{
+					blackoutToggle(); // Fork: blackout / silent mode
+				}
 				else if (keyval == 2)
 				{
 					switch (aprsBeaconingGetMode())
@@ -2006,7 +2014,8 @@ static void handleUpKey(uiEvent_t *ev)
 		if (uiDataGlobal.Scan.active)
 		{
 			// We are scanning downward
-			if (uiDataGlobal.Scan.state == SCAN_STATE_PAUSED)
+			// Fork: also while the signal is being checked (short pause), else the key did nothing on a busy channel
+			if ((uiDataGlobal.Scan.state == SCAN_STATE_PAUSED) || (uiDataGlobal.Scan.state == SCAN_STATE_SHORT_PAUSED))
 			{
 				if (uiDataGlobal.Scan.direction == -1)
 				{
@@ -2093,7 +2102,8 @@ static void handleDownKey(uiEvent_t *ev)
 		if (uiDataGlobal.Scan.active)
 		{
 			// We are scanning downward
-			if (uiDataGlobal.Scan.state == SCAN_STATE_PAUSED)
+			// Fork: also while the signal is being checked (short pause)
+			if ((uiDataGlobal.Scan.state == SCAN_STATE_PAUSED) || (uiDataGlobal.Scan.state == SCAN_STATE_SHORT_PAUSED))
 			{
 				if (uiDataGlobal.Scan.direction == 1)
 				{
@@ -2552,6 +2562,7 @@ static void handleQuickMenuEvent(uiEvent_t *ev)
 						displayMessageBox = true;
 						vp1 = currentLanguage->aprs_channel;
 						vp2 = currentLanguage->locked;
+						uiDataGlobal.MessageBox.kind = UI_ALERT_WARNING;
 						uiDataGlobal.MessageBox.buttons =
 #if defined(PLATFORM_MD9600)
 								MESSAGEBOX_BUTTONS_ENT;
@@ -3078,6 +3089,13 @@ static void scanning(void)
 	}
 	else
 	{
+		// Fork: the search may still be pending (it skipped a nuisance deleted channel on the
+		// last tick): without this the scan stayed on the old channel forever
+		if (scanNextChannelReady == false)
+		{
+			scanSearchForNextChannel();
+		}
+
 		if (scanNextChannelReady)
 		{
 			hidesChannelDetails();

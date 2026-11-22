@@ -21,6 +21,7 @@
 #include "functions/trx.h"
 #include "functions/fieldData.h"
 #include "io/LEDs.h"
+#include "user_interface/uiEmcom.h"
 
 #if defined(HAS_FIELD_TOOLS)
 
@@ -42,6 +43,7 @@ typedef struct
 {
 	bool       active;
 	uint8_t    count;
+	bool       confirmClear; // '0' pressed: GREEN clears the reports
 	uint32_t   start;
 	uint32_t   lastSeen;
 	uint32_t   lastSample;
@@ -92,13 +94,139 @@ static void text(int16_t x, int16_t y, const char *s, ucFont_t font, themeItem_t
 	displayPrintCore(x, y, s, font, TEXT_ALIGN_LEFT, false);
 }
 
+static const char *const numberWords[] = { "", "ONE", "TWO", "THREE", "FOUR", "FIVE", "SIX", "SEVEN", "EIGHT", "NINE" };
+
+static void reportTime(const rcReport_t *r, char *buf, size_t size)
+{
+	snprintf(buf, size, "--:--");
+	if (r->time != 0U)
+	{
+		time_t_custom secs = r->time;
+		struct tm tmv;
+
+		gmtime_r_Custom(&secs, &tmv);
+		snprintf(buf, size, "%02d:%02d", tmv.tm_hour, tmv.tm_min);
+	}
+}
+
+#if defined(HAS_EMCOM_UI)
+// EMCOM style: live level on the status strip, the last report big with its rating (OK / WEAK /
+// POOR, a word as well as a colour), the older reports as rows, the key bar
+static const char *ratingWord(int rd, themeItem_t *colour)
+{
+	*colour = ((rd >= 4) ? THEME_ITEM_FG_RSSI_BAR : ((rd == 3) ? THEME_ITEM_FG_RSSI_BAR_S9P : THEME_ITEM_FG_TX_COUNTER));
+	return ((rd >= 4) ? "OK" : ((rd == 3) ? "WEAK" : "POOR"));
+}
+
+static void updateScreenEmcom(void)
+{
+	char buf[SCREEN_LINE_BUFFER_SIZE + 8];
+	int dBm = trxGetRSSIdBm(RADIO_DEVICE_PRIMARY);
+	bool rx = carrier();
+	int16_t y = EMCOM_UI_BODY_Y;
+	themeItem_t colour;
+	const char *word;
+
+	displayClearBuf();
+	snprintf(buf, sizeof(buf), "%u/%u", (unsigned)rc.count, (unsigned)REPORTS);
+	emcomUiTitle("RADIO CHECK", buf);
+
+	// status strip: carrier, live level, length of the over being received
+	emcomUiStrip();
+	int16_t x = (int16_t)(2 + emcomUiChip(2, (EMCOM_UI_STRIP_Y + 2), (rx ? "RX" : "IDLE"), (rx ? THEME_ITEM_FG_RSSI_BAR : THEME_ITEM_FG_DECORATION),
+			(rx ? EMCOM_CHIP_SOLID : EMCOM_CHIP_OUTLINE), false) + 4);
+	sText(dBm, buf, sizeof(buf));
+	x += (int16_t)(emcomUiText(x, (EMCOM_UI_STRIP_Y + 2), buf, FONT_SIZE_1_BOLD, THEME_ITEM_FG_HEADER_TEXT, false) + 6);
+	snprintf(buf, sizeof(buf), "%ddBm", dBm);
+	emcomUiText(x, (EMCOM_UI_STRIP_Y + 2), buf, FONT_SIZE_1, THEME_ITEM_FG_HEADER_TEXT, false);
+	if (rc.active)
+	{
+		uint32_t ds = ((ticksGetMillis() - rc.start) / 100U);
+
+		snprintf(buf, sizeof(buf), "%u.%us", (unsigned)(ds / 10U), (unsigned)(ds % 10U));
+		emcomUiText((DISPLAY_SIZE_X - 3), (EMCOM_UI_STRIP_Y + 2), buf, FONT_SIZE_1, THEME_ITEM_FG_RSSI_BAR, true);
+	}
+	else
+	{
+		emcomUiText((DISPLAY_SIZE_X - 3), (EMCOM_UI_STRIP_Y + 2), ((trxGetMode() == RADIO_MODE_DIGITAL) ? "DMR" : "FM"), FONT_SIZE_1, THEME_ITEM_FG_DECORATION, true);
+	}
+
+	if (rc.count == 0U)
+	{
+		displayThemeApply(THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
+		displayPrintCentered((y + 14), "LISTENING", FONT_SIZE_3);
+		displayThemeResetToDefault();
+		emcomUiText(4, (y + 40), "Each received over is", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, false);
+		emcomUiText(4, (y + 50), "rated R1-5 / S1-9.", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, false);
+	}
+	else
+	{
+		const rcReport_t *r = &rc.reports[0];
+		int rd = readability(r->avg, r->dmr);
+		int st = strength(r->avg);
+
+		// last report: "5 BY 9" + rating
+		word = ratingWord(rd, &colour);
+		snprintf(buf, sizeof(buf), "%d BY %d", rd, st);
+		emcomUiText(2, y, buf, FONT_SIZE_4, colour, false);
+		int16_t cw = (int16_t)((strlen(word) * 8) + 6);
+		displayThemeApply(colour, THEME_ITEM_BG);
+		displayFillRect((DISPLAY_SIZE_X - 2 - cw), (y + 7), cw, 18, false);
+		displayPrintCore((DISPLAY_SIZE_X - 2 - cw + 3), (y + 8), word, FONT_SIZE_3, TEXT_ALIGN_LEFT, true);
+		displayThemeResetToDefault();
+
+		snprintf(buf, sizeof(buf), "%s BY %s", numberWords[rd], numberWords[st]);
+		emcomUiText(2, (y + 34), buf, FONT_SIZE_1_BOLD, THEME_ITEM_FG_DEFAULT, false);
+		snprintf(buf, sizeof(buf), "%s %u.%us AVG %d PK %d", (r->dmr ? "DMR" : "FM"), (unsigned)(r->lenDs / 10U), (unsigned)(r->lenDs % 10U), r->avg, r->peak);
+		emcomUiText(2, (y + 44), buf, FONT_SIZE_1, THEME_ITEM_FG_DECORATION, false);
+
+		// older reports
+		y += 54;
+		emcomUiDivider(y);
+		y += 3;
+		for (int i = 1; (i < rc.count) && (y <= (EMCOM_UI_KEYBAR_Y - 10)); i++, y += 11)
+		{
+			const rcReport_t *o = &rc.reports[i];
+			int ord = readability(o->avg, o->dmr);
+
+			reportTime(o, buf, sizeof(buf));
+			emcomUiText(2, y, buf, FONT_SIZE_1, THEME_ITEM_FG_DECORATION, false);
+			snprintf(buf, sizeof(buf), "%d BY %d", ord, strength(o->avg));
+			emcomUiText(36, y, buf, FONT_SIZE_1_BOLD, THEME_ITEM_FG_DEFAULT, false);
+			snprintf(buf, sizeof(buf), "%ddBm", o->avg);
+			emcomUiText(80, y, buf, FONT_SIZE_1, THEME_ITEM_FG_DECORATION, false);
+			word = ratingWord(ord, &colour);
+			emcomUiChip((DISPLAY_SIZE_X - 2), y, word, colour, EMCOM_CHIP_SOLID, true);
+		}
+	}
+
+	if (rc.confirmClear)
+	{
+		emcomUiConfirmBar("CLEAR ALL?");
+	}
+	else
+	{
+		emcomUiKeyBar((rc.count > 0U) ? "0 CLEAR  RED EXIT" : "RED EXIT");
+	}
+	displayRender();
+}
+#endif
+
 static void updateScreen(void)
 {
-	static const char *const words[] = { "", "ONE", "TWO", "THREE", "FOUR", "FIVE", "SIX", "SEVEN", "EIGHT", "NINE" };
+	const char *const *words = numberWords;
 	char buf[SCREEN_LINE_BUFFER_SIZE + 8];
 	int dBm = trxGetRSSIdBm(RADIO_DEVICE_PRIMARY);
 	bool rx = carrier();
 	int16_t y = (MENU_HEADER_HEIGHT + 2);
+
+#if defined(HAS_EMCOM_UI)
+	if (emcomStyleEnabled())
+	{
+		updateScreenEmcom();
+		return;
+	}
+#endif
 
 	displayClearBuf();
 	menuDisplayTitle("RADIO CHECK");
@@ -149,16 +277,9 @@ static void updateScreen(void)
 		for (int i = 1; (i < rc.count) && (ry <= (DISPLAY_SIZE_Y - FOOTER_H - 9)); i++, ry += 10)
 		{
 			const rcReport_t *o = &rc.reports[i];
-			char t[8] = "--:--";
+			char t[8];
 
-			if (o->time != 0U)
-			{
-				time_t_custom secs = o->time;
-				struct tm tmv;
-
-				gmtime_r_Custom(&secs, &tmv);
-				snprintf(t, sizeof(t), "%02d:%02d", tmv.tm_hour, tmv.tm_min);
-			}
+			reportTime(o, t, sizeof(t));
 			snprintf(buf, sizeof(buf), "%s  %d BY %d  %d dBm", t, readability(o->avg, o->dmr), strength(o->avg), o->avg);
 			text(2, ry, buf, FONT_SIZE_1, THEME_ITEM_FG_RX_FREQ);
 		}
@@ -168,8 +289,18 @@ static void updateScreen(void)
 	int16_t fy = (DISPLAY_SIZE_Y - FOOTER_H);
 	displayThemeApply(THEME_ITEM_BG_HEADER_TEXT, THEME_ITEM_BG);
 	displayFillRect(0, fy, DISPLAY_SIZE_X, FOOTER_H, false);
-	displayThemeApply(THEME_ITEM_FG_HEADER_TEXT, THEME_ITEM_BG_HEADER_TEXT);
-	displayPrintCore(3, (fy + 2), "0 CLEAR  RED EXIT", FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
+	if (rc.confirmClear)
+	{
+		displayThemeApply(THEME_ITEM_FG_TX_COUNTER, THEME_ITEM_BG_HEADER_TEXT);
+		displayPrintCore(3, (fy + 2), "CLEAR ALL?", FONT_SIZE_1_BOLD, TEXT_ALIGN_LEFT, false);
+		displayThemeApply(THEME_ITEM_FG_HEADER_TEXT, THEME_ITEM_BG_HEADER_TEXT);
+		displayPrintCore(69, (fy + 2), "GREEN = yes", FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
+	}
+	else
+	{
+		displayThemeApply(THEME_ITEM_FG_HEADER_TEXT, THEME_ITEM_BG_HEADER_TEXT);
+		displayPrintCore(3, (fy + 2), "0 CLEAR  RED EXIT", FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
+	}
 
 	displayThemeResetToDefault();
 	displayRender();
@@ -221,7 +352,21 @@ menuStatus_t menuRadioCheck(uiEvent_t *ev, bool isFirstRun)
 		}
 		else if (ev->events & KEY_EVENT)
 		{
-			if (KEYCHECK_SHORTUP(ev->keys, KEY_RED) || KEYCHECK_SHORTUP(ev->keys, KEY_GREEN))
+			if (rc.confirmClear)
+			{
+				// decided on the key release (the press of GREEN would cancel); RED cancels, stays here
+				if (ev->keys.event & KEY_MOD_UP)
+				{
+					if (KEYCHECK_SHORTUP(ev->keys, KEY_GREEN))
+					{
+						rc.count = 0U;
+						soundSetMelody(MELODY_ACK_BEEP);
+					}
+					rc.confirmClear = false;
+					updateScreen();
+				}
+			}
+			else if (KEYCHECK_SHORTUP(ev->keys, KEY_RED) || KEYCHECK_SHORTUP(ev->keys, KEY_GREEN))
 			{
 				menuSystemPopPreviousMenu();
 				return MENU_STATUS_SUCCESS;
@@ -230,9 +375,9 @@ menuStatus_t menuRadioCheck(uiEvent_t *ev, bool isFirstRun)
 			{
 				saveQuickkeyMenuIndex(ev->keys.key, menuSystemGetCurrentMenuNumber(), 0, 0);
 			}
-			else if (KEYCHECK_SHORTUP(ev->keys, KEY_0))
+			else if (KEYCHECK_SHORTUP(ev->keys, KEY_0) && (rc.count > 0U))
 			{
-				rc.count = 0U;
+				rc.confirmClear = true;
 				updateScreen();
 			}
 		}

@@ -4,7 +4,9 @@
  * Four channels, as in military / rescue comms plans:
  *   P Primary, A Alternate, C Contingency, E Emergency.
  * '1'..'4' or GREEN switch the radio to that channel (channel mode), '*' stores the
- * current channel in the selected slot, '0' clears it, UP / DOWN select, RED leaves.
+ * current channel in the selected slot, '0' clears it, '#' opens the comms schedule
+ * (skeds, menuSked.c), UP / DOWN select, RED leaves. The next sked is counted down in the
+ * EMCOM strip / the classic key bar.
  * The plan is kept in the SPI flash (functions/fieldData.c).
  *
  * Use of this source code or binary releases for commercial purposes is
@@ -18,6 +20,8 @@
 #include "functions/settings.h"
 #include "functions/sound.h"
 #include "functions/fieldData.h"
+#include "functions/sked.h"
+#include "user_interface/uiEmcom.h"
 
 #if defined(HAS_FIELD_TOOLS)
 
@@ -29,6 +33,7 @@
 static const char paceLetters[PACE_SLOTS] = { 'P', 'A', 'C', 'E' };
 static const char *const paceNames[PACE_SLOTS] = { "PRIMARY", "ALTERNATE", "CONTINGENCY", "EMERGENCY" };
 static int selectedSlot = 0;
+static bool confirmClear = false; // '0' pressed: GREEN clears the selected slot
 
 static themeItem_t slotColour(int slot)
 {
@@ -57,9 +62,169 @@ static void formatFreq(uint32_t freq, char *buf, size_t size)
 	snprintf(buf, size, "%u.%04u", (unsigned)(freq / 100000U), (unsigned)((freq % 100000U) / 10U));
 }
 
+// The second drawn last (the sked count-down), in the CCM scratch: no static RAM
+#define paceDrawnSecs (fieldToolsScratch[0])
+
+// "S2 12:34" (next start in mm:ss), "S2 NOW", "" (no sked / no clock)
+static bool skedText(char *buf, size_t size)
+{
+	skedNext_t next;
+	char cd[12];
+
+	skedNextGet(&next);
+	if (next.slot < 0)
+	{
+		buf[0] = 0;
+		return false;
+	}
+
+	if (next.on)
+	{
+		snprintf(buf, size, "S%d NOW", (next.slot + 1));
+	}
+	else
+	{
+		skedFormatCountdown(next.secs, cd, sizeof(cd));
+		snprintf(buf, size, "S%d %s", (next.slot + 1), cd);
+	}
+	return true;
+}
+
+#if defined(HAS_EMCOM_UI)
+// EMCOM style: status strip (the slot the radio is on), one two-line row per slot with its state
+// (ON / EMPTY / DELETED), the key bar or the clear confirmation
+#define EM_ROW_H    ((EMCOM_UI_KEYBAR_Y - EMCOM_UI_BODY_Y + 1) / PACE_SLOTS)
+#define EM_TEXT_X   (CHIP_W + 4)
+
+static void updateScreenEmcom(void)
+{
+	char buf[SCREEN_LINE_BUFFER_SIZE + 8];
+	int active = -1;
+	int set = 0;
+
+	displayClearBuf();
+	snprintf(buf, sizeof(buf), "%d/%d", (selectedSlot + 1), PACE_SLOTS);
+	emcomUiTitle("PACE PLAN", buf);
+
+	for (int i = 0; i < PACE_SLOTS; i++)
+	{
+		paceSlot_t slot;
+		int16_t y = (int16_t)(EMCOM_UI_BODY_Y + (i * EM_ROW_H));
+		bool sel = (i == selectedSlot);
+		bool used = fieldPaceGet(i, &slot);
+		bool exists = (used && codeplugAllChannelsIndexIsInUse(slot.channelNumber));
+		themeItem_t text = (sel ? THEME_ITEM_BG : THEME_ITEM_FG_DEFAULT);
+		themeItem_t muted = (sel ? THEME_ITEM_BG : THEME_ITEM_FG_DECORATION);
+
+		set += (used ? 1 : 0);
+
+		// slot letter block, the selected row as a bar beside it
+		displayThemeApply(slotColour(i), THEME_ITEM_BG);
+		displayFillRect(0, y, CHIP_W, (EM_ROW_H - 1), false);
+		buf[0] = paceLetters[i];
+		buf[1] = 0;
+		displayPrintCore(((CHIP_W - 8) / 2), (y + ((EM_ROW_H - 1 - FONT_SIZE_3_HEIGHT) / 2)), buf, FONT_SIZE_3, TEXT_ALIGN_LEFT, true);
+		if (sel)
+		{
+			displayThemeApply(THEME_ITEM_BG_MENU_ITEM_SELECTED, THEME_ITEM_BG);
+			displayFillRect((CHIP_W + 1), y, (DISPLAY_SIZE_X - CHIP_W - 1), (EM_ROW_H - 1), false);
+		}
+		else if (i < (PACE_SLOTS - 1))
+		{
+			displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+			displayDrawFastHLine((CHIP_W + 1), (y + EM_ROW_H - 1), (DISPLAY_SIZE_X - CHIP_W - 1), true);
+		}
+		displayThemeResetToDefault();
+
+		if (exists)
+		{
+			CodeplugChannel_t ch;
+			char name[17];
+
+			codeplugChannelGetDataForIndex(slot.channelNumber, &ch);
+			codeplugUtilConvertBufToString(ch.name, name, 16);
+			emcomUiText(EM_TEXT_X, (y + 3), name, FONT_SIZE_1_BOLD, text, false);
+
+			formatFreq(ch.rxFreq, buf, sizeof(buf));
+			strcat(buf, ((ch.chMode == RADIO_MODE_DIGITAL) ? " DMR" : " FM"));
+			emcomUiText(EM_TEXT_X, (y + 12), buf, FONT_SIZE_1, muted, false);
+			if ((EM_TEXT_X + (int16_t)((strlen(buf) + 1 + strlen(paceNames[i])) * 6)) <= (DISPLAY_SIZE_X - 2))
+			{
+				emcomUiText((DISPLAY_SIZE_X - 2), (y + 12), paceNames[i], FONT_SIZE_1, muted, true);
+			}
+
+			if (slotIsCurrent(&slot))
+			{
+				active = i;
+				emcomUiChip((DISPLAY_SIZE_X - 2), (y + 3), "ON", (sel ? THEME_ITEM_BG : slotColour(i)), (sel ? EMCOM_CHIP_OUTLINE : EMCOM_CHIP_SOLID), true);
+			}
+		}
+		else
+		{
+			emcomUiText(EM_TEXT_X, (y + 3), paceNames[i], FONT_SIZE_1_BOLD, (sel ? THEME_ITEM_BG : slotColour(i)), false);
+			emcomUiText(EM_TEXT_X, (y + 12), (used ? "channel deleted" : "* stores the channel"), FONT_SIZE_1, muted, false);
+			emcomUiChip((DISPLAY_SIZE_X - 2), (y + 3), (used ? "DELETED" : "EMPTY"), (sel ? THEME_ITEM_BG : (used ? THEME_ITEM_FG_TX_COUNTER : THEME_ITEM_FG_DECORATION)),
+					EMCOM_CHIP_OUTLINE, true);
+		}
+	}
+
+	// status strip: the slot the radio is on now
+	emcomUiStrip();
+	// right: the next sked count-down when one is set, else the slots set
+	char sked[16];
+	int16_t rightW;
+
+	if (skedText(sked, sizeof(sked)))
+	{
+		rightW = emcomUiText((DISPLAY_SIZE_X - 3), (EMCOM_UI_STRIP_Y + 2), sked, FONT_SIZE_1, THEME_ITEM_FG_RSSI_BAR_S9P, true);
+		rightW = (int16_t)(rightW + emcomUiText((DISPLAY_SIZE_X - 3 - rightW - 4), (EMCOM_UI_STRIP_Y + 2), "SKED", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, true) + 4);
+	}
+	else
+	{
+		snprintf(buf, sizeof(buf), "%d/%d SET", set, PACE_SLOTS);
+		rightW = emcomUiText((DISPLAY_SIZE_X - 3), (EMCOM_UI_STRIP_Y + 2), buf, FONT_SIZE_1, THEME_ITEM_FG_DECORATION, true);
+	}
+
+	if (active >= 0)
+	{
+		snprintf(buf, sizeof(buf), "ON %c", paceLetters[active]);
+		int16_t x = (int16_t)(2 + emcomUiChip(2, (EMCOM_UI_STRIP_Y + 2), buf, slotColour(active), EMCOM_CHIP_SOLID, false) + 4);
+		if ((x + (int16_t)(strlen(paceNames[active]) * 6) + 10) <= (DISPLAY_SIZE_X - 3 - rightW)) // the slot name when it fits, clear of the right text
+		{
+			emcomUiText(x, (EMCOM_UI_STRIP_Y + 2), paceNames[active], FONT_SIZE_1, THEME_ITEM_FG_HEADER_TEXT, false);
+		}
+	}
+	else
+	{
+		emcomUiChip(2, (EMCOM_UI_STRIP_Y + 2), (onChannelScreen() ? "OFF PLAN" : "VFO"), (onChannelScreen() ? THEME_ITEM_FG_DECORATION : THEME_ITEM_FG_RSSI_BAR_S9P),
+				EMCOM_CHIP_OUTLINE, false);
+	}
+
+	if (confirmClear)
+	{
+		snprintf(buf, sizeof(buf), "CLEAR %c?", paceLetters[selectedSlot]);
+		emcomUiConfirmBar(buf);
+	}
+	else
+	{
+		emcomUiKeyBar(onChannelScreen() ? "1-4 GO * STO 0 CLR # SKED" : "1-4 GO  # SKED  (VFO)");
+	}
+	paceDrawnSecs = uiDataGlobal.dateTimeSecs;
+	displayRender();
+}
+#endif
+
 static void updateScreen(void)
 {
 	char buf[SCREEN_LINE_BUFFER_SIZE + 8];
+
+#if defined(HAS_EMCOM_UI)
+	if (emcomStyleEnabled())
+	{
+		updateScreenEmcom();
+		return;
+	}
+#endif
 
 	displayClearBuf();
 	menuDisplayTitle("PACE PLAN");
@@ -121,23 +286,47 @@ static void updateScreen(void)
 	int16_t fy = (DISPLAY_SIZE_Y - FOOTER_H);
 	displayThemeApply(THEME_ITEM_BG_HEADER_TEXT, THEME_ITEM_BG);
 	displayFillRect(0, fy, DISPLAY_SIZE_X, FOOTER_H, false);
-	displayThemeApply(THEME_ITEM_FG_HEADER_TEXT, THEME_ITEM_BG_HEADER_TEXT);
-	displayPrintCore(3, (fy + 2), (onChannelScreen() ? "1-4 GO  * STORE  0 CLEAR" : "1-4 GO  (VFO: no STORE)"), FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
+	if (confirmClear)
+	{
+		snprintf(buf, sizeof(buf), "CLEAR %c?", paceLetters[selectedSlot]);
+		displayThemeApply(THEME_ITEM_FG_TX_COUNTER, THEME_ITEM_BG_HEADER_TEXT);
+		displayPrintCore(3, (fy + 2), buf, FONT_SIZE_1_BOLD, TEXT_ALIGN_LEFT, false);
+		displayThemeApply(THEME_ITEM_FG_HEADER_TEXT, THEME_ITEM_BG_HEADER_TEXT);
+		displayPrintCore(57, (fy + 2), "GREEN = yes", FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
+	}
+	else
+	{
+		char sked[16];
+
+		displayThemeApply(THEME_ITEM_FG_HEADER_TEXT, THEME_ITEM_BG_HEADER_TEXT);
+		if (skedText(sked, sizeof(sked)))
+		{
+			// the next sked replaces the key hints (# opens the schedule)
+			snprintf(buf, sizeof(buf), "%s  # SKED %s", (onChannelScreen() ? "* STORE" : "1-4 GO"), sked);
+		}
+		else
+		{
+			snprintf(buf, sizeof(buf), "%s", (onChannelScreen() ? "1-4 GO * STO 0 CLR # SKED" : "1-4 GO  # SKED  (VFO)"));
+		}
+		displayPrintCore(3, (fy + 2), buf, FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
+	}
 
 	displayThemeResetToDefault();
+	paceDrawnSecs = uiDataGlobal.dateTimeSecs;
 	displayRender();
 }
 
-// Switch the radio to the channel of a slot (channel mode). Returns false when the slot is empty.
-static bool activateSlot(int i)
+// Switch the radio to a zone / channel (channel mode). Returns false when the channel is deleted.
+// Also used by the sked "NOW" card (functions/sked.c).
+bool paceActivateChannel(const paceSlot_t *data)
 {
-	paceSlot_t slot;
+	paceSlot_t slot = *data;
 	CodeplugZone_t zone;
 	int zones = codeplugZonesGetCount();
 	int zoneNumber;
 	int position = -1; // index in the zone, -2: the All Channels zone
 
-	if ((fieldPaceGet(i, &slot) == false) || (codeplugAllChannelsIndexIsInUse(slot.channelNumber) == false))
+	if ((slot.zoneNumber < 0) || (codeplugAllChannelsIndexIsInUse(slot.channelNumber) == false))
 	{
 		return false;
 	}
@@ -187,6 +376,14 @@ static bool activateSlot(int i)
 	return true;
 }
 
+// Switch the radio to the channel of a slot (channel mode). Returns false when the slot is empty.
+static bool activateSlot(int i)
+{
+	paceSlot_t slot;
+
+	return (fieldPaceGet(i, &slot) && paceActivateChannel(&slot));
+}
+
 static void storeCurrent(void)
 {
 	paceSlot_t slot;
@@ -208,6 +405,7 @@ menuStatus_t menuPACE(uiEvent_t *ev, bool isFirstRun)
 	if (isFirstRun)
 	{
 		menuDataGlobal.numItems = 0;
+		confirmClear = false;
 		updateScreen();
 		return MENU_STATUS_SUCCESS;
 	}
@@ -220,7 +418,21 @@ menuStatus_t menuPACE(uiEvent_t *ev, bool isFirstRun)
 		}
 		else if (ev->events & KEY_EVENT)
 		{
-			if (KEYCHECK_SHORTUP(ev->keys, KEY_RED))
+			if (confirmClear)
+			{
+				// decided on the key release (the press of GREEN would cancel); RED cancels, stays here
+				if (ev->keys.event & KEY_MOD_UP)
+				{
+					if (KEYCHECK_SHORTUP(ev->keys, KEY_GREEN))
+					{
+						fieldPaceSet(selectedSlot, NULL);
+						soundSetMelody(MELODY_ACK_BEEP);
+					}
+					confirmClear = false;
+					updateScreen();
+				}
+			}
+			else if (KEYCHECK_SHORTUP(ev->keys, KEY_RED))
 			{
 				menuSystemPopPreviousMenu();
 				return MENU_STATUS_SUCCESS;
@@ -252,10 +464,23 @@ menuStatus_t menuPACE(uiEvent_t *ev, bool isFirstRun)
 				storeCurrent();
 				updateScreen();
 			}
+			else if (KEYCHECK_SHORTUP(ev->keys, KEY_HASH))
+			{
+				menuSystemPushNewMenu(MENU_SKED);
+				return MENU_STATUS_SUCCESS;
+			}
 			else if (KEYCHECK_SHORTUP(ev->keys, KEY_0))
 			{
-				fieldPaceSet(selectedSlot, NULL);
-				soundSetMelody(MELODY_ACK_BEEP);
+				paceSlot_t slot;
+
+				if (fieldPaceGet(selectedSlot, &slot))
+				{
+					confirmClear = true;
+				}
+				else
+				{
+					soundSetMelody(MELODY_ERROR_BEEP); // already empty
+				}
 				updateScreen();
 			}
 			else if (KEYCHECK_PRESS(ev->keys, KEY_DOWN))
@@ -269,6 +494,12 @@ menuStatus_t menuPACE(uiEvent_t *ev, bool isFirstRun)
 				updateScreen();
 			}
 		}
+	}
+
+	// the sked count-down, once per second (only reads the flash when the clock ticked)
+	if ((confirmClear == false) && (paceDrawnSecs != uiDataGlobal.dateTimeSecs) && skedClockValid())
+	{
+		updateScreen();
 	}
 
 	return MENU_STATUS_SUCCESS;

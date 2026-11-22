@@ -357,6 +357,7 @@ static aprsRxStation_t *stationUpdate(const aprsRxFrame_t *frame, uint32_t now, 
 	}
 
 	st.lastMs = now;
+	st.isObject = (strcmp(pos.name, p.src) != 0);
 	if (st.count < 0xFFFFU)
 	{
 		st.count++;
@@ -583,7 +584,7 @@ static void showTxError(aprsInfoTxResult_t res)
 	if (txErrorShown == false)
 	{
 		txErrorShown = true;
-		uiNotificationShow(NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 2500U,
+		uiNotificationShowKind(UI_ALERT_ERROR, NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 2500U,
 				((res == APRS_INFO_TX_NO_CONFIG) ? "APRS: no ch. config" : "APRS: TX not allowed"), true);
 		soundSetMelody(MELODY_ERROR_BEEP);
 	}
@@ -698,7 +699,11 @@ static void messagesTxTick(uint32_t now)
 	int menu = menuSystemGetCurrentMenuNumber();
 
 	if (aprsBeaconingIsTransmitting() || trxTransmissionEnabled ||
-			(menu == UI_TX_SCREEN) || (menu == UI_HOTSPOT_MODE) || (menu == UI_CPS) || (menu == MENU_SATELLITE))
+			(menu == UI_TX_SCREEN) || (menu == UI_HOTSPOT_MODE) || (menu == UI_CPS) || (menu == MENU_SATELLITE)
+#if defined(HAS_SSTV_MENU)
+			|| (menu == MENU_SSTV) // Fork: the SSTV screen may be on a downlink
+#endif
+			)
 	{
 		return;
 	}
@@ -742,7 +747,7 @@ static void messagesTxTick(uint32_t now)
 	if (m->tries >= MSG_MAX_TRIES)
 	{
 		m->kind = APRS_MSG_OUT_FAILED;
-		uiNotificationShow(NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, NOTIFICATION_MS, "APRS msg: no ACK", false);
+		uiNotificationShowKind(UI_ALERT_WARNING, NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, NOTIFICATION_MS, "APRS msg: no ACK", false);
 		soundSetMelody(MELODY_NACK_BEEP);
 		return;
 	}

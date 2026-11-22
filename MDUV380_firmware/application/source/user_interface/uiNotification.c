@@ -30,6 +30,7 @@
 #include "user_interface/uiLocalisation.h"
 #include "user_interface/uiUtilities.h"
 #include "utils.h"
+#include "user_interface/uiEmcom.h"
 
 
 #if defined(PLATFORM_RD5R)
@@ -79,6 +80,7 @@ static  __attribute__((section(".ccmram"))) uint16_t screenNotificationBufData[D
 typedef struct
 {
 	bool                         visible;
+	uint8_t                      kind; // Fork: uiAlertKind_t (EMCOM styles)
 	ticksTimer_t                 hideTimer;
 	uiNotificationType_t         type;
 	uiNotificationID_t           id;
@@ -89,6 +91,7 @@ typedef struct
 static uiNotificationData_t notificationData =
 {
 		.visible = false,
+		.kind = UI_ALERT_INFO,
 		.hideTimer = { 0, 0 },
 		.type = NOTIFICATION_TYPE_MAX,
 		.id = NOTIFICATION_ID_NONE,
@@ -100,7 +103,19 @@ static void displayMessage(void);
 
 void uiNotificationShow(uiNotificationType_t type, uiNotificationID_t id, uint32_t msTimeout, const char *message, bool immediateRender)
 {
+	uiNotificationShowKind(UI_ALERT_AUTO, type, id, msTimeout, message, immediateRender);
+}
+
+// Fork: as uiNotificationShow(), the kind (info / warning / error / question) is shown in the EMCOM styles
+void uiNotificationShowKind(uiAlertKind_t kind, uiNotificationType_t type, uiNotificationID_t id, uint32_t msTimeout, const char *message, bool immediateRender)
+{
 	bool valid = true;
+
+	if (kind == UI_ALERT_AUTO)
+	{
+		kind = (((id == NOTIFICATION_ID_TX_INHIBIT) || (id == NOTIFICATION_ID_USER_APO)) ? UI_ALERT_WARNING :
+				(((message != NULL) && (message == currentLanguage->out_of_band)) ? UI_ALERT_ERROR : UI_ALERT_INFO));
+	}
 
 	if (notificationData.visible)
 	{
@@ -115,6 +130,7 @@ void uiNotificationShow(uiNotificationType_t type, uiNotificationID_t id, uint32
 
 	notificationData.type = type;
 	notificationData.id = id;
+	notificationData.kind = (uint8_t)kind;
 
 	switch (type)
 	{
@@ -214,6 +230,18 @@ void uiNotificationRefresh(void)
 				}
 				buffer[8] = 0;
 
+#if defined(HAS_EMCOM_UI)
+				if (emcomStyleEnabled())
+				{
+					char value[8];
+					int percent = (int)(((bargraph * 100) + (totalBarLength / 2)) / totalBarLength);
+
+					snprintf(value, sizeof(value), "%d%%", percent);
+					emcomDrawLevelAlert(buffer, value, percent);
+					break;
+				}
+#endif
+
 				size_t sLen = (strlen(buffer) * 8);
 
 				displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG_NOTIFICATION);
@@ -232,6 +260,15 @@ void uiNotificationRefresh(void)
 				char buffer[SCREEN_LINE_BUFFER_SIZE];
 				uint8_t powerLevel = trxGetPowerLevel();
 
+#if defined(HAS_EMCOM_UI)
+				if (emcomStyleEnabled())
+				{
+					sprintf(buffer, "%s%s", getPowerLevel(powerLevel), getPowerLevelUnit(powerLevel));
+					emcomDrawLevelAlert("TX POWER", buffer, -1);
+					break;
+				}
+#endif
+
 				displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG_NOTIFICATION);
 				displayDrawRoundRectWithDropShadow((DISPLAY_SIZE_X / 4), YBOX, (DISPLAY_SIZE_X / 2), INNERBOX_H, 3, true);
 				sprintf(buffer, "%s%s", getPowerLevel(powerLevel), getPowerLevelUnit(powerLevel));
@@ -241,6 +278,13 @@ void uiNotificationRefresh(void)
 			break;
 
 			case NOTIFICATION_TYPE_MESSAGE:
+#if defined(HAS_EMCOM_UI)
+				if (emcomStyleEnabled())
+				{
+					emcomDrawAlert((uiAlertKind_t)notificationData.kind, NULL, notificationData.message, NULL, false);
+					break;
+				}
+#endif
 				displayMessage();
 				break;
 

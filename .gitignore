@@ -30,3 +30,6 @@ MD9600-CSV*.bin
 *.sgl
 MDUV380_firmware/tests/aprs_rx/test_tones
 MDUV380_firmware/tests/aprs_rx/test_sstv
+MDUV380_firmware/tests/aprs_rx/test_sstv_store
+MDUV380_firmware/tests/aprs_rx/test_net
+MDUV380_firmware/tests/aprs_rx/test_batt

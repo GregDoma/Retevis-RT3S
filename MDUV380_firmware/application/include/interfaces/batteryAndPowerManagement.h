@@ -43,6 +43,7 @@ extern volatile uint16_t potLevel;
 extern volatile uint16_t temperatureLevel;
 extern volatile int lastValidBatteryVoltage;
 extern volatile float averageBatteryVoltage;
+extern volatile float averageBatteryVoltageFine; // Fork: not truncated to 0.1 V (runtime estimate)
 extern volatile uint32_t resumeTicks;
 
 #if !defined(PLATFORM_GD77S)
@@ -60,6 +61,8 @@ bool batteryIsLowCriticalVoltage(void);
 bool batteryLastReadingIsCritical(void);
 void batteryChecking(uiEvent_t *ev);
 void batteryUpdate(void);
+int batteryTimeLeftMinutes(void);                  // Fork: BATT_RT_UNKNOWN (-1) or minutes
+void batteryTimeLeftString(char *buf, size_t size); // Fork: "~3h20", "~45m", "--"
 void die(bool usbMonitoring, bool maintainRTC, bool forceSuspend, bool safeBoot);
 void wakeFromSleep(void);
 void powerOffFinalStage(bool maintainRTC, bool forceSuspend);

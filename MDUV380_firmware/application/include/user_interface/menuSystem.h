@@ -128,6 +128,7 @@ typedef struct
 } uiNotificationBearingInfo_t;
 
 #define NOTIFICATION_ID_USER_APO (NOTIFICATION_ID_USER)
+#define NOTIFICATION_ID_USER_SKED (NOTIFICATION_ID_USER + 1) // Fork: "SKED NOW" card (GREEN tunes)
 
 typedef struct
 {
@@ -169,6 +170,11 @@ typedef struct
 	const menuItemNewData_t *items;
 } menuItemsList_t;
 
+
+// Fork: menu entries without a language string (no translation): stringOffset below -1, a fixed English name
+#define MENU_STRING_NET_CONTROL   (-2)
+const char *menuItemName(const menuItemNewData_t *item);  // NULL: no name
+void menuItemNamePrompt(const menuItemNewData_t *item);   // voice prompt of the name
 
 void menuDisplayTitle(const char *title);
 void menuDisplayEntry(int loopOffset, int focusedItem, const char *entryText, int32_t optStart, themeItem_t fgItem, themeItem_t fgOptItem, themeItem_t bgItem);
@@ -250,6 +256,11 @@ void menuSatelliteScreenClearPredictions(bool reloadKeps);
 bool menuSatelliteIsDisplayingHeader(void);
 void menuSatelliteTxScreen(uint32_t txTimeSecs);
 void menuSatelliteSetFullReload(void);
+// Fork: the SSTV screen opened from a satellite keeps its Doppler retune running
+bool menuSatelliteDopplerAvailable(void);
+void menuSatelliteDopplerTick(void); // once a second
+const char *menuSatelliteActiveName(void);
+CodeplugChannel_t *menuSatelliteBorrowChannelData(void); // only while the satellite screen is not on the menu stack
 void menuSystemMenuIncrement(int32_t *O, int32_t M);
 void menuSystemMenuDecrement(int32_t *O, int32_t M);
 
@@ -264,6 +275,7 @@ void uiChannelModeHeartBeatActivityForGD77S(uiEvent_t *ev);
 
 
 void uiNotificationShow(uiNotificationType_t type, uiNotificationID_t id, uint32_t msTimeout, const char *message, bool immediateRender);
+void uiNotificationShowKind(uiAlertKind_t kind, uiNotificationType_t type, uiNotificationID_t id, uint32_t msTimeout, const char *message, bool immediateRender); // Fork
 void uiNotificationBearingShow(uiNotificationBearingInfo_t *bearing, uint32_t msTimeout, bool immediateRender);
 void uiNotificationRefresh(void);
 uint16_t *uiNotificationScratchBuffer(void); // Fork: off-screen drawing (EMCOM UI)
@@ -336,6 +348,9 @@ enum MENU_SCREENS
 	MENU_POSITION,// Fork: MGRS / UTM position
 	MENU_COVERAGE,// Fork: coverage survey
 	MENU_RADIO_CHECK,// Fork: radio check (signal report)
+	MENU_NET_CONTROL,// Fork: EMCOM net control (roster, QSO log)
+	MENU_WAYPOINTS,// Fork: saved waypoints
+	MENU_SKED,// Fork: comms schedule reminders
 #endif
 	// *** Add new menus to be accessed using quickkey (ID: 0..31) above this line ***
 	UI_MESSAGE_BOX,
@@ -405,6 +420,8 @@ enum VFO_SCREEN_QUICK_MENU_ITEMS
 #define QUICKKEY_FUNCTIONID(f)        (f & 0x1f)         // 5 bits
 #define QUICKKEY_LONGENTRYID(f)       (f & 0x3ff)        // 10 bits   (Zones)
 #define QUICKKEY_MENUVALUE(m, e, f)   ((QUICKKEY_MENU << 15) | ((m & 0x1f) << 10) | ((e & 0x1f) << 5) | (f & 0x1f))
+// Fork: as QUICKKEY_MENUVALUE() for constant tables, fails to compile when the menu ID does not fit 5 bits
+#define QUICKKEY_MENUVALUE_CHECKED(m, e, f) ((0 * sizeof(char[((m) < 32) ? 1 : -1])) + QUICKKEY_MENUVALUE(m, e, f))
 #define QUICKKEY_MENULONGVALUE(m, e)  ((QUICKKEY_MENU << 15) | ((m & 0x1f) << 10) | (e & 0x1ff))
 #define QUICKKEY_CONTACTVALUE(c)      (c)
 
@@ -426,11 +443,20 @@ typedef enum
 	QUICKKEY_ACTION_SWEEP_TUNE_PEAK,
 	QUICKKEY_ACTION_APRS_RX_TOGGLE, // Fork: APRS receive in background
 	QUICKKEY_ACTION_SOS,            // Fork: EMCOM SOS (press twice)
+	// Fork: menus whose ID does not fit the 5 bit QUICKKEY_MENUID field (>= 32) are opened by an action
+	QUICKKEY_ACTION_MENU_POSITION,
+	QUICKKEY_ACTION_MENU_COVERAGE,
+	QUICKKEY_ACTION_MENU_RADIO_CHECK,
+	QUICKKEY_ACTION_MENU_NET_CONTROL,
+	QUICKKEY_ACTION_BLACKOUT,       // Fork: blackout / silent mode (same as SK1 + 5)
+	QUICKKEY_ACTION_MENU_WAYPOINTS, // Fork: saved waypoints
+	QUICKKEY_ACTION_MENU_SKED,      // Fork: comms schedule
 	QUICKKEY_ACTION_MAX
 } quickkeyAction_t;
 
 const char *quickkeyActionGetName(quickkeyAction_t action);
 bool quickkeyActionExecute(quickkeyAction_t action, bool isChannelMode);
+quickkeyAction_t quickkeyActionForMenu(int menuId); // menus with an ID >= 32, else QUICKKEY_ACTION_NONE
 
 enum QUICK_FUNCTIONS
 {
@@ -501,6 +527,9 @@ menuStatus_t menuPACE(uiEvent_t *event, bool isFirstRun);
 menuStatus_t menuPosition(uiEvent_t *event, bool isFirstRun);
 menuStatus_t menuCoverage(uiEvent_t *event, bool isFirstRun);
 menuStatus_t menuRadioCheck(uiEvent_t *event, bool isFirstRun);
+menuStatus_t menuNetControl(uiEvent_t *event, bool isFirstRun);
+menuStatus_t menuWaypoints(uiEvent_t *event, bool isFirstRun);
+menuStatus_t menuSked(uiEvent_t *event, bool isFirstRun);
 #endif
 menuStatus_t menuLastHeard(uiEvent_t *event, bool isFirstRun);
 menuStatus_t menuGeneralOptions(uiEvent_t *event, bool isFirstRun);
@@ -525,6 +554,20 @@ menuStatus_t menuGPS(uiEvent_t *event, bool isFirstRun);
 #if defined(PLATFORM_MDUV380) || defined(PLATFORM_MD380) || defined(PLATFORM_RT84_DM1701)
 bool gpsWaypointGet(double *lat, double *lon); // Fork: GPS waypoint page target
 void gpsWaypointSet(double lat, double lon);
+// Fork: keypad lat / lon entry (GPS waypoint page '#', saved waypoints '#'), one screen at a time
+typedef enum
+{
+	GPS_WP_EDIT_NONE = 0,  // event ignored
+	GPS_WP_EDIT_REDRAW,
+	GPS_WP_EDIT_DONE,      // GREEN: a valid position (editor closed)
+	GPS_WP_EDIT_CANCEL     // RED on an empty field (editor closed)
+} gpsWaypointEdit_t;
+void gpsWaypointEditStart(bool prefill); // prefill: the current waypoint
+bool gpsWaypointEditIsActive(void);
+void gpsWaypointEditStop(void);
+gpsWaypointEdit_t gpsWaypointEditHandleEvent(uiEvent_t *ev, double *lat, double *lon);
+void gpsWaypointEditDraw(void);          // the body below the title bar (no render)
+void gpsShowWaypointPage(void);          // the GPS screen on the waypoint page (pushed when needed)
 #endif
 #endif
 menuStatus_t menuCalibration(uiEvent_t *ev, bool isFirstRun);

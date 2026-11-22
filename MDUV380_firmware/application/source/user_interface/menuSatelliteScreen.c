@@ -40,6 +40,10 @@
 #if defined(USING_EXTERNAL_DEBUGGER)
 #include "SeggerRTT/RTT/SEGGER_RTT.h"
 #endif
+#include "user_interface/uiEmcom.h"
+#if defined(HAS_GPS)
+#include "interfaces/gps.h"
+#endif
 
 #if defined(PLATFORM_RD5R)
 #define NUM_PASSES_TO_DISPLAY_ON_LIST_SCREEN 2
@@ -99,6 +103,389 @@ static uint32_t nextAlarmBeepTime = 0;
 static bool hasRecalculated;
 static bool hasSelectedSatellite = false;
 satelliteFreq_t currentSatelliteFreqIndex = SATELLITE_VOICE_FREQ;
+
+#if defined(HAS_EMCOM_UI)
+// Fork: EMCOM style of the four views (title bar, status strip, key bar), by Marcin SP7TQ.
+// Drawing only: the predictions, the keys, the voice prompts and the Doppler retune are shared
+// with the classic screen. No static data: everything is built on the stack.
+#define EM_STRIP_Y    MENU_HEADER_HEIGHT
+#define EM_STRIP_H    11
+#define EM_KEYBAR_H   11
+#define EM_KEYBAR_Y   (DISPLAY_SIZE_Y - EM_KEYBAR_H)
+#define EM_LIST_Y     (EM_STRIP_Y + EM_STRIP_H + 2)
+#define EM_ROW_H      14
+#define EM_POLAR_CX   100
+#define EM_POLAR_CY   ((EM_STRIP_Y + EM_STRIP_H + EM_KEYBAR_Y) / 2)
+#define EM_POLAR_R    40
+
+static void emText(int16_t x, int16_t y, const char *s, ucFont_t font, themeItem_t fg, themeItem_t bg)
+{
+	displayThemeApply(fg, bg);
+	displayPrintCore(x, y, s, font, TEXT_ALIGN_LEFT, false);
+}
+
+static void emTextRight(int16_t xRight, int16_t y, const char *s, ucFont_t font, themeItem_t fg, themeItem_t bg)
+{
+	emText((int16_t)(xRight - (int16_t)(strlen(s) * ((font == FONT_SIZE_1) || (font == FONT_SIZE_1_BOLD) ? 6 : 8))), y, s, font, fg, bg);
+}
+
+// Title bar with the view number ("1/4") drawn by menuDisplayTitle()
+static void emTitle(const char *title)
+{
+	menuDataGlobal.numItems = NUM_SATELLITE_SCREEN_ITEMS;
+	menuDataGlobal.currentItemIndex = displayMode;
+	menuDisplayTitle(title);
+}
+
+// Coloured field on the status strip, text in the background colour; returns its width
+static int16_t emChip(int16_t x, const char *text, themeItem_t colour)
+{
+	char buf[16];
+	size_t n = 0;
+	int16_t w;
+
+	for (; text[n] && (n < (sizeof(buf) - 1)); n++)
+	{
+		char c = text[n];
+		buf[n] = (((c >= 'a') && (c <= 'z')) ? (char)(c - ('a' - 'A')) : c);
+	}
+	buf[n] = 0;
+	w = (int16_t)((n * 6) + 4);
+
+	displayThemeApply(colour, THEME_ITEM_BG_HEADER_TEXT);
+	displayFillRect(x, (EM_STRIP_Y + 1), w, 9, false);
+	displayThemeApply(colour, THEME_ITEM_BG);
+	displayPrintCore((x + 2), (EM_STRIP_Y + 1), buf, FONT_SIZE_1_BOLD, TEXT_ALIGN_LEFT, true);
+	return w;
+}
+
+static void emStrip(void)
+{
+	displayThemeApply(THEME_ITEM_BG_HEADER_TEXT, THEME_ITEM_BG);
+	displayFillRect(0, EM_STRIP_Y, DISPLAY_SIZE_X, EM_STRIP_H, false);
+}
+
+static void emKeyBar(const char *keys)
+{
+	displayThemeApply(THEME_ITEM_BG_HEADER_TEXT, THEME_ITEM_BG);
+	displayFillRect(0, EM_KEYBAR_Y, DISPLAY_SIZE_X, EM_KEYBAR_H, false);
+	emText(3, (EM_KEYBAR_Y + 2), keys, FONT_SIZE_1, THEME_ITEM_FG_HEADER_TEXT, THEME_ITEM_BG_HEADER_TEXT);
+	displayThemeResetToDefault();
+}
+
+// "3:12", "1:02:03", "45s"
+static void emDuration(char *buf, size_t size, uint32_t secs)
+{
+	if (secs >= 3600U)
+	{
+		snprintf(buf, size, "%u:%02u:%02u", (unsigned)(secs / 3600U), (unsigned)((secs / 60U) % 60U), (unsigned)(secs % 60U));
+	}
+	else if (secs >= 60U)
+	{
+		snprintf(buf, size, "%u:%02u", (unsigned)(secs / 60U), (unsigned)(secs % 60U));
+	}
+	else
+	{
+		snprintf(buf, size, "%us", (unsigned)secs);
+	}
+}
+
+static int32_t emLocalOffset(void)
+{
+	return ((nonVolatileSettings.timezone & 0x80) ? (((nonVolatileSettings.timezone & 0x7F) - 64) * (15 * 60)) : 0);
+}
+
+// Observer position strip: where it comes from (GPS fix / MANUAL entry) and the short lat / lon
+static void emPositionStrip(void)
+{
+	char buf[20];
+	bool fromGps = false;
+
+#if defined(HAS_GPS)
+	// With a fix the GPS writes its position to the location setting (gps.c), which the predictions use
+	fromGps = ((SETTINGS_GPS_MODE_GET(nonVolatileSettings) >= GPS_MODE_ON) && ((gpsData.Status & GPS_STATUS_HAS_FIX) != 0));
+#endif
+
+	emStrip();
+
+	if (settingsLocationIsValid())
+	{
+		double lat = settingsLocationGetLatitude();
+		double lon = settingsLocationGetLongitude();
+		uint32_t la = (uint32_t)((fabs(lat) * 100.0) + 0.5);
+		uint32_t lo = (uint32_t)((fabs(lon) * 100.0) + 0.5);
+		int16_t x = (int16_t)(2 + emChip(2, (fromGps ? "GPS" : "MANUAL"), (fromGps ? THEME_ITEM_FG_RSSI_BAR : THEME_ITEM_FG_RSSI_BAR_S9P)) + 4);
+
+		snprintf(buf, sizeof(buf), "%u.%02u%c %u.%02u%c", (unsigned)(la / 100U), (unsigned)(la % 100U), ((lat >= 0.0) ? 'N' : 'S'),
+				(unsigned)(lo / 100U), (unsigned)(lo % 100U), ((lon >= 0.0) ? 'E' : 'W'));
+		emText(x, (EM_STRIP_Y + 2), buf, FONT_SIZE_1, THEME_ITEM_FG_HEADER_TEXT, THEME_ITEM_BG_HEADER_TEXT);
+	}
+	else
+	{
+		emChip(2, "NO POS", THEME_ITEM_FG_TX_COUNTER);
+	}
+
+	emTextRight((DISPLAY_SIZE_X - 3), (EM_STRIP_Y + 2), ((emLocalOffset() != 0) ? "LT" : "UTC"), FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG_HEADER_TEXT);
+}
+
+// Header of the predictions list (also while predicting)
+static void emListFrame(void)
+{
+	displayClearBuf();
+	emTitle(currentLanguage->satellite);
+	emPositionStrip();
+	emKeyBar("GREEN OPEN * POS RED EXIT");
+}
+
+static void emPredicting(void)
+{
+	emListFrame();
+	emText(4, (EM_LIST_Y + 14), currentLanguage->predicting, FONT_SIZE_3, THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
+	displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+	displayDrawRect(4, (EM_LIST_Y + 38), (DISPLAY_SIZE_X - 8), 10, true);
+	displayThemeApply(THEME_ITEM_FG_RSSI_BAR, THEME_ITEM_BG);
+	displayFillRect(6, (EM_LIST_Y + 40), (((DISPLAY_SIZE_X - 12) * numTotalSatellitesPredicted) / numSatellitesLoaded), 6, false);
+	displayThemeResetToDefault();
+	displayRender();
+}
+
+// One pass of the list: name, AOS time, maximum elevation. Row 0 is the one GREEN opens.
+static void emListRow(int row, satelliteData_t *sat, int passNumber, const struct tm *aos)
+{
+	char buf[12];
+	int16_t y = (int16_t)(EM_LIST_Y + (row * EM_ROW_H));
+	bool selected = (row == 0);
+	bool visible = ((passNumber == 0) && sat->predictions.isVisible);
+	themeItem_t bg = (selected ? THEME_ITEM_BG_MENU_ITEM_SELECTED : THEME_ITEM_BG);
+
+	if (selected)
+	{
+		displayThemeApply(THEME_ITEM_BG_MENU_ITEM_SELECTED, THEME_ITEM_BG);
+		displayFillRect(0, y, DISPLAY_SIZE_X, (EM_ROW_H - 1), false);
+	}
+
+	// marker: the row GREEN opens, or a satellite in view now
+	if (selected || visible)
+	{
+		displayThemeApply((selected ? THEME_ITEM_BG : THEME_ITEM_FG_SATELLITE_COLOUR), bg);
+		displayFillRect(0, (y + 3), 2, (EM_ROW_H - 7), false);
+	}
+
+	displayThemeApply((selected ? THEME_ITEM_BG : THEME_ITEM_FG_DEFAULT), bg);
+	snprintf(buf, 9, "%s", sat->name); // 8 characters
+	displayPrintCore(6, (y + 3), buf, FONT_SIZE_2, TEXT_ALIGN_LEFT, false);
+
+	if (visible)
+	{
+		snprintf(buf, sizeof(buf), "NOW");
+	}
+	else
+	{
+		snprintf(buf, sizeof(buf), "%02u:%02u", (unsigned)aos->tm_hour, (unsigned)aos->tm_min);
+	}
+	emText(78, (y + 3), buf, FONT_SIZE_2, (selected ? THEME_ITEM_BG : (visible ? THEME_ITEM_FG_RSSI_BAR : THEME_ITEM_FG_RX_FREQ)), bg);
+
+	snprintf(buf, sizeof(buf), "%u%c", (unsigned)satelliteGetMaximumElevation(sat, passNumber), 176);
+	emTextRight((DISPLAY_SIZE_X - 3), (y + 3), buf, FONT_SIZE_2, (selected ? THEME_ITEM_BG : THEME_ITEM_FG_DEFAULT), bg);
+}
+
+// Countdown of the current / next pass of the active satellite: "AOS in 3:12", "LOS in 5:40"
+static themeItem_t emPassState(char *buf, size_t size)
+{
+	satellitePass_t *p = &currentActiveSatellite->predictions.passes[0];
+	time_t_custom now = uiDataGlobal.dateTimeSecs;
+	char t[12];
+
+	if ((p->valid != PREDICTION_RESULT_OK) || (now > p->satelliteLOS))
+	{
+		snprintf(buf, size, "%s: %s", currentLanguage->pass, currentLanguage->none);
+		return THEME_ITEM_FG_DECORATION;
+	}
+
+	if (now < p->satelliteAOS)
+	{
+		emDuration(t, sizeof(t), (p->satelliteAOS - now));
+		snprintf(buf, size, "AOS in %s", t);
+		return THEME_ITEM_FG_RSSI_BAR_S9P;
+	}
+
+	emDuration(t, sizeof(t), (p->satelliteLOS - now));
+	snprintf(buf, size, "LOS in %s", t);
+	return THEME_ITEM_FG_RSSI_BAR;
+}
+
+static void emFreqLine(int16_t y, const char *label, uint32_t freqHz, themeItem_t colour, const char *noFreq)
+{
+	char buf[16];
+
+	emText(4, (y + 5), label, FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+	if (freqHz != 0)
+	{
+		uint32_t f = (freqHz / 10U); // 10 Hz units
+
+		snprintf(buf, sizeof(buf), "%u.%05u", (unsigned)(f / 100000U), (unsigned)(f % 100000U));
+		emText(20, y, buf, FONT_SIZE_3, colour, THEME_ITEM_BG);
+	}
+	else
+	{
+		emText(20, (y + 5), noFreq, FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+	}
+}
+
+// Selected satellite: azimuth / elevation, Doppler corrected RX / TX, pass countdown
+static void emSelected(const char *freqName)
+{
+	char buf[24];
+	int16_t y;
+	uint8_t powerLevel = trxGetPowerLevel();
+	satellite_txRxFreqs *f = &currentSatelliteResults.freqs[currentSatelliteFreqIndex];
+
+	displayClearBuf();
+	emTitle(currentActiveSatellite->name);
+
+	emStrip();
+	int16_t x = (int16_t)(2 + emChip(2, freqName, THEME_ITEM_FG_RX_FREQ) + 4);
+	emText(x, (EM_STRIP_Y + 2), "DOPPLER", FONT_SIZE_1, THEME_ITEM_FG_HEADER_TEXT, THEME_ITEM_BG_HEADER_TEXT);
+	snprintf(buf, sizeof(buf), "%s%s", getPowerLevel(powerLevel), getPowerLevelUnit(powerLevel));
+	emTextRight((DISPLAY_SIZE_X - 3), (EM_STRIP_Y + 2), buf, FONT_SIZE_1, THEME_ITEM_FG_HEADER_TEXT, THEME_ITEM_BG_HEADER_TEXT);
+
+	// AZ / EL
+	y = (EM_STRIP_Y + EM_STRIP_H + 5);
+	emText(4, (y + 5), currentLanguage->azimuth, FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+	snprintf(buf, sizeof(buf), "%d%c", currentSatelliteResults.azimuthAsInteger, 176);
+	emText(20, y, buf, FONT_SIZE_3, THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
+	emText(84, (y + 5), currentLanguage->elevation, FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+	snprintf(buf, sizeof(buf), "%d%c", currentSatelliteResults.elevationAsInteger, 176);
+	emText(100, y, buf, FONT_SIZE_3, ((currentSatelliteResults.elevationAsInteger > 0) ? THEME_ITEM_FG_RSSI_BAR : THEME_ITEM_FG_DECORATION), THEME_ITEM_BG);
+
+	// Frequencies
+	y += 23;
+	emFreqLine(y, "RX", f->rxFreq, THEME_ITEM_FG_RX_FREQ, "---");
+	y += 19;
+	emFreqLine(y, "TX", ((f->rxFreq != 0) ? f->txFreq : 0), THEME_ITEM_FG_TX_FREQ, ((f->rxFreq != 0) ? "RX only" : "---"));
+
+	// Pass
+	y += 23;
+	displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+	displayDrawFastHLine(0, (y - 3), DISPLAY_SIZE_X, true);
+	themeItem_t colour = emPassState(buf, sizeof(buf));
+	emText(4, y, buf, FONT_SIZE_1, colour, THEME_ITEM_BG);
+	if (currentActiveSatellite->predictions.passes[0].valid == PREDICTION_RESULT_OK)
+	{
+		snprintf(buf, sizeof(buf), "%s %u%c", currentLanguage->maximum, (unsigned)satelliteGetMaximumElevation(currentActiveSatellite, 0), 176);
+		emTextRight((DISPLAY_SIZE_X - 3), y, buf, FONT_SIZE_1, THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
+	}
+	snprintf(buf, sizeof(buf), "RSSI %ddBm", trxGetRSSIdBm(RADIO_DEVICE_PRIMARY));
+	emText(4, (y + 10), buf, FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+
+#if defined(HAS_SSTV_MENU) && defined(I2S_APRS_RX)
+	emKeyBar("1-3 QRG  9 SSTV  RED LIST");
+#else
+	emKeyBar("1-3 QRG  # NEXT  RED LIST");
+#endif
+	displayRender();
+}
+
+// Polar view, static part: frame, sky plot grid, left column, pass track (drawn with the classic maths)
+static void emPolarFrame(void)
+{
+	displayClearBuf();
+	emTitle(currentActiveSatellite->name);
+	emStrip();
+	emKeyBar("UP/DN VIEW # NEXT RED LIST");
+
+	displayThemeApply(THEME_ITEM_FG_POLAR_DRAWING, THEME_ITEM_BG);
+	displayDrawCircle(EM_POLAR_CX, EM_POLAR_CY, EM_POLAR_R, true);
+	displayDrawCircle(EM_POLAR_CX, EM_POLAR_CY, ((EM_POLAR_R / 3) * 2), true);
+	displayDrawCircle(EM_POLAR_CX, EM_POLAR_CY, (EM_POLAR_R / 3), true);
+	displayDrawFastVLine(EM_POLAR_CX, (EM_POLAR_CY - (EM_POLAR_R + 3)), ((EM_POLAR_R + 3) * 2), true);
+	displayDrawFastHLine((EM_POLAR_CX - (EM_POLAR_R + 3)), EM_POLAR_CY, ((EM_POLAR_R + 3) * 2), true);
+	displayThemeResetToDefault();
+}
+
+// Left column of the polar view: label (small) + value (big)
+static void emPolarValue(int16_t y, const char *label, const char *value, themeItem_t colour)
+{
+	emText(3, y, label, FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+	emText(3, (y + 9), value, ((strlen(value) > 6) ? FONT_SIZE_1 : FONT_SIZE_3), colour, THEME_ITEM_BG);
+	displayThemeResetToDefault(); // the pass track is drawn next, in the default colour
+}
+
+// Polar view, live part: status strip (pass state, RSSI) and the S-meter column on the right
+static void emPolarLive(void)
+{
+	char buf[24];
+	int rssi = trxGetRSSIdBm(RADIO_DEVICE_PRIMARY);
+	int16_t h = (int16_t)(EM_KEYBAR_Y - (EM_STRIP_Y + EM_STRIP_H) - 2);
+	int lvl = MIN(MAX(0, (rssi - SMETER_S0)), (SMETER_S9 - SMETER_S0));
+
+	emStrip();
+	if (currentActiveSatellite->predictions.numPasses > 0)
+	{
+		snprintf(buf, sizeof(buf), "%s %u/%u", currentLanguage->pass, (unsigned)(currentActiveSatellite->predictions.selectedPassNumber + 1), (unsigned)currentActiveSatellite->predictions.numPasses);
+		emChip(2, buf, THEME_ITEM_FG_RX_FREQ);
+	}
+	snprintf(buf, sizeof(buf), "%ddBm", rssi);
+	emTextRight((DISPLAY_SIZE_X - 3), (EM_STRIP_Y + 2), buf, FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG_HEADER_TEXT);
+
+	lvl = ((lvl * h) / (SMETER_S9 - SMETER_S0));
+	displayThemeApply(THEME_ITEM_BG_HEADER_TEXT, THEME_ITEM_BG);
+	displayFillRect((DISPLAY_SIZE_X - 6), (EM_STRIP_Y + EM_STRIP_H + 1), 5, (h - lvl), false);
+	displayThemeApply(THEME_ITEM_FG_RSSI_BAR, THEME_ITEM_BG);
+	displayFillRect((DISPLAY_SIZE_X - 6), ((EM_STRIP_Y + EM_STRIP_H + 1) + (h - lvl)), 5, lvl, false);
+	displayThemeResetToDefault();
+}
+
+// Pass details view
+static void emPrediction(satellitePass_t *pass)
+{
+	char buf[24];
+	satelliteData_t *sat = currentActiveSatellite;
+	int16_t y = (EM_STRIP_Y + EM_STRIP_H + 4);
+
+	displayClearBuf();
+	emTitle(sat->name);
+	emStrip();
+
+	if (sat->predictions.numPasses > 0)
+	{
+		snprintf(buf, sizeof(buf), "%s %u/%u", currentLanguage->pass, (unsigned)(sat->predictions.selectedPassNumber + 1), (unsigned)sat->predictions.numPasses);
+		emChip(2, buf, THEME_ITEM_FG_RX_FREQ);
+	}
+	emTextRight((DISPLAY_SIZE_X - 3), (EM_STRIP_Y + 2), ((emLocalOffset() != 0) ? "LT" : "UTC"), FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG_HEADER_TEXT);
+
+	if (pass->valid == PREDICTION_RESULT_OK)
+	{
+		struct tm t;
+		time_t_custom tt;
+
+		for (int i = 0; i < 2; i++)
+		{
+			tt = (((i == 0) ? pass->satelliteAOS : pass->satelliteLOS) + emLocalOffset());
+			gmtime_r_Custom(&tt, &t);
+			emText(4, (y + 5), ((i == 0) ? "AOS" : "LOS"), FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+			snprintf(buf, sizeof(buf), "%02u:%02u:%02u", (unsigned)t.tm_hour, (unsigned)t.tm_min, (unsigned)t.tm_sec);
+			emText(28, y, buf, FONT_SIZE_3, ((i == 0) ? THEME_ITEM_FG_RX_FREQ : THEME_ITEM_FG_DEFAULT), THEME_ITEM_BG);
+			y += 22;
+		}
+
+		emText(4, (y + 5), currentLanguage->maximum, FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+		snprintf(buf, sizeof(buf), "%u%c", (unsigned)satelliteGetMaximumElevation(sat, sat->predictions.selectedPassNumber), 176);
+		emText(28, y, buf, FONT_SIZE_3, THEME_ITEM_FG_RSSI_BAR, THEME_ITEM_BG);
+
+		emDuration(buf, sizeof(buf), pass->satellitePassDuration);
+		emTextRight((DISPLAY_SIZE_X - 4), y, buf, FONT_SIZE_3, THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
+		emText(84, (y + 5), "DUR", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+	}
+	else if ((pass->valid == PREDICTION_RESULT_LIMIT) && (sat->predictions.numPasses == 0))
+	{
+		emText(4, (y + 12), currentLanguage->list_empty, FONT_SIZE_3, THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
+	}
+
+	emKeyBar("</> PASS  SK2+GRN ALARM");
+	displayRender();
+}
+#endif
 
 menuStatus_t menuSatelliteScreen(uiEvent_t *ev, bool isFirstRun)
 {
@@ -164,6 +551,12 @@ menuStatus_t menuSatelliteScreen(uiEvent_t *ev, bool isFirstRun)
 			satelliteChannelData.rxTone = CODEPLUG_CSS_TONE_NONE;
 			satelliteChannelData.chMode = RADIO_MODE_NONE;
 			codeplugChannelSetFlag(&satelliteChannelData, CHANNEL_FLAG_BW_25K, 1);
+		}
+		else if (hasSatelliteKeps && settingsLocationIsValid())
+		{
+			// Fork: back from the location page ('*' on the list) or another screen: the position
+			// may have changed (the predictions were cleared then and are made again from here).
+			satelliteSetObserverLocation(settingsLocationGetLatitude(), settingsLocationGetLongitude(), 0);
 		}
 
 		currentChannelData = &satelliteChannelData;// Now make it available to the rest of the firmware e.g the Tx screen
@@ -284,6 +677,12 @@ static void updateScreen(uiEvent_t *ev, bool firstRun, bool announceVP)
 			voicePromptsAppendLanguageString(currentLanguage->list_empty);
 			voicePromptsPlay();
 
+#if defined(HAS_EMCOM_UI)
+			if (emcomStyleEnabled())
+			{
+				emKeyBar("RED EXIT");
+			}
+#endif
 			displayRender();
 		}
 
@@ -304,7 +703,15 @@ static void updateScreen(uiEvent_t *ev, bool firstRun, bool announceVP)
 			announceVP = false;
 		}
 
-		if (firstRun)
+#if defined(HAS_EMCOM_UI)
+		const bool emcom = emcomStyleEnabled();
+#endif
+
+		if (firstRun
+#if defined(HAS_EMCOM_UI)
+				&& (emcom == false) // every EMCOM view draws its whole screen
+#endif
+		)
 		{
 			displayClearBuf();
 
@@ -321,26 +728,35 @@ static void updateScreen(uiEvent_t *ev, bool firstRun, bool announceVP)
 
 		if (numTotalSatellitesPredicted != numSatellitesLoaded)
 		{
-			displayClearRows(2, 6, false);
+#if defined(HAS_EMCOM_UI)
+			if (emcom)
+			{
+				emPredicting();
+			}
+			else
+#endif
+			{
+				displayClearRows(2, 6, false);
 
-			displayPrintCentered(16, currentLanguage->predicting, FONT_SIZE_3);
-			displayDrawRect(2,
+				displayPrintCentered(16, currentLanguage->predicting, FONT_SIZE_3);
+				displayDrawRect(2,
 #if defined(PLATFORM_MDUV380) || defined(PLATFORM_MD380) || defined(PLATFORM_RT84_DM1701) || defined(PLATFORM_MD2017)
-					(DISPLAY_SIZE_Y / 4)
+						(DISPLAY_SIZE_Y / 4)
 #else
-					(DISPLAY_SIZE_Y / 2)
+						(DISPLAY_SIZE_Y / 2)
 #endif
-					, DISPLAY_SIZE_X - 2, 12, true);
-			displayFillRect(3,
+						, DISPLAY_SIZE_X - 2, 12, true);
+				displayFillRect(3,
 #if defined(PLATFORM_MDUV380) || defined(PLATFORM_MD380) || defined(PLATFORM_RT84_DM1701) || defined(PLATFORM_MD2017)
-					(DISPLAY_SIZE_Y / 4)
+						(DISPLAY_SIZE_Y / 4)
 #else
-					(DISPLAY_SIZE_Y / 2)
+						(DISPLAY_SIZE_Y / 2)
 #endif
-					, ((DISPLAY_SIZE_X - 2) * numTotalSatellitesPredicted) / numSatellitesLoaded, 12, false);
+						, ((DISPLAY_SIZE_X - 2) * numTotalSatellitesPredicted) / numSatellitesLoaded, 12, false);
+
+				displayRenderRows(2, 6);
+			}
 			menuSatelliteScreenNextUpdateTime = 0;// Don't do time based update
-
-			displayRenderRows(2, 6);
 
 			if (firstRun)
 			{
@@ -368,51 +784,63 @@ static void updateScreen(uiEvent_t *ev, bool firstRun, bool announceVP)
 			{
 				const char *freqNames[] = { currentLanguage->voice_prompt_level_1, currentLanguage->APRS, "CW Rx" };// Temporary hard coded names, will eventually need new language strings
 
-				if(hasRecalculated || announceVP)
+#if defined(HAS_EMCOM_UI)
+				if (emcom)
 				{
-					displayClearBuf();
-				}
-
-				uiUtilityRenderHeader(false, false, ((ev->buttons & BUTTON_SK1) == BUTTON_SK1));
-
-				if (hasRecalculated || announceVP)
-				{
-					// calculate these now for display later...
-					snprintf(azelBuffer, SCREEN_LINE_BUFFER_SIZE, "%s:%3d%c %s:%3d%c", currentLanguage->azimuth, currentSatelliteResults.azimuthAsInteger, 176, currentLanguage->elevation, currentSatelliteResults.elevationAsInteger, 176);
-					displayPrintCoreDoubleHeight(0, (DISPLAY_SIZE_Y / 4), currentActiveSatellite->name, FONT_SIZE_2, TEXT_ALIGN_LEFT, false, dblHeight);
-
-					displayPrintCoreDoubleHeight(0, (DISPLAY_SIZE_Y / 4), freqNames[currentSatelliteFreqIndex], FONT_SIZE_2, TEXT_ALIGN_RIGHT, false, dblHeight);
-
-					displayPrintCenteredDoubleHeight((DISPLAY_SIZE_Y / 2)
-#if defined(PLATFORM_RD5R)
-							- 4
-#else
-							- 6
-#endif
-							, azelBuffer, FONT_SIZE_2, dblHeight);
-
-					if (currentSatelliteResults.freqs[currentSatelliteFreqIndex].rxFreq != 0)
+					if (firstRun || hasRecalculated || announceVP)
 					{
-						rxIntPart = currentSatelliteResults.freqs[currentSatelliteFreqIndex].rxFreq / 1E6;
-						rxDecPart = (currentSatelliteResults.freqs[currentSatelliteFreqIndex].rxFreq - (rxIntPart * 1E6)) / 10;
-						snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "R:%3d.%05u",rxIntPart,rxDecPart);
-						displayPrintCenteredDoubleHeight((DISPLAY_SIZE_Y / 2) + 6 + (dblHeight ? FONT_SIZE_2_HEIGHT : 0), buffer, FONT_SIZE_2, dblHeight);
-
-						if (currentSatelliteResults.freqs[currentSatelliteFreqIndex].txFreq != 0)
-						{
-							txIntPart = currentSatelliteResults.freqs[currentSatelliteFreqIndex].txFreq / 1E6;
-							txDecPart = (currentSatelliteResults.freqs[currentSatelliteFreqIndex].txFreq - (txIntPart * 1E6)) / 10;
-
-							snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "T:%3d.%05u",txIntPart,txDecPart);
-							displayPrintCenteredDoubleHeight((DISPLAY_SIZE_Y / 2) + 16 + (dblHeight ? (FONT_SIZE_2_HEIGHT * 2) : 0), buffer, FONT_SIZE_2, dblHeight);
-						}
+						emSelected(freqNames[currentSatelliteFreqIndex]);
 					}
-
-					displayRender();// render the whole screen;
 				}
 				else
+#endif
 				{
-					displayRenderRows(0, 2);
+					if(hasRecalculated || announceVP)
+					{
+						displayClearBuf();
+					}
+
+					uiUtilityRenderHeader(false, false, ((ev->buttons & BUTTON_SK1) == BUTTON_SK1));
+
+					if (hasRecalculated || announceVP)
+					{
+						// calculate these now for display later...
+						snprintf(azelBuffer, SCREEN_LINE_BUFFER_SIZE, "%s:%3d%c %s:%3d%c", currentLanguage->azimuth, currentSatelliteResults.azimuthAsInteger, 176, currentLanguage->elevation, currentSatelliteResults.elevationAsInteger, 176);
+						displayPrintCoreDoubleHeight(0, (DISPLAY_SIZE_Y / 4), currentActiveSatellite->name, FONT_SIZE_2, TEXT_ALIGN_LEFT, false, dblHeight);
+
+						displayPrintCoreDoubleHeight(0, (DISPLAY_SIZE_Y / 4), freqNames[currentSatelliteFreqIndex], FONT_SIZE_2, TEXT_ALIGN_RIGHT, false, dblHeight);
+
+						displayPrintCenteredDoubleHeight((DISPLAY_SIZE_Y / 2)
+#if defined(PLATFORM_RD5R)
+								- 4
+#else
+								- 6
+#endif
+								, azelBuffer, FONT_SIZE_2, dblHeight);
+
+						if (currentSatelliteResults.freqs[currentSatelliteFreqIndex].rxFreq != 0)
+						{
+							rxIntPart = currentSatelliteResults.freqs[currentSatelliteFreqIndex].rxFreq / 1E6;
+							rxDecPart = (currentSatelliteResults.freqs[currentSatelliteFreqIndex].rxFreq - (rxIntPart * 1E6)) / 10;
+							snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "R:%3d.%05u",rxIntPart,rxDecPart);
+							displayPrintCenteredDoubleHeight((DISPLAY_SIZE_Y / 2) + 6 + (dblHeight ? FONT_SIZE_2_HEIGHT : 0), buffer, FONT_SIZE_2, dblHeight);
+
+							if (currentSatelliteResults.freqs[currentSatelliteFreqIndex].txFreq != 0)
+							{
+								txIntPart = currentSatelliteResults.freqs[currentSatelliteFreqIndex].txFreq / 1E6;
+								txDecPart = (currentSatelliteResults.freqs[currentSatelliteFreqIndex].txFreq - (txIntPart * 1E6)) / 10;
+
+								snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "T:%3d.%05u",txIntPart,txDecPart);
+								displayPrintCenteredDoubleHeight((DISPLAY_SIZE_Y / 2) + 16 + (dblHeight ? (FONT_SIZE_2_HEIGHT * 2) : 0), buffer, FONT_SIZE_2, dblHeight);
+							}
+						}
+
+						displayRender();// render the whole screen;
+					}
+					else
+					{
+						displayRenderRows(0, 2);
+					}
 				}
 
 				if (announceVP || hasRecalculated)
@@ -464,11 +892,22 @@ static void updateScreen(uiEvent_t *ev, bool firstRun, bool announceVP)
 				satelliteResults_t results;
 				int16_t satX = INT16_MIN, satY = INT16_MIN;
 				time_t_custom displayedPassTimeDiff = displayedPredictionPass->satelliteAOS - uiDataGlobal.dateTimeSecs;
+#define POLAR_GRAPHICS_X_OFFSET  24
+				int polarCX = (POLAR_GRAPHICS_X_OFFSET + (DISPLAY_SIZE_X / 2));
+				int polarCY = (DISPLAY_SIZE_Y / 2);
+				int polarR = MAX_RADIUS;
+#if defined(HAS_EMCOM_UI)
+				if (emcom)
+				{
+					polarCX = EM_POLAR_CX;
+					polarCY = EM_POLAR_CY;
+					polarR = EM_POLAR_R;
+				}
+#endif
 
 				if (displayedPredictionPass->valid == PREDICTION_RESULT_OK)
 				{
 					volatile uint32_t startTime;
-#define POLAR_GRAPHICS_X_OFFSET  24
 
 					if(hasRecalculated || announceVP)
 					{
@@ -480,53 +919,89 @@ static void updateScreen(uiEvent_t *ev, bool firstRun, bool announceVP)
 							gmtime_r_Custom(&displayedPassTimeDiff, &dispTimeAndDate);
 						}
 
-						displayClearBuf();
+#if defined(HAS_EMCOM_UI)
+						if (emcom)
+						{
+							emPolarFrame();
+						}
+						else
+#endif
+						{
+							displayClearBuf();
 
-						snprintf(buffer, 8, "%s", currentActiveSatellite->name);
-						displayThemeApply(THEME_ITEM_FG_CHANNEL_NAME, THEME_ITEM_BG);
-						displayPrintAtDoubleHeight(4, (DISPLAY_SIZE_Y / 2) - 4 - (dblHeight ? (FONT_SIZE_2_HEIGHT / 2) : 0), buffer, FONT_SIZE_2, dblHeight);
+							snprintf(buffer, 8, "%s", currentActiveSatellite->name);
+							displayThemeApply(THEME_ITEM_FG_CHANNEL_NAME, THEME_ITEM_BG);
+							displayPrintAtDoubleHeight(4, (DISPLAY_SIZE_Y / 2) - 4 - (dblHeight ? (FONT_SIZE_2_HEIGHT / 2) : 0), buffer, FONT_SIZE_2, dblHeight);
+						}
 
 						if (announceVP)
 						{
 							voicePromptsAppendString(currentActiveSatellite->name);
 						}
 
-						displayThemeApply(THEME_ITEM_FG_POLAR_DRAWING, THEME_ITEM_BG);
-						displayDrawCircle(POLAR_GRAPHICS_X_OFFSET + (DISPLAY_SIZE_X / 2), DISPLAY_SIZE_Y / 2, MAX_RADIUS, true);
-						displayDrawCircle(POLAR_GRAPHICS_X_OFFSET + (DISPLAY_SIZE_X / 2), DISPLAY_SIZE_Y / 2, (MAX_RADIUS / 3 ) * 2, true);
-						displayDrawCircle(POLAR_GRAPHICS_X_OFFSET + (DISPLAY_SIZE_X / 2), DISPLAY_SIZE_Y / 2, (MAX_RADIUS / 3 ), true);
+#if defined(HAS_EMCOM_UI)
+						if (emcom == false)
+#endif
+						{
+							displayThemeApply(THEME_ITEM_FG_POLAR_DRAWING, THEME_ITEM_BG);
+							displayDrawCircle(POLAR_GRAPHICS_X_OFFSET + (DISPLAY_SIZE_X / 2), DISPLAY_SIZE_Y / 2, MAX_RADIUS, true);
+							displayDrawCircle(POLAR_GRAPHICS_X_OFFSET + (DISPLAY_SIZE_X / 2), DISPLAY_SIZE_Y / 2, (MAX_RADIUS / 3 ) * 2, true);
+							displayDrawCircle(POLAR_GRAPHICS_X_OFFSET + (DISPLAY_SIZE_X / 2), DISPLAY_SIZE_Y / 2, (MAX_RADIUS / 3 ), true);
 
-						displayDrawFastVLine(POLAR_GRAPHICS_X_OFFSET + (DISPLAY_SIZE_X / 2),
-								(DISPLAY_SIZE_Y / 2) - (MAX_RADIUS + 4), (MAX_RADIUS + 4) * 2, true);
-						displayDrawFastHLine((POLAR_GRAPHICS_X_OFFSET + (DISPLAY_SIZE_X / 2)) - (MAX_RADIUS + 4),
-								(DISPLAY_SIZE_Y / 2), (MAX_RADIUS + 4) * 2, true);
-						displayThemeResetToDefault();
+							displayDrawFastVLine(POLAR_GRAPHICS_X_OFFSET + (DISPLAY_SIZE_X / 2),
+									(DISPLAY_SIZE_Y / 2) - (MAX_RADIUS + 4), (MAX_RADIUS + 4) * 2, true);
+							displayDrawFastHLine((POLAR_GRAPHICS_X_OFFSET + (DISPLAY_SIZE_X / 2)) - (MAX_RADIUS + 4),
+									(DISPLAY_SIZE_Y / 2), (MAX_RADIUS + 4) * 2, true);
+							displayThemeResetToDefault();
+						}
 
 						if ((uiDataGlobal.dateTimeSecs < displayedPredictionPass->satelliteAOS) || (uiDataGlobal.dateTimeSecs > displayedPredictionPass->satelliteLOS))
 						{
 							startTime = displayedPredictionPass->satelliteAOS;
 
-							snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%s:%02d%c", currentLanguage->maximum, satelliteGetMaximumElevation(currentActiveSatellite, currentActiveSatellite->predictions.selectedPassNumber), 176);
-							displayPrintAtDoubleHeight(4, (DISPLAY_SIZE_Y - FONT_SIZE_3_HEIGHT) - 4 - (dblHeight ? (FONT_SIZE_3_HEIGHT) : 0) , buffer, FONT_SIZE_3, dblHeight);
-
-							if (displayedPassTimeDiff >= 60)
+#if defined(HAS_EMCOM_UI)
+							if (emcom)
 							{
-								if (displayedPassTimeDiff >= 3600)
+								bool before = (uiDataGlobal.dateTimeSecs < displayedPredictionPass->satelliteAOS);
+
+								if (before)
 								{
-									snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "-%u:%02u:%02u", dispTimeAndDate.tm_hour, dispTimeAndDate.tm_min, dispTimeAndDate.tm_sec);
-									displayPrintAtDoubleHeight(((dispTimeAndDate.tm_hour > 9) ? 2 : 4), 4, buffer, FONT_SIZE_2, dblHeight);
+									emDuration(buffer, SCREEN_LINE_BUFFER_SIZE, displayedPassTimeDiff);
 								}
 								else
 								{
-									// between 60 and 3599 seconds
-									snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "-%u:%02u", dispTimeAndDate.tm_min, dispTimeAndDate.tm_sec);
-									displayPrintAtDoubleHeight(8, 4, buffer, FONT_SIZE_2, dblHeight);
+									buffer[0] = '-';
+									buffer[1] = 0;
 								}
+								emPolarValue((EM_STRIP_Y + EM_STRIP_H + 6), "AOS in", buffer, THEME_ITEM_FG_RSSI_BAR_S9P);
+								snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%u%c", (unsigned)satelliteGetMaximumElevation(currentActiveSatellite, currentActiveSatellite->predictions.selectedPassNumber), 176);
+								emPolarValue((EM_STRIP_Y + EM_STRIP_H + 36), currentLanguage->maximum, buffer, THEME_ITEM_FG_RSSI_BAR);
 							}
 							else
+#endif
 							{
-								snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "-%02us", displayedPassTimeDiff);
-								displayPrintAtDoubleHeight(12, 4, buffer, FONT_SIZE_3, dblHeight);
+								snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%s:%02d%c", currentLanguage->maximum, satelliteGetMaximumElevation(currentActiveSatellite, currentActiveSatellite->predictions.selectedPassNumber), 176);
+								displayPrintAtDoubleHeight(4, (DISPLAY_SIZE_Y - FONT_SIZE_3_HEIGHT) - 4 - (dblHeight ? (FONT_SIZE_3_HEIGHT) : 0) , buffer, FONT_SIZE_3, dblHeight);
+
+								if (displayedPassTimeDiff >= 60)
+								{
+									if (displayedPassTimeDiff >= 3600)
+									{
+										snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "-%u:%02u:%02u", dispTimeAndDate.tm_hour, dispTimeAndDate.tm_min, dispTimeAndDate.tm_sec);
+										displayPrintAtDoubleHeight(((dispTimeAndDate.tm_hour > 9) ? 2 : 4), 4, buffer, FONT_SIZE_2, dblHeight);
+									}
+									else
+									{
+										// between 60 and 3599 seconds
+										snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "-%u:%02u", dispTimeAndDate.tm_min, dispTimeAndDate.tm_sec);
+										displayPrintAtDoubleHeight(8, 4, buffer, FONT_SIZE_2, dblHeight);
+									}
+								}
+								else
+								{
+									snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "-%02us", displayedPassTimeDiff);
+									displayPrintAtDoubleHeight(12, 4, buffer, FONT_SIZE_3, dblHeight);
+								}
 							}
 
 							if (announceVP)
@@ -567,8 +1042,20 @@ static void updateScreen(uiEvent_t *ev, bool firstRun, bool announceVP)
 						else
 						{
 							startTime = uiDataGlobal.dateTimeSecs;
-							snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%s:%03d%c", currentLanguage->azimuth, currentSatelliteResults.azimuthAsInteger, 176);
-							displayPrintAtDoubleHeight(4, 6, buffer, FONT_SIZE_3, dblHeight);
+#if defined(HAS_EMCOM_UI)
+							if (emcom)
+							{
+								snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%d%c", currentSatelliteResults.azimuthAsInteger, 176);
+								emPolarValue((EM_STRIP_Y + EM_STRIP_H + 6), currentLanguage->azimuth, buffer, THEME_ITEM_FG_DEFAULT);
+								snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%d%c", currentSatelliteResults.elevationAsInteger, 176);
+								emPolarValue((EM_STRIP_Y + EM_STRIP_H + 36), currentLanguage->elevation, buffer, THEME_ITEM_FG_RSSI_BAR);
+							}
+							else
+#endif
+							{
+								snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%s:%03d%c", currentLanguage->azimuth, currentSatelliteResults.azimuthAsInteger, 176);
+								displayPrintAtDoubleHeight(4, 6, buffer, FONT_SIZE_3, dblHeight);
+							}
 
 							if (announceVP)
 							{
@@ -577,8 +1064,13 @@ static void updateScreen(uiEvent_t *ev, bool firstRun, bool announceVP)
 								voicePromptsAppendString(buffer);
 							}
 
-							snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%s:%02u%c", currentLanguage->elevation, currentSatelliteResults.elevationAsInteger, 176);
-							displayPrintAtDoubleHeight(4, (DISPLAY_SIZE_Y - FONT_SIZE_3_HEIGHT) - 4 - (dblHeight ? (FONT_SIZE_3_HEIGHT) : 0), buffer, FONT_SIZE_3, dblHeight);
+#if defined(HAS_EMCOM_UI)
+							if (emcom == false)
+#endif
+							{
+								snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%s:%02u%c", currentLanguage->elevation, currentSatelliteResults.elevationAsInteger, 176);
+								displayPrintAtDoubleHeight(4, (DISPLAY_SIZE_Y - FONT_SIZE_3_HEIGHT) - 4 - (dblHeight ? (FONT_SIZE_3_HEIGHT) : 0), buffer, FONT_SIZE_3, dblHeight);
+							}
 
 							if (announceVP)
 							{
@@ -592,11 +1084,11 @@ static void updateScreen(uiEvent_t *ev, bool firstRun, bool announceVP)
 						{
 							satelliteCalculateForDateTimeSecs(currentActiveSatellite, t, &results, SATELLITE_PREDICTION_LEVEL_TIME_EL_AND_AZ);
 							az = deg2rad(results.azimuthAsInteger);
-							elFactor = (1 - (fabs(results.elevationAsInteger) / 90)) * MAX_RADIUS;
+							elFactor = (1 - (fabs(results.elevationAsInteger) / 90)) * polarR;
 							s = sin(az);
 							c = cos(az);
-							x = POLAR_GRAPHICS_X_OFFSET + (DISPLAY_SIZE_X / 2) + (s * elFactor);
-							y = (DISPLAY_SIZE_Y / 2) - (c * elFactor);// NOTE... Subtract value from Y center - for North at top of screen
+							x = polarCX + (s * elFactor);
+							y = polarCY - (c * elFactor);// NOTE... Subtract value from Y center - for North at top of screen
 
 							if (t == startTime)
 							{
@@ -621,16 +1113,25 @@ static void updateScreen(uiEvent_t *ev, bool firstRun, bool announceVP)
 						}
 					}
 
-					const uint32_t S_METER_BAR_WIDTH = 8;
-					// draw S meter with range S0 to S9.
-					int rssi = MIN(MAX(0, trxGetRSSIdBm(RADIO_DEVICE_PRIMARY) - SMETER_S0), (SMETER_S9 - SMETER_S0));
+#if defined(HAS_EMCOM_UI)
+					if (emcom)
+					{
+						emPolarLive();
+					}
+					else
+#endif
+					{
+						const uint32_t S_METER_BAR_WIDTH = 8;
+						// draw S meter with range S0 to S9.
+						int rssi = MIN(MAX(0, trxGetRSSIdBm(RADIO_DEVICE_PRIMARY) - SMETER_S0), (SMETER_S9 - SMETER_S0));
 
-					rssi = (rssi * DISPLAY_SIZE_Y) / (SMETER_S9 - SMETER_S0);
+						rssi = (rssi * DISPLAY_SIZE_Y) / (SMETER_S9 - SMETER_S0);
 
-					displayThemeApply(THEME_ITEM_FG_RSSI_BAR, THEME_ITEM_BG);
-					displayFillRect(DISPLAY_SIZE_X - S_METER_BAR_WIDTH, 0                     , S_METER_BAR_WIDTH, DISPLAY_SIZE_Y - rssi  , true);
-					displayFillRect(DISPLAY_SIZE_X - S_METER_BAR_WIDTH, DISPLAY_SIZE_Y - rssi , S_METER_BAR_WIDTH, rssi                   , false);
-					displayThemeResetToDefault();
+						displayThemeApply(THEME_ITEM_FG_RSSI_BAR, THEME_ITEM_BG);
+						displayFillRect(DISPLAY_SIZE_X - S_METER_BAR_WIDTH, 0                     , S_METER_BAR_WIDTH, DISPLAY_SIZE_Y - rssi  , true);
+						displayFillRect(DISPLAY_SIZE_X - S_METER_BAR_WIDTH, DISPLAY_SIZE_Y - rssi , S_METER_BAR_WIDTH, rssi                   , false);
+						displayThemeResetToDefault();
+					}
 
 					menuSatelliteScreenNextUpdateTime = (ev->time + 250U);
 				}
@@ -638,10 +1139,23 @@ static void updateScreen(uiEvent_t *ev, bool firstRun, bool announceVP)
 				{
 					char buf[SCREEN_LINE_BUFFER_SIZE];
 
-					displayClearBuf();
-					displayPrintCentered(4, currentActiveSatellite->name, FONT_SIZE_3);
 					snprintf(buf, SCREEN_LINE_BUFFER_SIZE, "%s: %s", currentLanguage->pass, currentLanguage->none);
-					displayPrintCenteredDoubleHeight((DISPLAY_SIZE_Y / 2) + 4, buf, FONT_SIZE_3, dblHeight);
+#if defined(HAS_EMCOM_UI)
+					if (emcom)
+					{
+						displayClearBuf();
+						emTitle(currentActiveSatellite->name);
+						emStrip();
+						emText(4, ((DISPLAY_SIZE_Y / 2) - 8), buf, FONT_SIZE_3, THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
+						emKeyBar("UP/DN VIEW # NEXT RED LIST");
+					}
+					else
+#endif
+					{
+						displayClearBuf();
+						displayPrintCentered(4, currentActiveSatellite->name, FONT_SIZE_3);
+						displayPrintCenteredDoubleHeight((DISPLAY_SIZE_Y / 2) + 4, buf, FONT_SIZE_3, dblHeight);
+					}
 
 					if (announceVP)
 					{
@@ -667,15 +1181,26 @@ static void updateScreen(uiEvent_t *ev, bool firstRun, bool announceVP)
 			{
 				satellitePass_t *displayedPredictionPass  = &currentActiveSatellite->predictions.passes[currentActiveSatellite->predictions.selectedPassNumber];
 
-				displayClearBuf();
-				voicePromptsInit();
+#if defined(HAS_EMCOM_UI)
+				const bool classicDraw = (emcom == false);
+#else
+				const bool classicDraw = true;
+#endif
 
-				displayPrintCenteredDoubleHeight(4, currentActiveSatellite->name, FONT_SIZE_3, dblHeight);
+				if (classicDraw)
+				{
+					displayClearBuf();
+					displayPrintCenteredDoubleHeight(4, currentActiveSatellite->name, FONT_SIZE_3, dblHeight);
+				}
+				voicePromptsInit();
 
 				if (currentActiveSatellite->predictions.numPasses > 0)
 				{
 					snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%s %u / %u", currentLanguage->pass, (currentActiveSatellite->predictions.selectedPassNumber + 1), currentActiveSatellite->predictions.numPasses);
-					displayPrintCenteredDoubleHeight((DISPLAY_SIZE_Y / 4) + 4 + (dblHeight ? (FONT_SIZE_3_HEIGHT / 3) : 0), buffer, FONT_SIZE_2, dblHeight);
+					if (classicDraw)
+					{
+						displayPrintCenteredDoubleHeight((DISPLAY_SIZE_Y / 4) + 4 + (dblHeight ? (FONT_SIZE_3_HEIGHT / 3) : 0), buffer, FONT_SIZE_2, dblHeight);
+					}
 
 					if (nonVolatileSettings.audioPromptMode >= AUDIO_PROMPT_MODE_VOICE_THRESHOLD)
 					{
@@ -695,7 +1220,10 @@ static void updateScreen(uiEvent_t *ev, bool firstRun, bool announceVP)
 					char buffer[SCREEN_LINE_BUFFER_SIZE];
 
 					snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%02u:%02u:%02u %s", passDateTime.tm_hour, passDateTime.tm_min, passDateTime.tm_sec, ((nonVolatileSettings.timezone & 0x80) ? "" : "UTC"));
-					displayPrintCenteredDoubleHeight((DISPLAY_SIZE_Y / 2) + 4, buffer, FONT_SIZE_2, dblHeight);
+					if (classicDraw)
+					{
+						displayPrintCenteredDoubleHeight((DISPLAY_SIZE_Y / 2) + 4, buffer, FONT_SIZE_2, dblHeight);
+					}
 
 					if (nonVolatileSettings.audioPromptMode >= AUDIO_PROMPT_MODE_VOICE_THRESHOLD)
 					{
@@ -705,7 +1233,10 @@ static void updateScreen(uiEvent_t *ev, bool firstRun, bool announceVP)
 
 					snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%s:%2d%c %3u:%02us", currentLanguage->elevation, satelliteGetMaximumElevation(currentActiveSatellite, currentActiveSatellite->predictions.selectedPassNumber), 176,
 							( displayedPredictionPass->satellitePassDuration / 60), (displayedPredictionPass->satellitePassDuration % 60)) ;
-					displayPrintCenteredDoubleHeight(((DISPLAY_SIZE_Y * 3) / 4), buffer, FONT_SIZE_2, dblHeight);
+					if (classicDraw)
+					{
+						displayPrintCenteredDoubleHeight(((DISPLAY_SIZE_Y * 3) / 4), buffer, FONT_SIZE_2, dblHeight);
+					}
 
 					if (nonVolatileSettings.audioPromptMode >= AUDIO_PROMPT_MODE_VOICE_THRESHOLD)
 					{
@@ -728,7 +1259,10 @@ static void updateScreen(uiEvent_t *ev, bool firstRun, bool announceVP)
 
 				if ((displayedPredictionPass->valid == PREDICTION_RESULT_LIMIT) && (currentActiveSatellite->predictions.numPasses == 0))
 				{
-					displayPrintCenteredDoubleHeight((DISPLAY_SIZE_Y / 2) + 4 - (dblHeight ? (FONT_SIZE_3_HEIGHT / 2) : 0), currentLanguage->list_empty, FONT_SIZE_3, dblHeight);
+					if (classicDraw)
+					{
+						displayPrintCenteredDoubleHeight((DISPLAY_SIZE_Y / 2) + 4 - (dblHeight ? (FONT_SIZE_3_HEIGHT / 2) : 0), currentLanguage->list_empty, FONT_SIZE_3, dblHeight);
+					}
 
 					voicePromptsAppendString(currentActiveSatellite->name);
 					voicePromptsAppendPrompt(PROMPT_SILENCE);
@@ -741,7 +1275,16 @@ static void updateScreen(uiEvent_t *ev, bool firstRun, bool announceVP)
 				}
 
 				menuSatelliteScreenNextUpdateTime = 0;// Don't do time based update
-				displayRender();
+#if defined(HAS_EMCOM_UI)
+				if (emcom)
+				{
+					emPrediction(displayedPredictionPass);
+				}
+				else
+#endif
+				{
+					displayRender();
+				}
 			}
 			break;
 
@@ -760,7 +1303,16 @@ static void updateScreen(uiEvent_t *ev, bool firstRun, bool announceVP)
 					predictionsListNumSatellitePassesDisplayed = 0;
 					predictionsListSelectedSatellite = 0;
 
-					displayClearBuf();
+#if defined(HAS_EMCOM_UI)
+					if (emcom)
+					{
+						emListFrame();
+					}
+					else
+#endif
+					{
+						displayClearBuf();
+					}
 
 					for(int i = 0; i< numSatellitesLoaded; i++)
 					{
@@ -802,23 +1354,37 @@ static void updateScreen(uiEvent_t *ev, bool firstRun, bool announceVP)
 								struct tm passDateTime;
 								gmtime_r_Custom(&AOS, &passDateTime);
 
-								displayPrintCentered(6 + (20 * predictionsListNumSatellitePassesDisplayed), foundSat->name, FONT_SIZE_2);
-
 								snprintf(passTimeBuffer, SCREEN_LINE_BUFFER_SIZE, "%02u:%02u:%02u%s", passDateTime.tm_hour, passDateTime.tm_min, passDateTime.tm_sec, ((nonVolatileSettings.timezone & 0x80) ? "" : "UTC"));
-								snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%s %02d%c", passTimeBuffer, satelliteGetMaximumElevation(foundSat, foundPassNumber), 176);
-								displayPrintCentered(6 + (20 * predictionsListNumSatellitePassesDisplayed) + 8, buffer, FONT_SIZE_2);
 
-								if ((foundPassNumber == 0) && foundSat->predictions.isVisible)
+#if defined(HAS_EMCOM_UI)
+								if (emcom)
 								{
-									uint32_t yPos = 6 + (20 * predictionsListNumSatellitePassesDisplayed);
-									displayThemeApply(THEME_ITEM_FG_SATELLITE_COLOUR, THEME_ITEM_BG);
-									displayFillRect((DISPLAY_SIZE_X - (DISPLAY_X_POS_MENU_OFFSET * 2) - 6), yPos, 4, 16, false);
-									displayThemeResetToDefault();
+									emListRow(predictionsListNumSatellitePassesDisplayed, foundSat, foundPassNumber, &passDateTime);
+								}
+								else
+#endif
+								{
+									displayPrintCentered(6 + (20 * predictionsListNumSatellitePassesDisplayed), foundSat->name, FONT_SIZE_2);
+
+									snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%s %02d%c", passTimeBuffer, satelliteGetMaximumElevation(foundSat, foundPassNumber), 176);
+									displayPrintCentered(6 + (20 * predictionsListNumSatellitePassesDisplayed) + 8, buffer, FONT_SIZE_2);
+
+									if ((foundPassNumber == 0) && foundSat->predictions.isVisible)
+									{
+										uint32_t yPos = 6 + (20 * predictionsListNumSatellitePassesDisplayed);
+										displayThemeApply(THEME_ITEM_FG_SATELLITE_COLOUR, THEME_ITEM_BG);
+										displayFillRect((DISPLAY_SIZE_X - (DISPLAY_X_POS_MENU_OFFSET * 2) - 6), yPos, 4, 16, false);
+										displayThemeResetToDefault();
+									}
+
+									if (predictionsListNumSatellitePassesDisplayed == 0)
+									{
+										displayDrawRect(2 + DISPLAY_X_POS_MENU_OFFSET, 4, (DISPLAY_SIZE_X - (DISPLAY_X_POS_MENU_OFFSET * 2) - 4), 20, true);
+									}
 								}
 
 								if (predictionsListNumSatellitePassesDisplayed == 0)
 								{
-									displayDrawRect(2 + DISPLAY_X_POS_MENU_OFFSET, 4, (DISPLAY_SIZE_X - (DISPLAY_X_POS_MENU_OFFSET * 2) - 4), 20, true);
 
 									if (nonVolatileSettings.audioPromptMode >= AUDIO_PROMPT_MODE_VOICE_THRESHOLD)
 									{
@@ -845,6 +1411,13 @@ static void updateScreen(uiEvent_t *ev, bool firstRun, bool announceVP)
 							numSatellitesFound++;
 						}
 					}
+#if defined(HAS_EMCOM_UI)
+					if (emcom && (predictionsListNumSatellitePassesDisplayed == 0))
+					{
+						emText(4, (EM_LIST_Y + 14), currentLanguage->list_empty, FONT_SIZE_3, THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
+					}
+					displayThemeResetToDefault();
+#endif
 					menuSatelliteScreenNextUpdateTime = 0;// Don't do time based update
 					displayRender();
 				}
@@ -886,6 +1459,14 @@ static void handleEvent(uiEvent_t *ev)
 			currentSatelliteFreqIndex = SATELLITE_OTHER_FREQ;
 			needsUpdate = true;
 		}
+#if defined(HAS_SSTV_MENU) && defined(I2S_APRS_RX)
+		else if (KEYCHECK_SHORTUP(ev->keys, KEY_9))
+		{
+			// Fork: SSTV picture receive on this satellite, Doppler retune kept running
+			menuSystemPushNewMenu(MENU_SSTV);
+			return;
+		}
+#endif
 
 		if (needsUpdate)
 		{
@@ -1126,6 +1707,19 @@ static void handleEvent(uiEvent_t *ev)
 					updateScreen(ev, false, true);
 				}
 
+				break;
+
+			case KEY_STAR:
+				// Fork: '*' on the list opens the location page (manual position / GPS on), RED comes back
+				if ((displayMode == SATELLITE_SCREEN_ALL_PREDICTIONS_LIST) && (BUTTONCHECK_DOWN(ev, BUTTON_SK2) == 0))
+				{
+					menuSystemPushNewMenu(MENU_RADIO_INFOS);
+					ev->hasEvent = true;
+					ev->function = QUICKKEY_MENUVALUE(MENU_RADIO_INFOS, RADIO_INFOS_LOCATION, 0);
+					ev->events = FUNCTION_EVENT;
+					menuSystemCallCurrentMenuTick(ev);
+					return;
+				}
 				break;
 
 			case KEY_HASH:
@@ -1479,6 +2073,12 @@ static void selectSatellite(uint32_t selectedSatellite)
 
 bool menuSatelliteIsDisplayingHeader(void)
 {
+#if defined(HAS_EMCOM_UI)
+	if (emcomStyleEnabled())
+	{
+		return false; // the EMCOM view has a title bar, not the radio header
+	}
+#endif
 	return (displayMode == SATELLITE_SCREEN_SELECTED_SATELLITE);
 }
 
@@ -1510,6 +2110,32 @@ void menuSatelliteSetFullReload(void)
 	displayMode = SATELLITE_SCREEN_ALL_PREDICTIONS_LIST;
 	hasSelectedSatellite = false;
 	hasSatelliteKeps = false;
+}
+
+bool menuSatelliteDopplerAvailable(void)
+{
+	return (hasSatelliteKeps && hasSelectedSatellite && (currentActiveSatellite != NULL) && (currentChannelData == &satelliteChannelData));
+}
+
+void menuSatelliteDopplerTick(void)
+{
+	if (menuSatelliteDopplerAvailable())
+	{
+		calculateActiveSatelliteData(false);
+	}
+}
+
+// Fork: the SSTV presets borrow the channel data (no spare RAM for a copy of their own). The
+// satellite is selected again (full set up of the channel data) the next time this screen opens.
+CodeplugChannel_t *menuSatelliteBorrowChannelData(void)
+{
+	hasSelectedSatellite = false;
+	return &satelliteChannelData;
+}
+
+const char *menuSatelliteActiveName(void)
+{
+	return ((currentActiveSatellite != NULL) ? currentActiveSatellite->name : "");
 }
 
 static void exitCallback(void *data)

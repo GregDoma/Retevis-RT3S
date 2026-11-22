@@ -23,6 +23,7 @@
 #include "functions/trx.h"
 #include "functions/fieldData.h"
 #include "io/LEDs.h"
+#include "user_interface/uiEmcom.h"
 #if defined(HAS_GPS)
 #include "interfaces/gps.h"
 #endif
@@ -110,6 +111,138 @@ static int16_t graphY(int dBm, int16_t top, int16_t h)
 	return (int16_t)(top + (((GRAPH_TOP_DBM - dBm) * (h - 1)) / (GRAPH_TOP_DBM - GRAPH_BOT_DBM)));
 }
 
+#if defined(HAS_EMCOM_UI)
+static themeItem_t levelColour(int dBm)
+{
+	return ((dBm >= -100) ? THEME_ITEM_FG_RSSI_BAR : ((dBm >= -115) ? THEME_ITEM_FG_RSSI_BAR_S9P : THEME_ITEM_FG_TX_COUNTER));
+}
+
+// EMCOM style: recording state / interval / memory on the status strip, the level big with a
+// word (GOOD / WEAK / GAP), the level graph, the session and GPS rows, the key bar. With the
+// shape cues (mono / contrast) weak samples are striped and gaps only a tick on the graph.
+#define EM_GRAPH_H   26
+
+static void updateScreenEmcom(void)
+{
+	char buf[SCREEN_LINE_BUFFER_SIZE + 8];
+	int dBm = trxGetRSSIdBm(RADIO_DEVICE_PRIMARY);
+	double lat, lon;
+	bool fix = hasFix(&lat, &lon);
+	bool cues = emcomShapeCues();
+	uint32_t points = fieldCoverageCount();
+	int16_t y = EMCOM_UI_BODY_Y;
+
+	displayClearBuf();
+	snprintf(buf, sizeof(buf), "%u/%u", (unsigned)points, (unsigned)COVERAGE_POINTS_MAX);
+	emcomUiTitle("COVERAGE", buf);
+
+	// status strip: state, interval, memory used
+	emcomUiStrip();
+	{
+		const char *st = (cov.full ? "FULL" : (cov.recording ? (fix ? "REC" : "NO FIX") : "STOP"));
+		themeItem_t c = (cov.full ? THEME_ITEM_FG_TX_COUNTER : (cov.recording ? (fix ? THEME_ITEM_FG_TX_COUNTER : THEME_ITEM_FG_RSSI_BAR_S9P) : THEME_ITEM_FG_DECORATION));
+		int16_t x = (int16_t)(2 + emcomUiChip(2, (EMCOM_UI_STRIP_Y + 2), st, c, ((cov.recording || cov.full) ? EMCOM_CHIP_SOLID : EMCOM_CHIP_OUTLINE), false) + 4);
+
+		snprintf(buf, sizeof(buf), "%us", (unsigned)intervals[cov.intervalIdx]);
+		emcomUiKeyValue(x, (EMCOM_UI_STRIP_Y + 2), "EVERY", buf, THEME_ITEM_FG_HEADER_TEXT);
+		snprintf(buf, sizeof(buf), "%u%%", (unsigned)((points * 100U) / COVERAGE_POINTS_MAX));
+		int16_t w = emcomUiText((DISPLAY_SIZE_X - 3), (EMCOM_UI_STRIP_Y + 2), buf, FONT_SIZE_1, THEME_ITEM_FG_HEADER_TEXT, true);
+		emcomUiText((DISPLAY_SIZE_X - 3 - w - 4), (EMCOM_UI_STRIP_Y + 2), "MEM", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, true);
+	}
+
+	// level: dBm big, S units, carrier, a word for the level
+	snprintf(buf, sizeof(buf), "%d", dBm);
+	emcomUiText(2, y, buf, FONT_SIZE_4, levelColour(dBm), false);
+	sUnits(dBm, buf, sizeof(buf));
+	emcomUiText(84, (y + 2), buf, FONT_SIZE_3, THEME_ITEM_FG_DEFAULT, false);
+	emcomUiChip((DISPLAY_SIZE_X - 2), (y + 5), (carrier() ? "RF" : "--"), (carrier() ? THEME_ITEM_FG_RSSI_BAR : THEME_ITEM_FG_DECORATION),
+			(carrier() ? EMCOM_CHIP_SOLID : EMCOM_CHIP_OUTLINE), true);
+	int16_t x = (int16_t)(84 + emcomUiText(84, (y + 21), "dBm", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, false) + 6);
+	emcomUiText(x, (y + 21), ((dBm >= -100) ? "GOOD" : ((dBm >= -115) ? "WEAK" : "GAP")), FONT_SIZE_1_BOLD, levelColour(dBm), false);
+
+	// graph of the last samples (1 per second)
+	int16_t gTop = (y + 34);
+	displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+	displayDrawRect(0, (gTop - 1), DISPLAY_SIZE_X, (EM_GRAPH_H + 2), true);
+	for (int ref = -60; ref >= -120; ref -= 20) // grid every 20 dB
+	{
+		int16_t gy = graphY(ref, gTop, EM_GRAPH_H);
+		for (int16_t gx = 2; gx < (DISPLAY_SIZE_X - 2); gx += 4)
+		{
+			displaySetPixel(gx, gy, true);
+		}
+	}
+	for (int i = 0; i < cov.histCount; i++)
+	{
+		int idx = ((cov.histHead + HIST_LEN - cov.histCount + i) % HIST_LEN);
+		int v = (cov.hist[idx] - 128);
+		int16_t gx = (int16_t)(DISPLAY_SIZE_X - 2 - ((cov.histCount - i) * 2));
+		int16_t gy = graphY(v, gTop, EM_GRAPH_H);
+		int16_t h = ((gTop + EM_GRAPH_H) - gy);
+
+		displayThemeApply(levelColour(v), THEME_ITEM_BG);
+		if (cues && (v < -115))
+		{
+			displayFillRect(gx, gy, 2, SAFE_MIN(h, 2), false); // gap: a tick only
+		}
+		else if (cues && (v < -100))
+		{
+			for (int16_t r = 0; r < h; r += 2) // weak: striped
+			{
+				displayFillRect(gx, (gy + r), 2, 1, false);
+			}
+		}
+		else
+		{
+			displayFillRect(gx, gy, 2, h, false);
+		}
+	}
+	displayThemeResetToDefault();
+
+	// session, GPS
+	y = (gTop + EM_GRAPH_H + 4);
+	if (cov.sessCount > 0U)
+	{
+		snprintf(buf, sizeof(buf), "%u", (unsigned)cov.sessCount);
+		x = (int16_t)(2 + emcomUiKeyValue(2, y, "SES", buf, THEME_ITEM_FG_DEFAULT) + 8);
+		snprintf(buf, sizeof(buf), "%d", cov.sessMin);
+		x = (int16_t)(x + emcomUiKeyValue(x, y, "MIN", buf, levelColour(cov.sessMin)) + 8);
+		snprintf(buf, sizeof(buf), "%d", cov.sessMax);
+		emcomUiKeyValue(x, y, "MAX", buf, levelColour(cov.sessMax));
+	}
+	else
+	{
+		emcomUiText(2, y, (cov.recording ? "Session: no points yet" : "GRN starts a session"), FONT_SIZE_1, THEME_ITEM_FG_DECORATION, false);
+	}
+
+	y += 10;
+	if (fix)
+	{
+		char loc[12] = { 0 };
+
+		coordsToMaidenhead((uint8_t *)loc, lat, lon);
+		loc[6] = 0;
+		x = (int16_t)(2 + emcomUiChip(2, y, "GPS", THEME_ITEM_FG_RSSI_BAR, EMCOM_CHIP_SOLID, false) + 4);
+		emcomUiText(x, y, loc, FONT_SIZE_1, THEME_ITEM_FG_DEFAULT, false);
+	}
+	else
+	{
+		x = (int16_t)(2 + emcomUiChip(2, y, "NO GPS", THEME_ITEM_FG_RSSI_BAR_S9P, EMCOM_CHIP_SOLID, false) + 4);
+		emcomUiText(x, y, "not logging", FONT_SIZE_1, THEME_ITEM_FG_RSSI_BAR_S9P, false);
+	}
+
+	if (cov.confirmClear)
+	{
+		emcomUiConfirmBar("CLEAR ALL?");
+	}
+	else
+	{
+		emcomUiKeyBar(cov.recording ? "GRN STOP  # INT  RED EXIT" : "GRN REC  # INT  0 CLR");
+	}
+	displayRender();
+}
+#endif
+
 static void updateScreen(void)
 {
 	char buf[SCREEN_LINE_BUFFER_SIZE + 8];
@@ -117,6 +250,14 @@ static void updateScreen(void)
 	double lat, lon;
 	bool fix = hasFix(&lat, &lon);
 	themeItem_t level = ((dBm >= -100) ? THEME_ITEM_FG_RSSI_BAR : ((dBm >= -115) ? THEME_ITEM_FG_RSSI_BAR_S9P : THEME_ITEM_FG_TX_COUNTER));
+
+#if defined(HAS_EMCOM_UI)
+	if (emcomStyleEnabled())
+	{
+		updateScreenEmcom();
+		return;
+	}
+#endif
 
 	displayClearBuf();
 	menuDisplayTitle("COVERAGE");
@@ -267,15 +408,19 @@ menuStatus_t menuCoverage(uiEvent_t *ev, bool isFirstRun)
 	{
 		if (cov.confirmClear)
 		{
-			if (KEYCHECK_SHORTUP(ev->keys, KEY_GREEN))
+			// decided on the key release: the press of GREEN cancelled, then its release started a recording
+			if (ev->keys.event & KEY_MOD_UP)
 			{
-				fieldCoverageClear();
-				cov.full = false;
-				cov.sessCount = 0U;
-				soundSetMelody(MELODY_ACK_BEEP);
+				if (KEYCHECK_SHORTUP(ev->keys, KEY_GREEN))
+				{
+					fieldCoverageClear();
+					cov.full = false;
+					cov.sessCount = 0U;
+					soundSetMelody(MELODY_ACK_BEEP);
+				}
+				cov.confirmClear = false;
+				updateScreen();
 			}
-			cov.confirmClear = false;
-			updateScreen();
 			return MENU_STATUS_SUCCESS;
 		}
 

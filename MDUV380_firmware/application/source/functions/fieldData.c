@@ -19,6 +19,10 @@
 #define COVERAGE_MAGIC   0x31564F43UL // "COV1": the coverage sectors were erased by this firmware
 #define COVERAGE_ADDRESS (FIELD_DATA_FLASH_ADDRESS + SECTOR_SIZE)
 #define REPLIES_ADDRESS  (FIELD_DATA_FLASH_ADDRESS + FIELD_APRS_REPLIES_OFFSET) // sector 0, after the PACE store
+#define WAYPOINTS_ADDRESS (FIELD_DATA_FLASH_ADDRESS + FIELD_WAYPOINTS_OFFSET)  // sector 0, after the replies
+#define SKEDS_ADDRESS    (FIELD_DATA_FLASH_ADDRESS + FIELD_SKEDS_OFFSET)       // sector 0, after the waypoints
+#define WAYPOINT_MAGIC   0x31505757UL // "WWP1"
+#define SKED_MAGIC       0x31444B53UL // "SKD1"
 
 typedef struct
 {
@@ -62,7 +66,11 @@ bool fieldPaceGet(int slot, paceSlot_t *data)
 }
 
 _Static_assert(sizeof(paceStore_t) <= FIELD_APRS_REPLIES_OFFSET, "PACE store overlaps the APRS replies");
-_Static_assert((FIELD_APRS_REPLIES_OFFSET + (APRS_REPLY_SLOTS * sizeof(aprsReplyRecord_t))) <= SECTOR_SIZE, "APRS replies do not fit in sector 0");
+_Static_assert((FIELD_APRS_REPLIES_OFFSET + (APRS_REPLY_SLOTS * sizeof(aprsReplyRecord_t))) <= FIELD_WAYPOINTS_OFFSET, "APRS replies overlap the waypoints");
+_Static_assert(sizeof(fieldWaypoint_t) == 24U, "waypoint record size (tools/opengd77_coverage.py)");
+_Static_assert((FIELD_WAYPOINTS_OFFSET + (FIELD_WAYPOINT_SLOTS * sizeof(fieldWaypoint_t))) <= FIELD_SKEDS_OFFSET, "waypoints overlap the skeds");
+_Static_assert(sizeof(fieldSked_t) == 16U, "sked record size");
+_Static_assert((FIELD_SKEDS_OFFSET + (FIELD_SKED_SLOTS * sizeof(fieldSked_t))) <= SECTOR_SIZE, "skeds do not fit in sector 0");
 
 // Sector 0 is shared (PACE store + APRS replies): read-modify-write of the whole
 // sector through the SPI flash sector buffer, so the other records are kept.
@@ -137,6 +145,122 @@ void fieldAprsReplySet(int slot, const char *text)
 
 	aprsReplyRecordEncode(text, &rec);
 	SPI_Flash_write((REPLIES_ADDRESS + (slot * sizeof(aprsReplyRecord_t))), (uint8_t *)&rec, sizeof(rec));
+}
+
+// --- saved waypoints ----------------------------------------------------------------------
+bool fieldWaypointGet(int slot, fieldWaypoint_t *wp)
+{
+	if ((slot < 0) || (slot >= FIELD_WAYPOINT_SLOTS))
+	{
+		return false;
+	}
+
+	SPI_Flash_read((WAYPOINTS_ADDRESS + (slot * sizeof(fieldWaypoint_t))), (uint8_t *)wp, sizeof(fieldWaypoint_t));
+	if ((wp->magic != WAYPOINT_MAGIC) || (wp->lat > 90000000) || (wp->lat < -90000000) || (wp->lon > 180000000) || (wp->lon < -180000000))
+	{
+		return false;
+	}
+
+	for (int i = 0; i < FIELD_WAYPOINT_NAME_LEN; i++)
+	{
+		char c = wp->name[i];
+
+		if ((c != 0) && ((c < ' ') || (c > '~')))
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+void fieldWaypointSet(int slot, const fieldWaypoint_t *wp)
+{
+	fieldWaypoint_t rec;
+
+	if ((slot < 0) || (slot >= FIELD_WAYPOINT_SLOTS))
+	{
+		return;
+	}
+
+	if (wp != NULL)
+	{
+		rec = *wp;
+		rec.magic = WAYPOINT_MAGIC;
+	}
+	else
+	{
+		memset(&rec, 0xFF, sizeof(rec));
+	}
+	// Sector 0 read-modify-write (SPI_Flash_write): the PACE store, replies and skeds are kept
+	SPI_Flash_write((WAYPOINTS_ADDRESS + (slot * sizeof(fieldWaypoint_t))), (uint8_t *)&rec, sizeof(rec));
+}
+
+int fieldWaypointAdd(double lat, double lon, const char *name, uint8_t flags)
+{
+	fieldWaypoint_t wp;
+
+	for (int i = 0; i < FIELD_WAYPOINT_SLOTS; i++)
+	{
+		if (fieldWaypointGet(i, &wp) == false)
+		{
+			memset(&wp, 0, sizeof(wp));
+			wp.lat = (int32_t)((lat * 1e6) + ((lat < 0.0) ? -0.5 : 0.5));
+			wp.lon = (int32_t)((lon * 1e6) + ((lon < 0.0) ? -0.5 : 0.5));
+			wp.flags = flags;
+			if ((name != NULL) && (name[0] != 0))
+			{
+				strncpy(wp.name, name, FIELD_WAYPOINT_NAME_LEN);
+			}
+			else
+			{
+				wp.name[0] = 'W';
+				wp.name[1] = 'P';
+				wp.name[2] = (char)('1' + i);
+			}
+			fieldWaypointSet(i, &wp);
+			return i;
+		}
+	}
+	return -1;
+}
+
+void fieldWaypointName(const fieldWaypoint_t *wp, char *buf)
+{
+	memcpy(buf, wp->name, FIELD_WAYPOINT_NAME_LEN);
+	buf[FIELD_WAYPOINT_NAME_LEN] = 0;
+}
+
+// --- comms schedules --------------------------------------------------------------------------
+bool fieldSkedGet(int slot, fieldSked_t *sked)
+{
+	if ((slot < 0) || (slot >= FIELD_SKED_SLOTS))
+	{
+		return false;
+	}
+
+	SPI_Flash_read((SKEDS_ADDRESS + (slot * sizeof(fieldSked_t))), (uint8_t *)sked, sizeof(fieldSked_t));
+	return ((sked->magic == SKED_MAGIC) && skedTimeIsValid(&sked->time));
+}
+
+void fieldSkedSet(int slot, const fieldSked_t *sked)
+{
+	fieldSked_t rec;
+
+	if ((slot < 0) || (slot >= FIELD_SKED_SLOTS))
+	{
+		return;
+	}
+
+	if (sked != NULL)
+	{
+		rec = *sked;
+		rec.magic = SKED_MAGIC;
+	}
+	else
+	{
+		memset(&rec, 0xFF, sizeof(rec));
+	}
+	SPI_Flash_write((SKEDS_ADDRESS + (slot * sizeof(fieldSked_t))), (uint8_t *)&rec, sizeof(rec));
 }
 
 // --- coverage survey -----------------------------------------------------------------------

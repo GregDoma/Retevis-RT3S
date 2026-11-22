@@ -37,6 +37,7 @@
 #include "user_interface/uiEmcom.h"
 #include "user_interface/uiLocalisation.h"
 #include "user_interface/uiUtilities.h"
+#include "functions/blackout.h"
 
 
 static void updateScreen(bool isFirstRun);
@@ -303,7 +304,7 @@ static void updateScreen(bool isFirstRun)
 #if defined(HAS_EMCOM_UI)
 				case DISPLAY_EMCOM_STYLE:
 					leftSide = "Screen";
-					rightSideConst = (settingsIsOptionBitSet(BIT_UI_CLASSIC_STYLE) ? "Classic" : "EMCOM");
+					rightSideConst = emcomStyleName(emcomStyleGet());
 					break;
 #endif
 
@@ -681,9 +682,9 @@ static void handleEvent(uiEvent_t *ev)
 #endif
 #if defined(HAS_EMCOM_UI)
 				case DISPLAY_EMCOM_STYLE:
-					if (settingsIsOptionBitSet(BIT_UI_CLASSIC_STYLE))
+					if (emcomStyleGet() < (EMCOM_STYLE_COUNT - 1))
 					{
-						settingsSetOptionBit(BIT_UI_CLASSIC_STYLE, false);
+						emcomStyleSet((emcomStyle_t)(emcomStyleGet() + 1)); // Classic, EMCOM, mono, contrast
 						emcomApplyStyle();
 					}
 					break;
@@ -893,9 +894,9 @@ static void handleEvent(uiEvent_t *ev)
 #endif
 #if defined(HAS_EMCOM_UI)
 				case DISPLAY_EMCOM_STYLE:
-					if (settingsIsOptionBitSet(BIT_UI_CLASSIC_STYLE) == false)
+					if (emcomStyleGet() > EMCOM_STYLE_CLASSIC)
 					{
-						settingsSetOptionBit(BIT_UI_CLASSIC_STYLE, true);
+						emcomStyleSet((emcomStyle_t)(emcomStyleGet() - 1));
 						emcomApplyStyle();
 					}
 					break;
@@ -1069,6 +1070,7 @@ static void applySettings(void)
 	daytimeThemeApply(DAYTIME_CURRENT);
 	daytimeThemeChangeUpdate(true);
 #endif
+	blackoutAdoptBacklightEdits(&originalNonVolatileSettings); // Fork: backlight values changed during a blackout
 	// All parameters has already been applied
 	settingsSaveIfNeeded(true);
 	resetOriginalSettingsData();
@@ -1125,6 +1127,9 @@ static void exitCallback(void *data)
 			LedWriteDirect(LED_GREEN, (settingsIsOptionBitSetFromSettings(&originalNonVolatileSettings, BIT_ALL_LEDS_DISABLED) ? 0 : state));
 		}
 
+#if defined(HAS_EMCOM_UI)
+		emcomStyle_t styleBefore = emcomStyleGet();
+#endif
 		// Restore settings bits, if changed.
 		bitfieldOptions_t settingsBits[] =
 		{
@@ -1139,6 +1144,8 @@ static void exitCallback(void *data)
 #endif
 #if defined(HAS_EMCOM_UI)
 				BIT_UI_CLASSIC_STYLE,
+				BIT_UI_EMCOM_MONO,
+				BIT_UI_EMCOM_CONTRAST,
 #endif
 #if defined(HAS_COLOURS)
 				BIT_UI_USES_DOUBLE_HEIGHT,
@@ -1154,6 +1161,12 @@ static void exitCallback(void *data)
 				settingsSetOptionBit(settingsBits[i], settingsIsOptionBitSetFromSettings(&originalNonVolatileSettings, settingsBits[i]));
 			}
 		}
+#if defined(HAS_EMCOM_UI)
+		if (emcomStyleGet() != styleBefore)
+		{
+			emcomApplyStyle(); // the screen style changed back
+		}
+#endif
 
 #if defined(PLATFORM_RD5R)
 		settingsSetDirty();

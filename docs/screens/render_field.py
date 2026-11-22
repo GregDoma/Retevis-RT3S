@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# Renders the field tool screens (PACE, Position, Coverage, Radio check) for the README,
-# following menuPACE.c, menuPosition.c, menuCoverage.c and menuRadioCheck.c.
+# Renders the field tool screens (PACE, Position, Coverage, Radio check, Net control) for the README,
+# following menuPACE.c, menuPosition.c, menuCoverage.c, menuRadioCheck.c and menuNetControl.c (classic style).
 import os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -45,7 +45,7 @@ def pace():
         else:
             s.text(24, y + 1, names[i], '1b', c)
             s.text(24, y + 11, 'empty - * stores', 1, P['mut'])
-    keybar(s, '1-4 GO  * STORE  0 CLEAR')
+    keybar(s, '1-4 GO * STO 0 CLR # SKED')
     return s
 
 
@@ -111,8 +111,29 @@ def radio_check():
     return s
 
 
+def net():
+    s = R.Screen(P['bg'])
+    M.title_bar(s, P, 'NET CONTROL')
+    chip_title(s, 158, 'RUN', P['rx'])
+    y = 16
+    s.text(2, y, '0:42 Q10m 7/18', 1, P['fg'])
+    s.text(158 - 6 * 11, y, 'SR7TM AU To', 1, P['info'])
+    s.fill(0, y + 10, 160, 1, P['mut'])
+    rows = [('SP7ABC', '14:02', '1m', False), ('SP7XYZ-9', '14:03', '12m', True), ('2601234', '14:05', '40s', False),
+            ('FM#1', '14:06', '3m', False), ('SP5ABC-15', '14:08', '16m', True), ('FM#2', '14:10', '9m', False),
+            ('SQ7KLM', '14:11', '2m', False)]
+    for i, (call, t, age, quiet) in enumerate(rows):
+        ry = 28 + i * 10
+        if i == 1:
+            s.fill(0, ry - 1, 160, 10, P['line'])
+        s.text(2, ry, f'{call:<9} {t} {age:>3}', 1, P['fg'])
+        s.text(157 - (30 if quiet else 12), ry, 'QUIET' if quiet else 'IN', '1b', P['tx'] if quiet else P['rx'])
+    keybar(s, 'GRN QSO  * FM  # Q  0 END')
+    return s
+
+
 if __name__ == '__main__':
-    for name, fn in (('pace', pace), ('position', position), ('coverage', coverage), ('radio_check', radio_check)):
+    for name, fn in (('pace', pace), ('position', position), ('coverage', coverage), ('radio_check', radio_check), ('net', net)):
         fn().png(os.path.join(HERE, f'field_{name}.png'))
     M.launcher('MENU', M.MAIN, 6).png(os.path.join(HERE, 'menu_main_field.png'))
     print('ok')

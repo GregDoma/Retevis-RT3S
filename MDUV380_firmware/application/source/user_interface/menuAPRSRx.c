@@ -21,6 +21,7 @@
 #include "functions/aprsText.h"
 #include "functions/fieldData.h"
 #include "user_interface/uiTextEdit.h"
+#include "user_interface/uiEmcom.h"
 #if defined(HAS_GPS)
 #include "interfaces/gps.h"
 #endif
@@ -32,7 +33,8 @@
 // radar (north up, own position in the centre), APRS messages, DTMF and CW
 // decoders (SSTV has its own menu entry, menuSSTV.c). '0' clears the current view. GREEN on a message / station:
 // reply / new message (canned texts, editable in Options > APRS, or a text typed on the keypad);
-// '1': new message to a callsign typed on the keypad; '*' on a station: GPS waypoint.
+// '1': new message to a callsign typed on the keypad; '*' on a station: GPS waypoint, long '*': also
+// saved in the waypoint list (fieldData.h) under the callsign.
 #define APRS_MON_REDRAW_MS      1000U
 #define APRS_MON_CHARS          26     // 160 px / 6 px font
 #define APRS_MON_STATUS_Y       (MENU_HEADER_HEIGHT + 2)
@@ -68,6 +70,13 @@ static uint8_t aprsMonEditStage = APRS_MON_EDIT_NONE;
 static uint32_t aprsMonReplyIndex = 0;
 static char aprsMonReplyTo[APRS_RX_CALL_LEN];
 static uint32_t aprsMonToneSerial = 0;
+#if defined(HAS_EMCOM_UI)
+// Fork: EMCOM styles: '*' on a message opens it on its own screen (whole text, wrapped)
+#define APRS_MON_READ_VIEW
+static bool aprsMonReadView = false;
+static uint32_t aprsMonReadTimeMs = 0; // the message shown (found again when newer ones arrive):
+static uint16_t aprsMonReadHash = 0;   // its time and a hash of peer + text
+#endif
 
 static bool aprsMonEnabled = false;
 static aprsMonView_t aprsMonView = APRS_MON_VIEW_FRAMES;
@@ -96,6 +105,9 @@ static void aprsMonSetEnabled(bool enable)
 	aprsMonMsgSelected = 0;
 	aprsMonReplyActive = false;
 	aprsMonEditStage = APRS_MON_EDIT_NONE;
+#if defined(APRS_MON_READ_VIEW)
+	aprsMonReadView = false;
+#endif
 	uiTextEditStop();
 	aprsRxSetMonitor(enable);
 }
@@ -737,6 +749,407 @@ static void aprsMonDrawMessages(void)
 	}
 }
 
+#if defined(APRS_MON_READ_VIEW)
+// --- Messages, EMCOM styles: two line rows (direction, sender, distance, time / ACK state, text) and
+// a read view. Direction and ACK state are words and symbols, not only colours.
+#define APRS_MSG_ROW_H      22
+#define APRS_MSG_ROWS       ((DISPLAY_SIZE_Y - APRS_MON_FOOTER_H - APRS_MON_LIST_Y) / APRS_MSG_ROW_H)
+
+typedef enum
+{
+	APRS_SYM_NONE = 0,
+	APRS_SYM_CHECK, // acknowledged
+	APRS_SYM_WAIT,  // hourglass: waiting for the ack
+	APRS_SYM_CROSS  // no ack / rejected / not sent
+} aprsMsgSymbol_t;
+
+static aprsMsgSymbol_t aprsMsgState(const aprsRxMsgEntry_t *m, char *word, size_t size, themeItem_t *colour)
+{
+	switch (m->kind)
+	{
+		case APRS_MSG_OUT_PENDING:
+			snprintf(word, size, "WAIT %u", (unsigned)m->tries);
+			*colour = THEME_ITEM_FG_RSSI_BAR_S9P;
+			return APRS_SYM_WAIT;
+		case APRS_MSG_OUT_ACKED:
+			snprintf(word, size, "ACK");
+			*colour = THEME_ITEM_FG_RSSI_BAR;
+			return APRS_SYM_CHECK;
+		case APRS_MSG_OUT_REJECTED:
+			snprintf(word, size, "REJ");
+			*colour = THEME_ITEM_FG_TX_COUNTER;
+			return APRS_SYM_CROSS;
+		case APRS_MSG_OUT_FAILED:
+			snprintf(word, size, "NO ACK");
+			*colour = THEME_ITEM_FG_TX_COUNTER;
+			return APRS_SYM_CROSS;
+		case APRS_MSG_OUT_NOT_SENT:
+			snprintf(word, size, "NOT SENT");
+			*colour = THEME_ITEM_FG_TX_COUNTER;
+			return APRS_SYM_CROSS;
+		default:
+			word[0] = 0;
+			return APRS_SYM_NONE;
+	}
+}
+
+// 7 x 7 symbol, top left at (x, y)
+static void aprsMsgSymbol(int16_t x, int16_t y, aprsMsgSymbol_t sym, themeItem_t colour)
+{
+	displayThemeApply(colour, THEME_ITEM_BG);
+	switch (sym)
+	{
+		case APRS_SYM_CHECK:
+			for (int16_t d = 0; d < 2; d++)
+			{
+				displayDrawLine(x, (y + 3 + d), (x + 2), (y + 5 + d), false);
+				displayDrawLine((x + 2), (y + 5 + d), (x + 6), (y + d), false);
+			}
+			break;
+		case APRS_SYM_WAIT:
+			displayFillRect(x, y, 7, 1, false);
+			displayFillRect(x, (y + 6), 7, 1, false);
+			displayFillTriangle((x + 1), (y + 1), (x + 5), (y + 1), (x + 3), (y + 3), false);
+			displayFillTriangle((x + 3), (y + 3), (x + 1), (y + 5), (x + 5), (y + 5), false);
+			break;
+		case APRS_SYM_CROSS:
+			for (int16_t d = 0; d < 2; d++)
+			{
+				displayDrawLine((x + d), y, (x + 6), (y + 6 - d), false);
+				displayDrawLine(x, (y + 6 - d), (x + 6 - d), y, false);
+			}
+			break;
+		default:
+			break;
+	}
+	displayThemeResetToDefault();
+}
+
+// "IN" / "OUT" / "BLN" chip, 22 px wide: filled, or outlined on a selected row
+static void aprsMsgDirChip(int16_t x, int16_t y, const aprsRxMsgEntry_t *m, bool selected)
+{
+	bool out = (m->kind >= APRS_MSG_OUT_PENDING);
+	const char *word = (out ? "OUT" : ((m->kind == APRS_MSG_IN_BULLETIN) ? "BLN" : "IN"));
+	themeItem_t colour = (out ? THEME_ITEM_FG_RX_FREQ : ((m->kind == APRS_MSG_IN_BULLETIN) ? THEME_ITEM_FG_RSSI_BAR_S9P : THEME_ITEM_FG_RSSI_BAR));
+	int16_t tx = (int16_t)(x + ((22 - (int16_t)(strlen(word) * 6)) / 2));
+
+	if (selected)
+	{
+		displayThemeApply(THEME_ITEM_BG, THEME_ITEM_BG);
+		displayDrawRect(x, (y - 1), 22, (FONT_SIZE_1_HEIGHT + 1), false);
+		displayPrintCore(tx, y, word, FONT_SIZE_1_BOLD, TEXT_ALIGN_LEFT, false);
+	}
+	else
+	{
+		displayThemeApply(colour, THEME_ITEM_BG);
+		displayFillRect(x, (y - 1), 22, (FONT_SIZE_1_HEIGHT + 1), false);
+		displayPrintCore(tx, y, word, FONT_SIZE_1_BOLD, TEXT_ALIGN_LEFT, true);
+	}
+	displayThemeResetToDefault();
+}
+
+// Time of the message: UTC "14:32" when the clock is set, else its age ("12m"); 'age' always set
+static void aprsMsgTime(const aprsRxMsgEntry_t *m, uint32_t now, char *clock, size_t size, char *age, size_t ageSize)
+{
+	uint32_t ago = ((now - m->timeMs) / 1000U);
+
+	aprsMonAge((now - m->timeMs), age, ageSize);
+	if (uiDataGlobal.dateTimeSecs > (86400U + ago))
+	{
+		struct tm t;
+		time_t_custom secs = (uiDataGlobal.dateTimeSecs - ago);
+
+		gmtime_r_Custom(&secs, &t);
+		snprintf(clock, size, "%02d:%02d", t.tm_hour, t.tm_min);
+	}
+	else
+	{
+		snprintf(clock, size, "%s", age);
+	}
+}
+
+// Distance (and bearing) to the other station, when both positions are known
+static bool aprsMsgDistance(const char *peer, char *dist, size_t size, unsigned *bearing)
+{
+	double myLat, myLon;
+
+	if (aprsRxOwnPosition(&myLat, &myLon) == false)
+	{
+		return false;
+	}
+	for (uint32_t i = 0; i < aprsRxStationCount(); i++)
+	{
+		const aprsRxStation_t *st = aprsRxStationGet(i);
+
+		if (st->hasPos && (strcmp(st->name, peer) == 0))
+		{
+			aprsRxFormatDistance(aprsRxDistanceKm(myLat, myLon, st->lat, st->lon), dist, size);
+			if (bearing)
+			{
+				*bearing = ((unsigned)(aprsRxBearingDeg(myLat, myLon, st->lat, st->lon) + 0.5) % 360U);
+			}
+			return true;
+		}
+	}
+	return false;
+}
+
+static void aprsMonDrawMessagesEmcom(void)
+{
+	char line[APRS_MON_CHARS + 1];
+	char word[12];
+	char clock[8];
+	char age[8];
+	uint32_t now = ticksGetMillis();
+	uint32_t count = aprsRxMessageCount();
+
+	if ((count > 0) && (aprsMonMsgSelected >= count))
+	{
+		aprsMonMsgSelected = (count - 1);
+	}
+
+	uint32_t first = ((aprsMonMsgSelected >= APRS_MSG_ROWS) ? (aprsMonMsgSelected - APRS_MSG_ROWS + 1) : 0);
+
+	for (uint32_t r = 0; r < APRS_MSG_ROWS; r++)
+	{
+		const aprsRxMsgEntry_t *m = aprsRxMessageGet(first + r);
+		int16_t y = (int16_t)(APRS_MON_LIST_Y + (r * APRS_MSG_ROW_H));
+		bool selected = ((first + r) == aprsMonMsgSelected);
+		themeItem_t text = (selected ? THEME_ITEM_BG : THEME_ITEM_FG_DEFAULT);
+		themeItem_t muted = (selected ? THEME_ITEM_BG : THEME_ITEM_FG_DECORATION);
+		int16_t right = (DISPLAY_SIZE_X - 2);
+		themeItem_t stateColour = THEME_ITEM_FG_DEFAULT;
+		aprsMsgSymbol_t sym;
+
+		if (m == NULL)
+		{
+			break;
+		}
+
+		if (selected)
+		{
+			displayThemeApply(THEME_ITEM_BG_MENU_ITEM_SELECTED, THEME_ITEM_BG);
+			displayFillRect(0, y, DISPLAY_SIZE_X, (APRS_MSG_ROW_H - 1), false);
+		}
+
+		// line 1: direction, callsign, distance, time
+		aprsMsgDirChip(2, (y + 3), m, selected);
+		snprintf(line, sizeof(line), "%s", m->peer);
+		line[9] = 0;
+		displayThemeApply(text, THEME_ITEM_BG);
+		displayPrintCore(27, (y + 3), line, FONT_SIZE_1_BOLD, TEXT_ALIGN_LEFT, false);
+
+		aprsMsgTime(m, now, clock, sizeof(clock), age, sizeof(age));
+		right -= (int16_t)(strlen(clock) * 6);
+		displayThemeApply(text, THEME_ITEM_BG);
+		displayPrintCore(right, (y + 3), clock, FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
+		if (aprsMsgDistance(m->peer, word, sizeof(word), NULL))
+		{
+			right -= (int16_t)((strlen(word) * 6) + 6);
+			displayThemeApply(muted, THEME_ITEM_BG);
+			displayPrintCore(right, (y + 3), word, FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
+		}
+
+		// line 2: ACK state (symbol + word) for sent messages, then the text
+		int16_t x = 4;
+		sym = aprsMsgState(m, word, sizeof(word), &stateColour);
+		if (sym != APRS_SYM_NONE)
+		{
+			aprsMsgSymbol(x, (y + 13), sym, (selected ? THEME_ITEM_BG : stateColour));
+			x += 9;
+			displayThemeApply((selected ? THEME_ITEM_BG : stateColour), THEME_ITEM_BG);
+			displayPrintCore(x, (y + 12), word, FONT_SIZE_1_BOLD, TEXT_ALIGN_LEFT, false);
+			x += (int16_t)((strlen(word) * 6) + 5);
+		}
+
+		size_t maxChars = (size_t)((DISPLAY_SIZE_X - 2 - x) / 6);
+		snprintf(line, sizeof(line), "%s", m->text);
+		if (strlen(line) > maxChars)
+		{
+			line[maxChars - 2] = '.';
+			line[maxChars - 1] = '.';
+			line[maxChars] = 0;
+		}
+		displayThemeApply(text, THEME_ITEM_BG);
+		displayPrintCore(x, (y + 12), line, FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
+
+		if (selected == false)
+		{
+			displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+			displayDrawFastHLine(0, (y + APRS_MSG_ROW_H - 1), DISPLAY_SIZE_X, true);
+		}
+		displayThemeResetToDefault();
+	}
+
+	aprsMonFooter("* READ  GRN REPLY  1 NEW", NULL, THEME_ITEM_FG_DEFAULT);
+}
+
+// Word wrap of 'str' in lines of 'perLine' characters, drawn at x 4 from 'y' when 'draw' (at most
+// 'maxLines'). Returns the number of lines needed.
+static uint32_t aprsMonWrap(const char *str, uint32_t perLine, uint32_t maxLines, int16_t y, int16_t lineH, ucFont_t font, bool draw)
+{
+	char line[APRS_MON_CHARS + 1];
+	uint32_t lines = 0;
+
+	while (*str)
+	{
+		uint32_t len = strlen(str);
+		uint32_t cut = len;
+
+		if (len > perLine)
+		{
+			cut = perLine;
+			while ((cut > 0) && (str[cut] != ' '))
+			{
+				cut--;
+			}
+			if (cut == 0)
+			{
+				cut = perLine;
+			}
+		}
+
+		if (draw && (lines < maxLines))
+		{
+			memcpy(line, str, cut);
+			line[cut] = 0;
+			displayPrintCore(4, (int16_t)(y + (lines * lineH)), line, font, TEXT_ALIGN_LEFT, false);
+		}
+		lines++;
+		str += cut;
+		while (*str == ' ')
+		{
+			str++;
+		}
+	}
+	return lines;
+}
+
+static uint16_t aprsMsgHash(const aprsRxMsgEntry_t *m)
+{
+	uint16_t h = (uint16_t)(m->kind >= APRS_MSG_OUT_PENDING);
+
+	for (const char *p = m->peer; *p; p++)
+	{
+		h = (uint16_t)((h * 31U) + (uint8_t)*p);
+	}
+	for (const char *p = m->text; *p; p++)
+	{
+		h = (uint16_t)((h * 31U) + (uint8_t)*p);
+	}
+	return h;
+}
+
+static void aprsMsgRemember(const aprsRxMsgEntry_t *m)
+{
+	aprsMonReadTimeMs = (m ? m->timeMs : 0);
+	aprsMonReadHash = (m ? aprsMsgHash(m) : 0);
+}
+
+// One message: direction and sender in 8x16, ACK state, time, age, distance / bearing, the whole text
+static void aprsMonDrawMessageRead(void)
+{
+	char line[APRS_MON_CHARS + 1];
+	char word[12];
+	char clock[8];
+	char age[8];
+	uint32_t count = aprsRxMessageCount();
+	uint32_t now = ticksGetMillis();
+	const aprsRxMsgEntry_t *m;
+	themeItem_t stateColour = THEME_ITEM_FG_DEFAULT;
+	aprsMsgSymbol_t sym;
+	unsigned bearing = 0;
+
+	// the message shown moves down the list when newer ones arrive
+	for (uint32_t i = 0; i < count; i++)
+	{
+		const aprsRxMsgEntry_t *e = aprsRxMessageGet(i);
+
+		if ((e->timeMs == aprsMonReadTimeMs) && (aprsMsgHash(e) == aprsMonReadHash))
+		{
+			aprsMonMsgSelected = i;
+			break;
+		}
+	}
+	if (aprsMonMsgSelected >= count)
+	{
+		aprsMonMsgSelected = ((count > 0) ? (count - 1) : 0);
+	}
+	m = aprsRxMessageGet(aprsMonMsgSelected);
+	if (m == NULL)
+	{
+		aprsMonReadView = false;
+		return;
+	}
+	aprsMsgRemember(m);
+
+	displayClearBuf();
+	menuDisplayTitle("APRS message");
+	snprintf(line, sizeof(line), "%u/%u", (unsigned)(aprsMonMsgSelected + 1), (unsigned)count);
+	displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG_MENU_NAME);
+	displayPrintCore((DISPLAY_SIZE_X - 3 - (int16_t)(strlen(line) * 6)), 4, line, FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
+
+	// header: direction, sender / recipient, ACK state
+	int16_t hy = (MENU_HEADER_HEIGHT + 2);
+	aprsMsgDirChip(2, (hy + 4), m, false);
+	snprintf(line, sizeof(line), "%s", m->peer);
+	line[9] = 0;
+	displayThemeApply(THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
+	displayPrintCore(28, (hy - 1), line, FONT_SIZE_3, TEXT_ALIGN_LEFT, false);
+
+	sym = aprsMsgState(m, word, sizeof(word), &stateColour);
+	if (sym != APRS_SYM_NONE)
+	{
+		int16_t w = (int16_t)(strlen(word) * 6);
+
+		displayThemeApply(stateColour, THEME_ITEM_BG);
+		displayPrintCore((DISPLAY_SIZE_X - 2 - w), (hy + 4), word, FONT_SIZE_1_BOLD, TEXT_ALIGN_LEFT, false);
+		aprsMsgSymbol((DISPLAY_SIZE_X - 2 - w - 9), (hy + 5), sym, stateColour);
+	}
+
+	// time, age, distance and bearing
+	int16_t iy = (hy + 16);
+	int16_t x = 2;
+	aprsMsgTime(m, now, clock, sizeof(clock), age, sizeof(age));
+	if (strcmp(clock, age) != 0)
+	{
+		snprintf(line, sizeof(line), "%sZ", clock);
+		x += aprsMonKeyValue(x, iy, "AT", line, THEME_ITEM_FG_DEFAULT) + 8;
+	}
+	else
+	{
+		x += aprsMonKeyValue(x, iy, "AGO", age, THEME_ITEM_FG_DEFAULT) + 8;
+	}
+	if (aprsMsgDistance(m->peer, word, sizeof(word), &bearing))
+	{
+		snprintf(line, sizeof(line), "%s %03u", word, bearing);
+		aprsMonKeyValue(x, iy, "DST", line, THEME_ITEM_FG_DEFAULT);
+	}
+	displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+	displayDrawFastHLine(0, (iy + 10), DISPLAY_SIZE_X, true);
+
+	// text: 8x16 when it fits, else the small font
+	int16_t ty = (iy + 13);
+	uint32_t room = (uint32_t)((DISPLAY_SIZE_Y - APRS_MON_FOOTER_H - 1) - ty);
+	uint32_t bigLines = (room / FONT_SIZE_3_HEIGHT);
+
+	displayThemeApply(THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
+	if (aprsMonWrap(m->text, ((DISPLAY_SIZE_X - 6) / 8), bigLines, ty, FONT_SIZE_3_HEIGHT, FONT_SIZE_3, false) <= bigLines)
+	{
+		aprsMonWrap(m->text, ((DISPLAY_SIZE_X - 6) / 8), bigLines, ty, FONT_SIZE_3_HEIGHT, FONT_SIZE_3, true);
+	}
+	else
+	{
+		ucFont_t small = ((emcomStyleGet() == EMCOM_STYLE_CONTRAST) ? FONT_SIZE_1_BOLD : FONT_SIZE_1);
+		aprsMonWrap(m->text, ((DISPLAY_SIZE_X - 6) / 6), (room / (FONT_SIZE_1_HEIGHT + 1)), ty, (FONT_SIZE_1_HEIGHT + 1), small, true);
+	}
+	displayThemeResetToDefault();
+
+	aprsMonFooter(((m->kind == APRS_MSG_IN_BULLETIN) ? "UP/DN NEXT  RED BACK" : "GRN REPLY UP/DN  RED BACK"), NULL, THEME_ITEM_FG_DEFAULT);
+	displayRender();
+}
+#endif
+
 // Reply / new message: a text typed on the keypad or a canned one
 static void aprsMonDrawReply(void)
 {
@@ -793,6 +1206,9 @@ static void aprsMonSend(const char *text)
 	aprsMonEditStage = APRS_MON_EDIT_NONE;
 	aprsMonView = APRS_MON_VIEW_MESSAGES;
 	aprsMonMsgSelected = 0;
+#if defined(APRS_MON_READ_VIEW)
+	aprsMonReadView = false;
+#endif
 }
 
 // Recipient / text editor (modal, every key goes to it)
@@ -907,6 +1323,9 @@ static void aprsMonDrawToneText(bool cw)
 static void aprsMonSetView(aprsMonView_t view)
 {
 	aprsMonRawView = false;
+#if defined(APRS_MON_READ_VIEW)
+	aprsMonReadView = false;
+#endif
 	aprsMonView = view;
 }
 
@@ -929,6 +1348,18 @@ static void aprsMonDraw(void)
 		}
 		return;
 	}
+
+#if defined(APRS_MON_READ_VIEW)
+	if (aprsMonReadView && (aprsMonReplyActive == false) && (aprsMonView == APRS_MON_VIEW_MESSAGES))
+	{
+		aprsRxMessagesMarkRead();
+		aprsMonDrawMessageRead();
+		if (aprsMonReadView)
+		{
+			return;
+		}
+	}
+#endif
 
 	aprsRxGetStatus(&st);
 
@@ -1014,6 +1445,13 @@ static void aprsMonDraw(void)
 		{
 			case APRS_MON_VIEW_MESSAGES:
 				aprsRxMessagesMarkRead();
+#if defined(APRS_MON_READ_VIEW)
+				if (emcomStyleEnabled() && (aprsRxMessageCount() > 0))
+				{
+					aprsMonDrawMessagesEmcom();
+					break;
+				}
+#endif
 				aprsMonDrawMessages();
 				break;
 			case APRS_MON_VIEW_DTMF:
@@ -1100,6 +1538,55 @@ static bool aprsMonHandleEvent(uiEvent_t *ev)
 		return true;
 	}
 
+#if defined(APRS_MON_READ_VIEW)
+	if (aprsMonReadView)
+	{
+		const aprsRxMsgEntry_t *m = aprsRxMessageGet(aprsMonMsgSelected);
+
+		if ((KEYCHECK_SHORTUP(ev->keys, KEY_RED) || KEYCHECK_SHORTUP(ev->keys, KEY_STAR)))
+		{
+			aprsMonReadView = false;
+			aprsMonDraw();
+			return true;
+		}
+		if (KEYCHECK_PRESS(ev->keys, KEY_UP) || KEYCHECK_PRESS(ev->keys, KEY_DOWN))
+		{
+			uint32_t sel = aprsMonMsgSelected;
+
+			if (KEYCHECK_PRESS(ev->keys, KEY_UP) && (sel > 0))
+			{
+				sel--;
+			}
+			else if (KEYCHECK_PRESS(ev->keys, KEY_DOWN) && ((sel + 1) < aprsRxMessageCount()))
+			{
+				sel++;
+			}
+			m = aprsRxMessageGet(sel);
+			if (m)
+			{
+				aprsMonMsgSelected = sel;
+				aprsMsgRemember(m);
+			}
+			aprsMonDraw();
+			return true;
+		}
+		if (KEYCHECK_SHORTUP(ev->keys, KEY_GREEN) && (m != NULL) && (m->kind == APRS_MSG_IN_BULLETIN))
+		{
+			return true; // no reply to a bulletin (GREEN does not leave the screen from here)
+		}
+	}
+	else if (KEYCHECK_SHORTUP(ev->keys, KEY_STAR) && (aprsMonRawView == false) && (aprsMonView == APRS_MON_VIEW_MESSAGES) &&
+			emcomStyleEnabled() && (aprsRxMessageCount() > 0))
+	{
+		const aprsRxMsgEntry_t *m = aprsRxMessageGet(aprsMonMsgSelected);
+
+		aprsMonReadView = true;
+		aprsMsgRemember(m);
+		aprsMonDraw();
+		return true;
+	}
+#endif
+
 	if (KEYCHECK_SHORTUP(ev->keys, KEY_GREEN) && (aprsMonRawView == false))
 	{
 		const char *to = NULL;
@@ -1149,6 +1636,37 @@ static bool aprsMonHandleEvent(uiEvent_t *ev)
 		menuSystemPopPreviousMenu();
 		return true;
 	}
+#if defined(APRS_MON_WAYPOINT)
+	else if (KEYCHECK_LONGDOWN(ev->keys, KEY_STAR) && (aprsMonRawView == false) &&
+			((aprsMonView == APRS_MON_VIEW_STATIONS) || (aprsMonView == APRS_MON_VIEW_RADAR)))
+	{
+		// long '*': the waypoint, also saved in the list (GPS > Waypoint > '*') under the callsign
+		const aprsRxStation_t *st = aprsRxStationGet(aprsMonStationIndex());
+		if (st && st->hasPos)
+		{
+			char buf[SCREEN_LINE_BUFFER_SIZE];
+			int slot;
+
+			gpsWaypointSet(st->lat, st->lon);
+			slot = fieldWaypointAdd(st->lat, st->lon, st->name, FIELD_WAYPOINT_FLAG_APRS);
+			if (slot >= 0)
+			{
+				snprintf(buf, sizeof(buf), "Saved WP%d\n%.8s", (slot + 1), st->name);
+				soundSetMelody(MELODY_ACK_BEEP);
+			}
+			else
+			{
+				snprintf(buf, sizeof(buf), "Waypoint: %s\nlist full", st->name);
+				soundSetMelody(MELODY_ERROR_BEEP);
+			}
+			uiNotificationShow(NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 2000U, buf, false);
+		}
+		else
+		{
+			soundSetMelody(MELODY_ERROR_BEEP);
+		}
+	}
+#endif
 	else if (KEYCHECK_SHORTUP(ev->keys, KEY_HASH))
 	{
 		aprsMonSetView((aprsMonView + 1) % APRS_MON_VIEW_MAX);

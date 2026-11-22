@@ -62,6 +62,11 @@ void uiTextEditStop(void)
 	editActive = false;
 }
 
+bool uiTextEditIsActive(void)
+{
+	return editActive;
+}
+
 // keyboardReset() (APRS transmissions: beacons, acks, message retries; SK2 + long digit, ...)
 // turns the multi-tap entry off: turn it on again (as menuContactDetails.c does on each
 // redraw); a char that was being cycled stays as it is.
