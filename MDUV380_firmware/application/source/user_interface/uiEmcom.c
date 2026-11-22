@@ -106,8 +106,8 @@ static const emcomPalette_t PALETTE_CONTRAST_NIGHT =
 #define HERO_Y          20   // 16x32 cell, glyphs in rows 6..24
 #define NAME_Y          24   // 8x16 cell, glyphs in rows 2..12
 #define FREQ_Y          40
-#define NAME_Y_LARGE    19   // contrast: name and 8x16 frequency (glyphs 21..31 and 35..45)
-#define FREQ_Y_LARGE    33
+#define NAME_Y_LARGE    23   // contrast: name glyphs in rows 25..35,
+#define FREQ_Y_LARGE    36   // 8x16 frequency under it in rows 38..48
 #define DIV1_Y          50
 #define PANEL_Y1        54
 #define PANEL_Y2        64
@@ -1355,7 +1355,7 @@ void emcomThemePreset(bool night, uint16_t *items)
 		{
 			// white -> amber, yellow -> red-orange, greys -> dark red
 			uint32_t g = (c & 0xFFU);
-			c = ((c == 0xFFFFFFU) ? 0xFFA000U : ((c == 0xFFFF00U) ? 0xFF4020U : ((g << 16) | ((g / 4U) << 8))));
+			c = (((c == 0xFFFFFFU) || (i == THEME_ITEM_BG_MENU_ITEM_SELECTED)) ? 0xFFA000U : ((c == 0xFFFF00U) ? 0xFF4020U : ((g << 16) | ((g / 4U) << 8))));
 		}
 		else if (night)
 		{
