@@ -93,10 +93,33 @@ class Screen:
                     chunk(b'IDAT', zlib.compress(bytes(raw), 9)) + chunk(b'IEND', b''))
 
 
+# palettes of uiEmcom.c (txFg: text on the TX colour; cues: state by shape; large: contrast style)
 DARK = dict(bg=0x0B0E0C, fg=0xF2F5F0, mut=0x86928A, line=0x28302B, bar=0x18201B, barFg=0xE9EEE7,
-            rx=0x3BD16F, tx=0xFF3B30, scan=0xFFB000, info=0x5AC8FA, seg=0x202823)
+            rx=0x3BD16F, tx=0xFF3B30, scan=0xFFB000, info=0x5AC8FA, seg=0x202823, txFg=0xFFFFFF)
 NIGHT = dict(bg=0x000000, fg=0xD22A2A, mut=0x7A1414, line=0x3A0808, bar=0x120202, barFg=0xD22A2A,
-             rx=0xE23A3A, tx=0xFF4A4A, scan=0xA51C1C, info=0xC02626, seg=0x250505)
+             rx=0xE23A3A, tx=0xFF4A4A, scan=0xA51C1C, info=0xC02626, seg=0x250505, txFg=0xFFFFFF)
+MONO = dict(bg=0x000000, fg=0xFFFFFF, mut=0x9A9A9A, line=0x4A4A4A, bar=0x1E1E1E, barFg=0xF0F0F0,
+            rx=0xFFFFFF, tx=0xFFFFFF, scan=0xB4B4B4, info=0xD8D8D8, seg=0x343434, txFg=0x000000, cues=True)
+MONO_NIGHT = dict(NIGHT, txFg=0x000000, cues=True)
+CONTRAST = dict(bg=0x000000, fg=0xFFFFFF, mut=0xFFFF00, line=0x808080, bar=0x000000, barFg=0xFFFFFF,
+                rx=0xFFFFFF, tx=0xFFFF00, scan=0xFFFF00, info=0xFFFFFF, seg=0x404040, txFg=0x000000, cues=True, large=True)
+CONTRAST_NIGHT = dict(bg=0x000000, fg=0xFFA000, mut=0xFF4020, line=0x802000, bar=0x000000, barFg=0xFFA000,
+                      rx=0xFFA000, tx=0xFFA000, scan=0xFF4020, info=0xFFA000, seg=0x401000, txFg=0x000000,
+                      cues=True, large=True)
+
+
+def f1(P):
+    # the contrast style draws the small text in the bold font
+    return '1b' if P.get('large') else 1
+
+
+def inverse_chip(s, P, x, y, t, c, right=False):
+    w = len(t) * 6 + 4
+    if right:
+        x -= w
+    s.fill(x, y - 1, w, 10, c)
+    s.text(x + 2, y, t, '1b', P['bg'])
+    return w
 
 # --- layout of uiEmcom.c -------------------------------------------------------------
 STATUS_H, METER_Y, ZONE_Y, HERO_Y, NAME_Y, FREQ_Y = 11, 12, 17, 20, 24, 40
@@ -105,35 +128,45 @@ EMCOM_Y1, EMCOM_Y2, EMCOM_Y3, FOOTER_Y = 79, 89, 99, 116
 
 
 def kv(s, P, x, y, k, v, c=None):
-    w = s.text(x, y, k, 1, P['mut']) + 4
-    return w + s.text(x + w, y, v, 1, c if c is not None else P['fg'])
+    w = s.text(x, y, k, f1(P), P['mut']) + 4
+    return w + s.text(x + w, y, v, f1(P), c if c is not None else P['fg'])
 
 
-def status_bar(s, P, state='STBY', mode='FMN', pwr='5W', tone='CTR', aprs=True, gps=True, vol=3, batt=78, sos_phase=None):
+def status_bar(s, P, state='STBY', mode='FMN', pwr='5W', tone='CTR', aprs=True, gps=True, vol=3, batt=78, sos_phase=None,
+               low=False, fix=True):
     is_tx = state == 'TX'
-    fg = 0xFFFFFF if is_tx else P['barFg']
+    cues = P.get('cues', False)
+    fg = P['txFg'] if is_tx else P['barFg']
     s.fill(0, 0, W, STATUS_H, P['tx'] if is_tx else P['bar'])
     if sos_phase is not None:
         s.fill(0, 0, W, STATUS_H, P['tx'] if sos_phase else P['bar'])
-        s.text((W - 13 * 6) // 2, 2, 'EMERGENCY SOS', '1b', 0xFFFFFF if sos_phase else P['tx'])
+        s.text((W - 13 * 6) // 2, 2, 'EMERGENCY SOS', '1b', P['txFg'] if sos_phase else P['tx'])
         return
     chip = {'RX': 'RX', 'TX': 'TX', 'SCAN': 'SCAN'}.get(state, mode)
-    chip_c = {'RX': P['rx'], 'TX': 0xFFFFFF, 'SCAN': P['scan']}.get(state, P['barFg'])
+    chip_c = {'RX': P['rx'], 'TX': P['txFg'], 'SCAN': P['scan']}.get(state, P['barFg'])
     cw = len(chip) * 6 + 4
-    s.fill(1, 1, cw, 9, chip_c)
-    s.text(3, 2, chip, '1b', P['tx'] if is_tx else P['bar'])
+    if cues and state == 'STBY':
+        s.rect(1, 1, cw, 9, chip_c)
+        s.text(3, 2, chip, '1b', chip_c)
+    else:
+        s.fill(1, 1, cw, 9, chip_c)
+        s.text(3, 2, chip, '1b', P['tx'] if is_tx else P['bar'])
     x = cw + 4
     if state != 'STBY':
-        x += s.text(x, 2, mode, 1, fg) + 4
-    x += s.text(x, 2, pwr, 1, fg) + 4
+        x += s.text(x, 2, mode, f1(P), fg) + 4
+    x += s.text(x, 2, pwr, f1(P), fg) + 4
     if tone:
-        x += s.text(x, 2, tone, 1, fg) + 4
+        x += s.text(x, 2, tone, f1(P), fg) + 4
     if aprs:
         s.text(x, 2, 'a', '1b', fg if is_tx else P['rx'])
     r = W - 2
-    s.rect(r - 13, 2, 12, 7, fg); s.fill(r - 1, 4, 1, 3, fg); s.fill(r - 12, 3, (batt * 10 + 50) // 100, 5, fg)
+    bc = P['tx'] if (low and not cues) else fg
+    s.rect(r - 13, 2, 12, 7, bc); s.fill(r - 1, 4, 1, 3, bc); s.fill(r - 12, 3, (batt * 10 + 50) // 100, 5, bc)
     r -= 16
-    r -= s.text(r, 2, f'{batt}%', 1, fg, True) + 4
+    if cues and low:
+        r -= inverse_chip(s, P, r + 2, 2, f'!{batt}%', fg, True) + 2
+    else:
+        r -= s.text(r, 2, f'{batt}%', f1(P), bc, True) + 4
     for b in range(4):
         h = 2 * (b + 1)
         bx = r - 8 + b * 2
@@ -143,26 +176,44 @@ def status_bar(s, P, state='STBY', mode='FMN', pwr='5W', tone='CTR', aprs=True, 
             s.fill(bx, 8, 1, 1, fg)
     r -= 12
     if gps:
-        s.text(r, 2, 'GPS', '1b', fg if is_tx else P['rx'], True)
+        if fix:
+            s.text(r, 2, 'GPS', '1b', fg if is_tx else P['rx'], True)
+        else:
+            s.text(r, 2, 'GPS', 1 if cues else '1b', P['mut'], True)
 
 
 def bar(s, P, lit, tx=False):
+    h = 4 if P.get('large') else 3
     for i in range(32):
         c = P['seg']
         if i < lit:
             c = P['tx'] if tx else (P['rx'] if i < 20 else P['scan'])
-        s.fill(i * 5, METER_Y, 4, 3, c)
+        if P.get('cues') and i < lit and not tx and i >= 20:
+            s.fill(i * 5, METER_Y, 4, h, P['seg']); s.rect(i * 5, METER_Y, 4, h, c)
+        else:
+            s.fill(i * 5, METER_Y, 4, h, c)
 
 
 def zone_row(s, P, zone='RAYNET LODZ', ch='CH 3/16'):
-    s.text(2, ZONE_Y, zone, 1, P['mut'])
-    s.text(W - 2, ZONE_Y, ch, 1, P['mut'], True)
+    s.text(2, ZONE_Y, zone, f1(P), P['mut'])
+    s.text(W - 2, ZONE_Y, ch, f1(P), P['mut'], True)
 
 
 def hero(s, P, num='03', name='RAYNET-1', freq='145.5000 MHz', tx=False):
     w = s.text(1, HERO_Y, num, 4, P['fg'])
+    c = P['tx'] if tx else P['info']
+    if P.get('large'):
+        # as drawHero(): 8x16 frequency, without the unit when it does not fit
+        mx = (W - (w + 6)) // 8
+        s.text(w + 6, 23, name[:mx], 3, P['fg'])
+        for f in (freq, freq.replace(' MHz', '')):
+            if len(f) <= mx:
+                s.text(w + 6, 36, f, 3, c)
+                return
+        s.text(w + 6, FREQ_Y, freq, f1(P), c)
+        return
     s.text(w + 6, NAME_Y, name, 3, P['fg'])
-    s.text(w + 6, FREQ_Y, freq, 1, P['tx'] if tx else P['info'])
+    s.text(w + 6, FREQ_Y, freq, 1, c)
 
 
 def divs(s, P):
@@ -181,16 +232,19 @@ def emcom_rows(s, P, unread=0, lh='LH', lhv='SP7ABC-9 4.2km 2m'):
         s.fill(72, EMCOM_Y1 - 1, len(t) * 6 + 4, 10, P['info']); s.text(74, EMCOM_Y1, t, '1b', P['bg'])
     else:
         kv(s, P, 72, EMCOM_Y1, 'MSG', '0', P['mut'])
-    s.text(W - 2, EMCOM_Y1, 'JO91RS', 1, P['rx'], True)
+    s.text(W - 2, EMCOM_Y1, 'JO91RS', f1(P), P['rx'], True)
     kv(s, P, 2, EMCOM_Y2, 'POS', '51.7592N 19.4560E')
     kv(s, P, 2, EMCOM_Y3, lh, lhv)
 
 
 def footer(s, P, left='14:32Z 19NOV', right=None, rc=None):
     s.fill(0, FOOTER_Y, W, H - FOOTER_Y, P['bar'])
-    s.text(2, FOOTER_Y + 2, left, 1, P['barFg'])
+    s.text(2, FOOTER_Y + 2, left, f1(P), P['barFg'])
     if right:
-        s.text(W - 2, FOOTER_Y + 2, right, '1b', rc or P['barFg'], True)
+        if P.get('cues') and right in ('SOS', 'TX OFF', 'TX'):
+            inverse_chip(s, P, W - 1, FOOTER_Y + 2, right, rc or P['barFg'], True)
+        else:
+            s.text(W - 2, FOOTER_Y + 2, right, '1b', rc or P['barFg'], True)
 
 
 def screen_standby(P=DARK):
@@ -217,14 +271,14 @@ def screen_dmr(P=DARK):
     s = Screen(P['bg']); status_bar(s, P, 'RX', mode='DMR', tone='TS1', aprs=False); bar(s, P, 19)
     zone_row(s, P, 'DMR SR7', 'CH 7/16'); hero(s, P, '07', 'SR7L TG260', '439.4250 MHz'); divs(s, P)
     s.text(2, PANEL_Y1 - 2, 'SP5ABC', 3, P['rx']); kv(s, P, W - 2 - 6 * 6, PANEL_Y1, 'TG', '260')
-    s.text(2, PANEL_Y2 + 2, 'Jan Warszawa', 1, P['fg'])
+    s.text(2, PANEL_Y2 + 2, 'Jan Warszawa', f1(P), P['fg'])
     emcom_rows(s, P, lhv='SP5ABC 0s'); footer(s, P, '14:35Z 19NOV'); return s
 
 
 def screen_vfo(P=DARK):
     s = Screen(P['bg']); status_bar(s, P, tone=''); bar(s, P, 0)
-    s.text(2, ZONE_Y, 'VFO A', 1, P['mut']); s.text(W - 2, ZONE_Y, 'TX -0.600', 1, P['mut'], True)
-    s.text(1, HERO_Y, '145.5000', 4, P['fg']); s.text(W - 2, FREQ_Y, 'MHz', 1, P['mut'], True); divs(s, P)
+    s.text(2, ZONE_Y, 'VFO A', f1(P), P['mut']); s.text(W - 2, ZONE_Y, 'TX -0.600', f1(P), P['mut'], True)
+    s.text(1, HERO_Y, '145.5000', 4, P['fg']); s.text(W - 2, FREQ_Y, 'MHz', f1(P), P['mut'], True); divs(s, P)
     kv(s, P, 2, PANEL_Y1, 'OFS', '-0.600'); kv(s, P, 66, PANEL_Y1, 'RXT', '-'); kv(s, P, 120, PANEL_Y1, 'SQL', '20')
     kv(s, P, 2, PANEL_Y2, 'BW', '12.5k'); kv(s, P, 66, PANEL_Y2, 'TXT', '-'); kv(s, P, 120, PANEL_Y2, 'TOT', 'off')
     emcom_rows(s, P, unread=1); footer(s, P, '14:40Z 19NOV'); return s
