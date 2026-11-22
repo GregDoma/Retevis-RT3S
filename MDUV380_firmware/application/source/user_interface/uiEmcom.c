@@ -1739,6 +1739,111 @@ void emcomThemePreset(bool night, uint16_t *items)
 	}
 }
 
+// --- tool screens (menu theme items) ------------------------------------------------------
+bool emcomUiLarge(void)
+{
+	return (emcomStyleGet() == EMCOM_STYLE_CONTRAST);
+}
+
+int16_t emcomUiText(int16_t x, int16_t y, const char *str, ucFont_t font, themeItem_t colour, bool alignRight)
+{
+	int16_t w;
+
+	if ((font == FONT_SIZE_1) && emcomUiLarge())
+	{
+		font = FONT_SIZE_1_BOLD;
+	}
+	w = (int16_t)(strlen(str) * fontWidth(font));
+	if (alignRight)
+	{
+		x -= w;
+	}
+	if (x < 0)
+	{
+		x = 0;
+	}
+	displayThemeApply(colour, THEME_ITEM_BG);
+	displayPrintCore(x, y, str, font, TEXT_ALIGN_LEFT, false);
+	displayThemeResetToDefault();
+	return w;
+}
+
+int16_t emcomUiChip(int16_t x, int16_t y, const char *str, themeItem_t colour, emcomChip_t style, bool alignRight)
+{
+	int16_t w = (int16_t)((strlen(str) * 6) + 4);
+
+	if (alignRight)
+	{
+		x -= w;
+	}
+	displayThemeApply(colour, THEME_ITEM_BG);
+	if (style == EMCOM_CHIP_SOLID)
+	{
+		displayFillRect(x, (y - 1), w, 9, false);
+	}
+	else
+	{
+		displayDrawRect(x, (y - 1), w, 9, false);
+	}
+	displayPrintCore((x + 2), y, str, FONT_SIZE_1_BOLD, TEXT_ALIGN_LEFT, (style == EMCOM_CHIP_SOLID));
+	displayThemeResetToDefault();
+	return w;
+}
+
+int16_t emcomUiKeyValue(int16_t x, int16_t y, const char *key, const char *value, themeItem_t colour)
+{
+	int16_t w = (int16_t)(emcomUiText(x, y, key, FONT_SIZE_1, THEME_ITEM_FG_DECORATION, false) + 4);
+	return (int16_t)(w + emcomUiText((x + w), y, value, FONT_SIZE_1, colour, false));
+}
+
+void emcomUiTitle(const char *title, const char *counter)
+{
+	char buf[SCREEN_LINE_BUFFER_SIZE + 4];
+	int maxChars = (int)((DISPLAY_SIZE_X - 8 - (counter ? ((int16_t)(strlen(counter) * 6) + 6) : 0)) / 8); // title: 8 px font from x 7
+
+	snprintf(buf, sizeof(buf), "%.*s", ((maxChars > 0) ? maxChars : 0), title); // translated titles can be long
+	menuDisplayTitle(buf);
+	if (counter)
+	{
+		emcomUiText((DISPLAY_SIZE_X - 3), 4, counter, FONT_SIZE_1, THEME_ITEM_FG_DECORATION, true);
+	}
+}
+
+void emcomUiStrip(void)
+{
+	displayThemeApply(THEME_ITEM_BG_HEADER_TEXT, THEME_ITEM_BG);
+	displayFillRect(0, EMCOM_UI_STRIP_Y, DISPLAY_SIZE_X, EMCOM_UI_STRIP_H, false);
+	displayThemeResetToDefault();
+}
+
+void emcomUiDivider(int16_t y)
+{
+	displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+	displayDrawFastHLine(0, y, DISPLAY_SIZE_X, true);
+	displayThemeResetToDefault();
+}
+
+void emcomUiKeyBar(const char *keys)
+{
+	displayThemeApply(THEME_ITEM_BG_HEADER_TEXT, THEME_ITEM_BG);
+	displayFillRect(0, EMCOM_UI_KEYBAR_Y, DISPLAY_SIZE_X, EMCOM_UI_KEYBAR_H, false);
+	displayThemeApply(THEME_ITEM_FG_HEADER_TEXT, THEME_ITEM_BG_HEADER_TEXT);
+	displayPrintCore(3, (EMCOM_UI_KEYBAR_Y + 2), keys, (emcomUiLarge() ? FONT_SIZE_1_BOLD : FONT_SIZE_1), TEXT_ALIGN_LEFT, false);
+	displayThemeResetToDefault();
+}
+
+void emcomUiConfirmBar(const char *question)
+{
+	int16_t x;
+
+	emcomUiKeyBar("");
+	x = (int16_t)(2 + emcomUiChip(2, (EMCOM_UI_KEYBAR_Y + 2), question, THEME_ITEM_FG_TX_COUNTER, EMCOM_CHIP_SOLID, false) + 5);
+	displayThemeApply(THEME_ITEM_FG_HEADER_TEXT, THEME_ITEM_BG_HEADER_TEXT);
+	displayPrintCore(x, (EMCOM_UI_KEYBAR_Y + 2), (((x + (15 * 6)) <= DISPLAY_SIZE_X) ? "GRN YES  ANY NO" : "GRN YES ANY NO"),
+			(emcomUiLarge() ? FONT_SIZE_1_BOLD : FONT_SIZE_1), TEXT_ALIGN_LEFT, false);
+	displayThemeResetToDefault();
+}
+
 // --- SOS ---------------------------------------------------------------------------------
 bool emcomSosActive(void)
 {

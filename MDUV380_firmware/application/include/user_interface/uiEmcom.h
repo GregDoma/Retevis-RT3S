@@ -84,6 +84,34 @@ void emcomDrawAlert(uiAlertKind_t kind, const char *title, const char *message, 
 // Notification with a value and an optional level bar (percent < 0: none), e.g. squelch, volume, power
 void emcomDrawLevelAlert(const char *title, const char *value, int percent);
 
+// --- EMCOM style of the tool screens (PACE, radio check, event log, coverage, position, SSTV) ----
+// Drawn with the menu theme items (emcomThemePreset()), as the GPS / satellite / APRS screens:
+// title bar (menuDisplayTitle) with a counter on the right, a status strip of chips, the body and
+// a key bar with the real keys. No render, no static data.
+#define EMCOM_UI_STRIP_Y    MENU_HEADER_HEIGHT
+#define EMCOM_UI_STRIP_H    11
+#define EMCOM_UI_BODY_Y     (EMCOM_UI_STRIP_Y + EMCOM_UI_STRIP_H + 2)
+#define EMCOM_UI_KEYBAR_H   11
+#define EMCOM_UI_KEYBAR_Y   (DISPLAY_SIZE_Y - EMCOM_UI_KEYBAR_H)
+
+typedef enum
+{
+	EMCOM_CHIP_SOLID = 0,  // text in the background colour on a 'colour' block
+	EMCOM_CHIP_OUTLINE     // 'colour' frame and text (an off / idle state, or a chip on a selected row)
+} emcomChip_t;
+
+bool emcomUiLarge(void);   // contrast style: bold small text, bigger values
+// Text at (x, y) (x: the right edge when alignRight); the contrast style draws FONT_SIZE_1 bold. Returns the width.
+int16_t emcomUiText(int16_t x, int16_t y, const char *str, ucFont_t font, themeItem_t colour, bool alignRight);
+// Small chip around a FONT_SIZE_1 text row at y (9 px high, y - 1 .. y + 7). Returns the width.
+int16_t emcomUiChip(int16_t x, int16_t y, const char *str, themeItem_t colour, emcomChip_t style, bool alignRight);
+int16_t emcomUiKeyValue(int16_t x, int16_t y, const char *key, const char *value, themeItem_t colour); // "KEY value"
+void emcomUiTitle(const char *title, const char *counter); // counter: "3/16", NULL = none
+void emcomUiStrip(void);                                   // status strip background (text rows at EMCOM_UI_STRIP_Y + 2)
+void emcomUiDivider(int16_t y);
+void emcomUiKeyBar(const char *keys);
+void emcomUiConfirmBar(const char *question);              // "<question> GRN YES  ANY NO" (decided on the key release)
+
 // SOS: APRS emergency beacons + banner
 void emcomSosToggle(void);
 void emcomSosRequest(void);                        // SK1 + 9 / quickkey: confirm with a second press
