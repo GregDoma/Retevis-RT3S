@@ -73,7 +73,8 @@ static uint32_t aprsMonToneSerial = 0;
 // Fork: EMCOM styles: '*' on a message opens it on its own screen (whole text, wrapped)
 #define APRS_MON_READ_VIEW
 static bool aprsMonReadView = false;
-static uint32_t aprsMonReadTimeMs = 0; // the message shown (found again when newer ones arrive)
+static uint32_t aprsMonReadTimeMs = 0; // the message shown (found again when newer ones arrive):
+static uint16_t aprsMonReadHash = 0;   // its time and a hash of peer + text
 #endif
 
 static bool aprsMonEnabled = false;
@@ -1016,6 +1017,27 @@ static uint32_t aprsMonWrap(const char *str, uint32_t perLine, uint32_t maxLines
 	return lines;
 }
 
+static uint16_t aprsMsgHash(const aprsRxMsgEntry_t *m)
+{
+	uint16_t h = (uint16_t)(m->kind >= APRS_MSG_OUT_PENDING);
+
+	for (const char *p = m->peer; *p; p++)
+	{
+		h = (uint16_t)((h * 31U) + (uint8_t)*p);
+	}
+	for (const char *p = m->text; *p; p++)
+	{
+		h = (uint16_t)((h * 31U) + (uint8_t)*p);
+	}
+	return h;
+}
+
+static void aprsMsgRemember(const aprsRxMsgEntry_t *m)
+{
+	aprsMonReadTimeMs = (m ? m->timeMs : 0);
+	aprsMonReadHash = (m ? aprsMsgHash(m) : 0);
+}
+
 // One message: direction and sender in 8x16, ACK state, time, age, distance / bearing, the whole text
 static void aprsMonDrawMessageRead(void)
 {
@@ -1033,7 +1055,9 @@ static void aprsMonDrawMessageRead(void)
 	// the message shown moves down the list when newer ones arrive
 	for (uint32_t i = 0; i < count; i++)
 	{
-		if (aprsRxMessageGet(i)->timeMs == aprsMonReadTimeMs)
+		const aprsRxMsgEntry_t *e = aprsRxMessageGet(i);
+
+		if ((e->timeMs == aprsMonReadTimeMs) && (aprsMsgHash(e) == aprsMonReadHash))
 		{
 			aprsMonMsgSelected = i;
 			break;
@@ -1049,7 +1073,7 @@ static void aprsMonDrawMessageRead(void)
 		aprsMonReadView = false;
 		return;
 	}
-	aprsMonReadTimeMs = m->timeMs;
+	aprsMsgRemember(m);
 
 	displayClearBuf();
 	menuDisplayTitle("APRS message");
@@ -1533,7 +1557,7 @@ static bool aprsMonHandleEvent(uiEvent_t *ev)
 			if (m)
 			{
 				aprsMonMsgSelected = sel;
-				aprsMonReadTimeMs = m->timeMs;
+				aprsMsgRemember(m);
 			}
 			aprsMonDraw();
 			return true;
@@ -1549,7 +1573,7 @@ static bool aprsMonHandleEvent(uiEvent_t *ev)
 		const aprsRxMsgEntry_t *m = aprsRxMessageGet(aprsMonMsgSelected);
 
 		aprsMonReadView = true;
-		aprsMonReadTimeMs = (m ? m->timeMs : 0);
+		aprsMsgRemember(m);
 		aprsMonDraw();
 		return true;
 	}
