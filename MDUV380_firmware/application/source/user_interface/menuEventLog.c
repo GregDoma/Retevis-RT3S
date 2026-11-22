@@ -14,6 +14,7 @@
 #include "user_interface/uiLocalisation.h"
 #include "functions/sound.h"
 #include "functions/eventLog.h"
+#include "user_interface/uiEmcom.h"
 
 #if defined(HAS_EVENT_LOG)
 
@@ -69,11 +70,137 @@ static void timeString(uint32_t t, char *buf, size_t size, bool withDate)
 	}
 }
 
+#if defined(HAS_EMCOM_UI)
+// EMCOM style: the date of the selected entry on the status strip, rows of time / type chip /
+// text, the selected entry in full above the key bar (8x16 in the contrast style when it fits)
+#define EM_ROW_H     11
+#define EM_CHIP_X    34
+#define EM_TEXT_X    60
+
+// Type chip, 22 px wide: filled, or outlined on a selected row
+static void typeChip(int16_t x, int16_t y, uint8_t type, bool sel)
+{
+	const char *name = eventLogTypeName(type);
+	themeItem_t c = (sel ? THEME_ITEM_BG : typeColour(type));
+
+	displayThemeApply(c, THEME_ITEM_BG);
+	if (sel)
+	{
+		displayDrawRect(x, (y - 1), 22, (FONT_SIZE_1_HEIGHT + 1), false);
+	}
+	else
+	{
+		displayFillRect(x, (y - 1), 22, (FONT_SIZE_1_HEIGHT + 1), false);
+	}
+	displayPrintCore((x + 2), y, name, FONT_SIZE_1_BOLD, TEXT_ALIGN_LEFT, (sel == false));
+	displayThemeResetToDefault();
+}
+
+static void updateScreenEmcom(void)
+{
+	char buf[32];
+	eventLogRecord_t rec;
+	uint32_t count = eventLogCount();
+
+	displayClearBuf();
+	if (count == 0U)
+	{
+		emcomUiTitle(currentLanguage->event_log, "0");
+		emcomUiStrip();
+		emcomUiChip(2, (EMCOM_UI_STRIP_Y + 2), "EMPTY", THEME_ITEM_FG_DECORATION, EMCOM_CHIP_OUTLINE, false);
+		displayThemeApply(THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
+		displayPrintCentered((EMCOM_UI_BODY_Y + 16), "Log empty", FONT_SIZE_3);
+		displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+		displayPrintCentered((EMCOM_UI_BODY_Y + 40), "TX, RX, DMR, APRS, MSG,", FONT_SIZE_1);
+		displayPrintCentered((EMCOM_UI_BODY_Y + 50), "DTMF, SOS, SSTV events", FONT_SIZE_1);
+		displayThemeResetToDefault();
+		emcomUiKeyBar("RED EXIT");
+		displayRender();
+		return;
+	}
+
+	if (selected >= count)
+	{
+		selected = (count - 1U);
+	}
+
+	snprintf(buf, sizeof(buf), "%u/%u", (unsigned)(selected + 1U), (unsigned)count);
+	emcomUiTitle(currentLanguage->event_log, buf);
+
+	// the selected entry: full text big (contrast) or small, above the key bar
+	bool haveSel = eventLogGet(selected, &rec);
+	bool large = emcomUiLarge(); // room for an 8x16 line (the list keeps its length)
+	char full[EVENT_LOG_TEXT_LEN + 1];
+
+	snprintf(full, sizeof(full), "%.*s", (int)EVENT_LOG_TEXT_LEN, (haveSel ? rec.text : "")); // not terminated when full
+	bool big = (haveSel && large && ((strlen(full) * 8) <= (DISPLAY_SIZE_X - 4)));
+	int16_t detailY = (int16_t)(EMCOM_UI_KEYBAR_Y - (large ? FONT_SIZE_3_HEIGHT : FONT_SIZE_1_HEIGHT) - 2);
+	uint32_t rows = (uint32_t)((detailY - 1 - EMCOM_UI_BODY_Y) / EM_ROW_H);
+
+	if (haveSel)
+	{
+		emcomUiStrip();
+		timeString(rec.time, buf, sizeof(buf), true);
+		emcomUiText(3, (EMCOM_UI_STRIP_Y + 2), buf, FONT_SIZE_1, THEME_ITEM_FG_HEADER_TEXT, false);
+		typeChip((DISPLAY_SIZE_X - 24), (EMCOM_UI_STRIP_Y + 2), rec.type, false);
+
+		emcomUiDivider(detailY - 2);
+		emcomUiText(2, (detailY + ((large && (big == false)) ? 4 : 0)), full, (big ? FONT_SIZE_3 : FONT_SIZE_1), THEME_ITEM_FG_DEFAULT, false);
+	}
+
+	uint32_t first = ((selected >= rows) ? (selected - rows + 1U) : 0U);
+
+	for (uint32_t r = 0; r < rows; r++)
+	{
+		uint32_t idx = (first + r);
+		int16_t y = (int16_t)(EMCOM_UI_BODY_Y + (r * EM_ROW_H));
+		bool sel = (idx == selected);
+		themeItem_t text = (sel ? THEME_ITEM_BG : THEME_ITEM_FG_DEFAULT);
+
+		if ((idx >= count) || (eventLogGet(idx, &rec) == false))
+		{
+			break;
+		}
+
+		if (sel)
+		{
+			displayThemeApply(THEME_ITEM_BG_MENU_ITEM_SELECTED, THEME_ITEM_BG);
+			displayFillRect(0, (y - 2), DISPLAY_SIZE_X, EM_ROW_H, false);
+			displayThemeResetToDefault();
+		}
+
+		timeString(rec.time, buf, sizeof(buf), false);
+		emcomUiText(2, y, buf, FONT_SIZE_1, (sel ? THEME_ITEM_BG : THEME_ITEM_FG_DECORATION), false);
+		typeChip(EM_CHIP_X, y, rec.type, sel);
+		snprintf(buf, sizeof(buf), "%.16s", rec.text); // 16 characters fit
+		emcomUiText(EM_TEXT_X, y, buf, FONT_SIZE_1, text, false);
+	}
+
+	if (confirmClear)
+	{
+		emcomUiConfirmBar("CLEAR LOG?");
+	}
+	else
+	{
+		emcomUiKeyBar("UP/DN  0 CLEAR  RED EXIT");
+	}
+	displayRender();
+}
+#endif
+
 static void updateScreen(void)
 {
 	char buf[32];
 	eventLogRecord_t rec;
 	uint32_t count = eventLogCount();
+
+#if defined(HAS_EMCOM_UI)
+	if (emcomStyleEnabled())
+	{
+		updateScreenEmcom();
+		return;
+	}
+#endif
 
 	displayClearBuf();
 	menuDisplayTitle(currentLanguage->event_log);
