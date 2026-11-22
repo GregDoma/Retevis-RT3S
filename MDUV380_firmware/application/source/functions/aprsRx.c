@@ -357,6 +357,7 @@ static aprsRxStation_t *stationUpdate(const aprsRxFrame_t *frame, uint32_t now, 
 	}
 
 	st.lastMs = now;
+	st.isObject = (strcmp(pos.name, p.src) != 0);
 	if (st.count < 0xFFFFU)
 	{
 		st.count++;

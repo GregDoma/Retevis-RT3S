@@ -234,7 +234,7 @@ void netTick(void)
 	}
 
 #if defined(I2S_APRS_RX)
-	// APRS: the stations heard (not my own beacons coming back through a digipeater)
+	// APRS: the stations heard (not objects / items, nor my own beacons coming back through a digipeater)
 	{
 		char own[APRS_RX_CALL_LEN + 1];
 		bool hasOwn = aprsRxGetOwnCall(own, sizeof(own));
@@ -244,7 +244,7 @@ void netTick(void)
 		{
 			const aprsRxStation_t *st = aprsRxStationGet(i);
 
-			if ((st != NULL) && st->name[0] && ((hasOwn == false) || (strcmp(st->name, own) != 0)))
+			if ((st != NULL) && st->name[0] && (st->isObject == false) && ((hasOwn == false) || (strcmp(st->name, own) != 0)))
 			{
 				heard(netAprsKey(st->name), st->name, st->lastMs);
 			}
