@@ -29,6 +29,7 @@
 static const char paceLetters[PACE_SLOTS] = { 'P', 'A', 'C', 'E' };
 static const char *const paceNames[PACE_SLOTS] = { "PRIMARY", "ALTERNATE", "CONTINGENCY", "EMERGENCY" };
 static int selectedSlot = 0;
+static bool confirmClear = false; // '0' pressed: GREEN clears the selected slot
 
 static themeItem_t slotColour(int slot)
 {
@@ -121,8 +122,19 @@ static void updateScreen(void)
 	int16_t fy = (DISPLAY_SIZE_Y - FOOTER_H);
 	displayThemeApply(THEME_ITEM_BG_HEADER_TEXT, THEME_ITEM_BG);
 	displayFillRect(0, fy, DISPLAY_SIZE_X, FOOTER_H, false);
-	displayThemeApply(THEME_ITEM_FG_HEADER_TEXT, THEME_ITEM_BG_HEADER_TEXT);
-	displayPrintCore(3, (fy + 2), (onChannelScreen() ? "1-4 GO  * STORE  0 CLEAR" : "1-4 GO  (VFO: no STORE)"), FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
+	if (confirmClear)
+	{
+		snprintf(buf, sizeof(buf), "CLEAR %c?", paceLetters[selectedSlot]);
+		displayThemeApply(THEME_ITEM_FG_TX_COUNTER, THEME_ITEM_BG_HEADER_TEXT);
+		displayPrintCore(3, (fy + 2), buf, FONT_SIZE_1_BOLD, TEXT_ALIGN_LEFT, false);
+		displayThemeApply(THEME_ITEM_FG_HEADER_TEXT, THEME_ITEM_BG_HEADER_TEXT);
+		displayPrintCore(57, (fy + 2), "GREEN = yes", FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
+	}
+	else
+	{
+		displayThemeApply(THEME_ITEM_FG_HEADER_TEXT, THEME_ITEM_BG_HEADER_TEXT);
+		displayPrintCore(3, (fy + 2), (onChannelScreen() ? "1-4 GO  * STORE  0 CLEAR" : "1-4 GO  (VFO: no STORE)"), FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
+	}
 
 	displayThemeResetToDefault();
 	displayRender();
@@ -208,6 +220,7 @@ menuStatus_t menuPACE(uiEvent_t *ev, bool isFirstRun)
 	if (isFirstRun)
 	{
 		menuDataGlobal.numItems = 0;
+		confirmClear = false;
 		updateScreen();
 		return MENU_STATUS_SUCCESS;
 	}
@@ -220,7 +233,21 @@ menuStatus_t menuPACE(uiEvent_t *ev, bool isFirstRun)
 		}
 		else if (ev->events & KEY_EVENT)
 		{
-			if (KEYCHECK_SHORTUP(ev->keys, KEY_RED))
+			if (confirmClear)
+			{
+				// decided on the key release (the press of GREEN would cancel); RED cancels, stays here
+				if (ev->keys.event & KEY_MOD_UP)
+				{
+					if (KEYCHECK_SHORTUP(ev->keys, KEY_GREEN))
+					{
+						fieldPaceSet(selectedSlot, NULL);
+						soundSetMelody(MELODY_ACK_BEEP);
+					}
+					confirmClear = false;
+					updateScreen();
+				}
+			}
+			else if (KEYCHECK_SHORTUP(ev->keys, KEY_RED))
 			{
 				menuSystemPopPreviousMenu();
 				return MENU_STATUS_SUCCESS;
@@ -254,8 +281,16 @@ menuStatus_t menuPACE(uiEvent_t *ev, bool isFirstRun)
 			}
 			else if (KEYCHECK_SHORTUP(ev->keys, KEY_0))
 			{
-				fieldPaceSet(selectedSlot, NULL);
-				soundSetMelody(MELODY_ACK_BEEP);
+				paceSlot_t slot;
+
+				if (fieldPaceGet(selectedSlot, &slot))
+				{
+					confirmClear = true;
+				}
+				else
+				{
+					soundSetMelody(MELODY_ERROR_BEEP); // already empty
+				}
 				updateScreen();
 			}
 			else if (KEYCHECK_PRESS(ev->keys, KEY_DOWN))

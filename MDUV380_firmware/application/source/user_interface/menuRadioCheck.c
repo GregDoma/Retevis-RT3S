@@ -42,6 +42,7 @@ typedef struct
 {
 	bool       active;
 	uint8_t    count;
+	bool       confirmClear; // '0' pressed: GREEN clears the reports
 	uint32_t   start;
 	uint32_t   lastSeen;
 	uint32_t   lastSample;
@@ -168,8 +169,18 @@ static void updateScreen(void)
 	int16_t fy = (DISPLAY_SIZE_Y - FOOTER_H);
 	displayThemeApply(THEME_ITEM_BG_HEADER_TEXT, THEME_ITEM_BG);
 	displayFillRect(0, fy, DISPLAY_SIZE_X, FOOTER_H, false);
-	displayThemeApply(THEME_ITEM_FG_HEADER_TEXT, THEME_ITEM_BG_HEADER_TEXT);
-	displayPrintCore(3, (fy + 2), "0 CLEAR  RED EXIT", FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
+	if (rc.confirmClear)
+	{
+		displayThemeApply(THEME_ITEM_FG_TX_COUNTER, THEME_ITEM_BG_HEADER_TEXT);
+		displayPrintCore(3, (fy + 2), "CLEAR ALL?", FONT_SIZE_1_BOLD, TEXT_ALIGN_LEFT, false);
+		displayThemeApply(THEME_ITEM_FG_HEADER_TEXT, THEME_ITEM_BG_HEADER_TEXT);
+		displayPrintCore(69, (fy + 2), "GREEN = yes", FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
+	}
+	else
+	{
+		displayThemeApply(THEME_ITEM_FG_HEADER_TEXT, THEME_ITEM_BG_HEADER_TEXT);
+		displayPrintCore(3, (fy + 2), "0 CLEAR  RED EXIT", FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
+	}
 
 	displayThemeResetToDefault();
 	displayRender();
@@ -221,7 +232,21 @@ menuStatus_t menuRadioCheck(uiEvent_t *ev, bool isFirstRun)
 		}
 		else if (ev->events & KEY_EVENT)
 		{
-			if (KEYCHECK_SHORTUP(ev->keys, KEY_RED) || KEYCHECK_SHORTUP(ev->keys, KEY_GREEN))
+			if (rc.confirmClear)
+			{
+				// decided on the key release (the press of GREEN would cancel); RED cancels, stays here
+				if (ev->keys.event & KEY_MOD_UP)
+				{
+					if (KEYCHECK_SHORTUP(ev->keys, KEY_GREEN))
+					{
+						rc.count = 0U;
+						soundSetMelody(MELODY_ACK_BEEP);
+					}
+					rc.confirmClear = false;
+					updateScreen();
+				}
+			}
+			else if (KEYCHECK_SHORTUP(ev->keys, KEY_RED) || KEYCHECK_SHORTUP(ev->keys, KEY_GREEN))
 			{
 				menuSystemPopPreviousMenu();
 				return MENU_STATUS_SUCCESS;
@@ -230,9 +255,9 @@ menuStatus_t menuRadioCheck(uiEvent_t *ev, bool isFirstRun)
 			{
 				saveQuickkeyMenuIndex(ev->keys.key, menuSystemGetCurrentMenuNumber(), 0, 0);
 			}
-			else if (KEYCHECK_SHORTUP(ev->keys, KEY_0))
+			else if (KEYCHECK_SHORTUP(ev->keys, KEY_0) && (rc.count > 0U))
 			{
-				rc.count = 0U;
+				rc.confirmClear = true;
 				updateScreen();
 			}
 		}

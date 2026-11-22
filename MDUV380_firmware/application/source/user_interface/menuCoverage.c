@@ -267,15 +267,19 @@ menuStatus_t menuCoverage(uiEvent_t *ev, bool isFirstRun)
 	{
 		if (cov.confirmClear)
 		{
-			if (KEYCHECK_SHORTUP(ev->keys, KEY_GREEN))
+			// decided on the key release: the press of GREEN cancelled, then its release started a recording
+			if (ev->keys.event & KEY_MOD_UP)
 			{
-				fieldCoverageClear();
-				cov.full = false;
-				cov.sessCount = 0U;
-				soundSetMelody(MELODY_ACK_BEEP);
+				if (KEYCHECK_SHORTUP(ev->keys, KEY_GREEN))
+				{
+					fieldCoverageClear();
+					cov.full = false;
+					cov.sessCount = 0U;
+					soundSetMelody(MELODY_ACK_BEEP);
+				}
+				cov.confirmClear = false;
+				updateScreen();
 			}
-			cov.confirmClear = false;
-			updateScreen();
 			return MENU_STATUS_SUCCESS;
 		}
 

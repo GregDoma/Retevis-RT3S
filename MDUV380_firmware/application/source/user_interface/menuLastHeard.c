@@ -43,6 +43,7 @@ static const int DISPLAYED_LINES_MAX = 3;
 #endif
 
 static bool displayLHDetails = false;
+static bool confirmClear = false; // long '#' pressed: GREEN clears the list
 static menuStatus_t menuLastHeardExitCode;
 static LinkItem_t *selectedItem;
 static int lastHeardCount;
@@ -309,6 +310,19 @@ void menuLastHeardUpdateScreen(bool showTitleOrHeader, bool displayDetails, bool
 		promptsPlayNotAfterTx();
 	}
 
+	if (confirmClear && showTitleOrHeader)
+	{
+		// Fork: clear confirmation over the bottom of the list
+		int16_t fy = (DISPLAY_SIZE_Y - 20);
+
+		displayThemeApply(THEME_ITEM_BG_HEADER_TEXT, THEME_ITEM_BG);
+		displayFillRect(0, fy, DISPLAY_SIZE_X, 20, false);
+		displayThemeApply(THEME_ITEM_FG_TX_COUNTER, THEME_ITEM_BG_HEADER_TEXT);
+		displayPrintCore(3, (fy + 1), "CLEAR LAST HEARD?", FONT_SIZE_1_BOLD, TEXT_ALIGN_LEFT, false);
+		displayThemeApply(THEME_ITEM_FG_HEADER_TEXT, THEME_ITEM_BG_HEADER_TEXT);
+		displayPrintCore(3, (fy + 11), "GREEN yes, other key no", FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
+	}
+
 	displayThemeResetToDefault();
 
 	displayRender();
@@ -333,6 +347,31 @@ void menuLastHeardHandleEvent(uiEvent_t *ev)
 		if ((ev->events & FUNCTION_EVENT) && (ev->function == FUNC_REDRAW))
 		{
 			menuLastHeardUpdateScreen(true, displayLHDetails, false);
+			return;
+		}
+
+		if (confirmClear)
+		{
+			// decided on a key release (the press of GREEN would cancel), but not the release of the long '#'
+			if ((ev->keys.event & KEY_MOD_UP) && (((ev->keys.key == KEY_HASH) && (ev->keys.event & KEY_MOD_LONG)) == false))
+			{
+				confirmClear = false;
+
+				if (KEYCHECK_SHORTUP(ev->keys, KEY_GREEN))
+				{
+					lastHeardInitList();
+					lastHeardClearLastID();
+					menuLastHeardInit();
+					promptsInit(true); // Stack "Empty List" VP.
+				}
+
+				menuLastHeardUpdateScreen(true, displayLHDetails, false);
+
+				if (nonVolatileSettings.audioPromptMode >= AUDIO_PROMPT_MODE_VOICE_THRESHOLD)
+				{
+					voicePromptsPlay();
+				}
+			}
 			return;
 		}
 	}
@@ -418,10 +457,7 @@ void menuLastHeardHandleEvent(uiEvent_t *ev)
 		{
 			if (currentMenu == MENU_LAST_HEARD) // Only allowed within LH menu
 			{
-				lastHeardInitList();
-				lastHeardClearLastID();
-				menuLastHeardInit();
-				promptsInit(true); // Stack "Empty List" VP.
+				confirmClear = true; // Fork: cleared after GREEN (see above)
 				isDirty = true;
 			}
 		}
@@ -479,6 +515,7 @@ void menuLastHeardInit(void)
 	selectedItem = NULL;
 	firstDisplayed = 0;
 	displayLHDetails = false;
+	confirmClear = false;
 	lastHeardCount = uiDataGlobal.lastHeardCount;
 	menuLastHeardExitCode = MENU_STATUS_SUCCESS;
 }

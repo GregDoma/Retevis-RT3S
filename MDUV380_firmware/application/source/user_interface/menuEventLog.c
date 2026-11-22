@@ -182,14 +182,18 @@ menuStatus_t menuEventLog(uiEvent_t *ev, bool isFirstRun)
 		{
 			if (confirmClear)
 			{
-				if (KEYCHECK_SHORTUP(ev->keys, KEY_GREEN))
+				// decided on the key release: the press of GREEN cancelled, then its release left the screen
+				if (ev->keys.event & KEY_MOD_UP)
 				{
-					eventLogClear();
-					selected = 0;
-					soundSetMelody(MELODY_ACK_BEEP);
+					if (KEYCHECK_SHORTUP(ev->keys, KEY_GREEN))
+					{
+						eventLogClear();
+						selected = 0;
+						soundSetMelody(MELODY_ACK_BEEP);
+					}
+					confirmClear = false;
+					updateScreen();
 				}
-				confirmClear = false;
-				updateScreen();
 			}
 			else if (KEYCHECK_SHORTUP(ev->keys, KEY_RED) || KEYCHECK_SHORTUP(ev->keys, KEY_GREEN))
 			{
