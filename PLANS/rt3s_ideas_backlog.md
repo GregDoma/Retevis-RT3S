@@ -52,6 +52,7 @@ Status legend: **done**, **in progress**, *idea*.
 | 18b | Low-vision EMCOM style **EMCOM contr**: white / yellow on black (night amber / red), bold text, 8x16 channel frequency, thick S-meter | **done** (2026-11-22) | same option row and shape cues as mono; untested on hardware |
 | 19 | SSTV++ (issue #13): frequency on the SSTV screen, Doppler from the satellite mode, pictures saved to flash + web download | *in progress* | see *SSTV++* below |
 | 20 | UI refresh, stage 1 (EMCOM styles): TX view, APRS messages, message boxes / notifications | **done** (2026-11-22) | see *UI refresh* below; untested on hardware |
+| 20b | UI refresh, stage 2 (EMCOM styles): PACE, Radio check, Event log, Coverage, Position, SSTV | **done** (2026-11-22) | see *UI refresh* below; untested on hardware |
 
 ## EMCOM mono style (done, #18)
 
@@ -147,6 +148,32 @@ Classic stays as it is. Mock-ups: `docs/screens/render_refresh.py`.
    kind as a word and a glyph shape (info disc, warning triangle, error square, question
    diamond), long lines wrapped; squelch / volume / power as a value card. Kind: `UI_ALERT_*`,
    from the buttons / notification ID or given by the caller (`uiNotificationShowKind()`).
+
+**Stage 2 (done, 2026-11-22):** the field tool screens. Shared helpers in `uiEmcom.c`
+(`emcomUiTitle` with a counter, `emcomUiStrip`, `emcomUiChip` solid / outline, `emcomUiText`
+bold in contr, `emcomUiKeyValue`, `emcomUiKeyBar`, `emcomUiConfirmBar`), menu theme items only, no
+static data. Mock-ups: `docs/screens/render_tools.py` (`tools_*.png`, one row per style). Keys
+unchanged; the clear confirmations (`0`, then `GREEN` on its release) show `CLEAR ...?` +
+`GRN YES  ANY NO` in the key bar.
+
+1. **PACE**: strip with the slot the radio is on (`ON P` + role, `OFF PLAN`, `VFO`) and `n/4 SET`;
+   two-line rows: letter block, channel name, frequency / mode, role, state chip `ON` (solid),
+   `EMPTY` / `DELETED` (outlined).
+2. **Radio check**: strip `RX` / `IDLE`, S units, dBm, length of the over; last report in 16x32
+   with a rating chip `OK` / `WEAK` / `POOR`, words, details; older reports as rows with the
+   same chips.
+3. **Event log**: strip with the full date and type of the selected entry; rows of time / type
+   chip / text; the whole selected text above the key bar (8x16 in contr when it fits).
+4. **Coverage**: strip state chip (`REC` / `NO FIX` / `STOP` / `FULL`), interval, memory used;
+   points in the title; the level in 16x32 with `GOOD` / `WEAK` / `GAP`; with the shape cues weak
+   samples are striped and gaps only a tick on the graph; session min / max, GPS locator.
+5. **Position**: strip source chip (`GPS` / `MANUAL` / `NO POS`), fix, satellites, HDOP; UTC in
+   the title; MGRS in 8x16, then UTM, degrees, locator / altitude, sun, waypoint. Contr: MGRS
+   easting and northing in 16x32 (one per line, `E` / `N`), locator, altitude, waypoint beside.
+6. **SSTV**: idle screen with the saved pictures in the title, strip (state, `DOPPLER`, tone /
+   VIS, level), the frequency in 8x16. Over a picture only the 8 px bar above it (the picture is
+   never covered): state, mode, frequency or `DOPPLER` (when it fits), `row/120`, then
+   `SAVED n/8`; the progress also as a line along the bottom of the bar.
 
 **Next stages (ideas):** PIN code entry, bearing notification, channel details / VFO special
 modes, contact list and the quick menus in the EMCOM card look.

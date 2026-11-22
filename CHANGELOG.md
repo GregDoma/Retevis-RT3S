@@ -7,6 +7,14 @@ marked *(untested)* build and pass host tests but still need on-air checking.
 
 ## Unreleased
 
+* **UI refresh, stage 2 (EMCOM styles)** *(untested)*: the field tool screens get the title bar with a counter, a status strip, state chips (a word and a shape as well as a colour) and a key bar with the real keys; classic style unchanged, keys unchanged.
+  * **PACE**: the slot the radio is on in the strip (`ON P`, `OFF PLAN`, `VFO`), rows with name, frequency, role and `ON` / `EMPTY` / `DELETED`.
+  * **Radio check**: live `RX` / `IDLE`, S units and over length in the strip; the last report big with `OK` / `WEAK` / `POOR`; older reports with the same chips.
+  * **Event log**: date and type of the selected entry in the strip, the whole text above the key bar (8x16 in *EMCOM contr*).
+  * **Coverage**: `REC` / `NO FIX` / `STOP` / `FULL`, interval and memory in the strip, points in the title, level word `GOOD` / `WEAK` / `GAP`; in mono / contr weak samples are striped and gaps a tick on the graph.
+  * **Position**: source, fix, satellites and HDOP in the strip, UTC in the title; in *EMCOM contr* the MGRS easting and northing in 16x32 (to be read out over the radio).
+  * **SSTV**: idle screen in the same layout (pictures saved in the title, `DOPPLER` chip); over a picture only the 8 px bar above it: state, mode, frequency or `DOPPLER`, `row/120` and a progress line, then `SAVED n/8`.
+  * Clear confirmations (`0`, then `GREEN`) show `CLEAR ...?  GRN YES  ANY NO` in the key bar.
 * **UI refresh, stage 1 (EMCOM styles)** *(untested)*: classic style unchanged.
   * **TX view**: elapsed time in 16x32 and the power level in 8x16; with a TOT a bar of the remaining time, the last 10 s hatched with the countdown in an inverse chip (mono / contr); TX tone / bandwidth or TG / CC / TS and contact; the keys usable while transmitting. The `APRS Tx` banner of a beacon now sits on the panel instead of across the channel name.
   * **TX stopped** (time-out) and **TX blocked** (RX only / out of band) as full screen cards.
