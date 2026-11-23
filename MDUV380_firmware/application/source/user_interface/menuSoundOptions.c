@@ -73,7 +73,7 @@ enum
 	OPTIONS_VOX_THRESHOLD,
 	OPTIONS_VOX_TAIL,
 	OPTIONS_AUDIO_PROMPT_MODE,
-	OPTIONS_AUDIO_DMR_RX_AGC,
+	,
 #if defined(PLATFORM_MD9600)
 	OPTIONS_SPEAKER_CLICK_SUPPRESS,
 #endif
@@ -264,7 +264,7 @@ static void updateScreen(bool isFirstRun)
 					break;
 				case OPTIONS_AUDIO_DMR_RX_AGC:
 					leftSide = currentLanguage->dmr_rx_agc;
-					if (nonVolatileSettings.dmrRxAGC > 0)
+					if (nonVolatileSettings.dmrRxAGC != 0)
 					{
 						snprintf(rightSideVar, SCREEN_LINE_BUFFER_SIZE, "%udB", ((nonVolatileSettings.dmrRxAGC - 4) * 3));
 					}
