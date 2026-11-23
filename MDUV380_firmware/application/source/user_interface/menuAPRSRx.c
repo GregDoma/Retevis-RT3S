@@ -40,8 +40,9 @@
 #define APRS_MON_STATUS_Y       (MENU_HEADER_HEIGHT + 2)
 #define APRS_MON_LIST_Y         (APRS_MON_STATUS_Y + FONT_SIZE_1_HEIGHT + 3)
 #define APRS_MON_BLOCK_H        ((3 * FONT_SIZE_1_HEIGHT) + 1)
-#define APRS_MON_BLOCKS         ((DISPLAY_SIZE_Y - APRS_MON_LIST_Y) / APRS_MON_BLOCK_H)
-#define APRS_MON_RAW_LINES      ((DISPLAY_SIZE_Y - APRS_MON_LIST_Y) / FONT_SIZE_1_HEIGHT)
+#define APRS_MON_FOOTER_H       10     // key bar at the bottom of every view
+#define APRS_MON_BLOCKS         ((DISPLAY_SIZE_Y - APRS_MON_FOOTER_H - APRS_MON_LIST_Y) / APRS_MON_BLOCK_H)
+#define APRS_MON_RAW_LINES      ((DISPLAY_SIZE_Y - APRS_MON_FOOTER_H - APRS_MON_LIST_Y) / FONT_SIZE_1_HEIGHT)
 #define APRS_MON_HEX_PER_LINE   8U
 typedef enum
 {
@@ -90,6 +91,7 @@ static APRS_RX_CCMRAM char aprsMonText[300]; // TNC2 text of the frame shown in 
 static void aprsMonSetEnabled(bool enable);
 static void aprsMonUpdate(uint32_t now);
 static void aprsMonDraw(void);
+static void aprsMonFooter(const char *text, const char *chip, themeItem_t chipColour);
 static bool aprsMonHandleEvent(uiEvent_t *ev);
 
 static void aprsMonSetEnabled(bool enable)
@@ -226,10 +228,8 @@ static void aprsMonDrawHint(const char *line1, const char *line2)
 	displayPrintCentered((APRS_MON_LIST_Y + 22), line1, FONT_SIZE_3);
 	displayThemeApply(THEME_ITEM_FG_RX_FREQ, THEME_ITEM_BG);
 	displayPrintCentered((APRS_MON_LIST_Y + 44), line2, FONT_SIZE_1);
-	displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
-	displayDrawFastHLine(20, (APRS_MON_LIST_Y + 60), (DISPLAY_SIZE_X - 40), true);
-	displayPrintCentered((APRS_MON_LIST_Y + 66), "# VIEW 1 MSG 0 CLR 9 EXIT", FONT_SIZE_1);
 	displayThemeResetToDefault();
+	aprsMonFooter("# VIEW  1 MSG  RED EXIT", NULL, THEME_ITEM_FG_DEFAULT);
 }
 
 // Small filled field with the text in the background colour ("chip")
@@ -245,7 +245,6 @@ static int16_t aprsMonChip(int16_t x, int16_t y, const char *text, themeItem_t c
 }
 
 // Bottom bar (as the EMCOM footer): text on the left, optional chip on the right
-#define APRS_MON_FOOTER_H   10
 static void aprsMonFooter(const char *text, const char *chip, themeItem_t chipColour)
 {
 	int16_t y = (DISPLAY_SIZE_Y - APRS_MON_FOOTER_H);
@@ -335,6 +334,8 @@ static void aprsMonDrawFrames(void)
 		displayDrawFastHLine(0, (y + APRS_MON_BLOCK_H - 1), DISPLAY_SIZE_X, true);
 		displayThemeResetToDefault();
 	}
+
+	aprsMonFooter("* RAW # VIEW 0 CLR RED EXIT", NULL, THEME_ITEM_FG_DEFAULT);
 }
 
 // Raw view: TNC2 text lines, a separator, then the hex dump
@@ -395,6 +396,8 @@ static void aprsMonDrawRaw(void)
 			displayPrintAt(0, y, line, FONT_SIZE_1);
 		}
 	}
+
+	aprsMonFooter("UP/DN SCROLL  * RED BACK", NULL, THEME_ITEM_FG_DEFAULT);
 }
 
 // --- Stations / radar helpers -------------------------------------------------------
@@ -503,7 +506,7 @@ static void aprsMonDrawStations(void)
 }
 
 // --- Radar view (north up, own position in the centre) --------------------------------
-#define RADAR_R    44
+#define RADAR_R    39 // bottom of the ring stays above the key bar
 #define RADAR_CX   (RADAR_R + 3)
 #define RADAR_CY   (APRS_MON_LIST_Y + 9 + RADAR_R)
 #define RADAR_TX   (RADAR_CX + RADAR_R + 6)
@@ -667,7 +670,8 @@ static void aprsMonDrawRadar(void)
 
 	char rng[12];
 	aprsRxFormatDistance(range, rng, sizeof(rng));
-	aprsMonKeyValue(RADAR_TX, (DISPLAY_SIZE_Y - FONT_SIZE_1_HEIGHT - 1), "R", rng, THEME_ITEM_FG_RX_FREQ);
+	aprsMonKeyValue(RADAR_TX, (DISPLAY_SIZE_Y - APRS_MON_FOOTER_H - FONT_SIZE_1_HEIGHT - 2), "R", rng, THEME_ITEM_FG_RX_FREQ);
+	aprsMonFooter("GRN MSG * WPT # VIEW 0 CLR", NULL, THEME_ITEM_FG_DEFAULT);
 }
 
 // --- Messages view ---------------------------------------------------------------------
@@ -747,6 +751,8 @@ static void aprsMonDrawMessages(void)
 		displayDrawFastHLine(0, (y + APRS_MON_BLOCK_H - 1), DISPLAY_SIZE_X, true);
 		displayThemeResetToDefault();
 	}
+
+	aprsMonFooter("GRN REPLY 1 NEW # VIEW", NULL, THEME_ITEM_FG_DEFAULT);
 }
 
 #if defined(APRS_MON_READ_VIEW)
