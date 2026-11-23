@@ -34,12 +34,12 @@ jobs:
           - name: MDUV380 (RT3S / MD-UV380)
             platform: MDUV380
             variant: ""
-          - name: MDUV380 +10W variant
-            platform: MDUV380
-            variant: UV380_PLUS_10W
-          - name: RT84 / DM-1701
-            platform: RT84_DM1701
-            variant: DM1701
+          # - name: MDUV380 +10W variant
+          #   platform: MDUV380
+          #   variant: UV380_PLUS_10W
+          # - name: RT84 / DM-1701
+          #   platform: RT84_DM1701
+          #   variant: DM1701
 
     env:
       IMG_TAG: opengd77-mduv380-builder:latest
