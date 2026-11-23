@@ -266,7 +266,7 @@ static void updateScreen(bool isFirstRun)
 					leftSide = currentLanguage->dmr_rx_agc;
 					if (nonVolatileSettings.dmrRxAGC > 0)
 					{
-						snprintf(rightSideVar, SCREEN_LINE_BUFFER_SIZE, "%udB", ((nonVolatileSettings.dmrRxAGC - 1) * 3));
+						snprintf(rightSideVar, SCREEN_LINE_BUFFER_SIZE, "%ddB", ((nonVolatileSettings.dmrRxAGC - 4) * 3));
 					}
 					else
 					{
