@@ -345,7 +345,7 @@ static float dmrRxAgcBufferGain(uint32_t peak)
 {
 	float target;
 	float g;
-	int setting = nonVolatileSettings.DMR_RxAGC;
+	int setting = nonVolatileSettings.dmrRxAGC;
 
 	if (setting == 0)
 	{
