@@ -283,6 +283,26 @@ static void testUnderrunRecovery(void)
 	assert(state.gain >= 0.5f);
 }
 
+static void testSettingsChangedPreservesLearnedLevels(void)
+{
+	dmrRxAgcState_t activeState = { 6000.0f, 2.5f, 2.0f, { 1000U, 2000U, 3000U } };
+	dmrRxAgcState_t transitionState = { 3000.0f, 0.5f, 0.75f, { 400U, 500U, 600U } };
+
+	// soundDMRRxAGCSettingsChanged applies this production helper to both
+	// states while queued transition buffers remain in the ring.
+	dmrRxAgcSettingsChanged(&activeState);
+	dmrRxAgcSettingsChanged(&transitionState);
+
+	assert(activeState.peakAverage == 6000.0f);
+	assert(activeState.gain == 1.0f);
+	assert(activeState.applied == 1.0f);
+	assert(activeState.history[0] == 0U && activeState.history[1] == 0U && activeState.history[2] == 0U);
+	assert(transitionState.peakAverage == 3000.0f);
+	assert(transitionState.gain == 1.0f);
+	assert(transitionState.applied == 1.0f);
+	assert(transitionState.history[0] == 0U && transitionState.history[1] == 0U && transitionState.history[2] == 0U);
+}
+
 static void testQuietSpeechAndNoise(void)
 {
 	static const uint32_t quietPeaks[] = { 0U, 199U, 200U, 300U, 400U, 500U };
@@ -361,6 +381,7 @@ int main(void)
 	testConsecutiveGainContinuity();
 	testStationIsolation();
 	testUnderrunRecovery();
+	testSettingsChangedPreservesLearnedLevels();
 	testQuietSpeechAndNoise();
 	testExactPcmBypass();
 

@@ -396,6 +396,7 @@ void soundDMRRxAGCSettingsChanged(void)
 {
 	taskENTER_CRITICAL();
 	dmrRxAgcSettingsChanged(&dmrRxAgcState);
+	dmrRxAgcSettingsChanged(&dmrRxAgcTransitionState);
 	taskEXIT_CRITICAL();
 
 	// On platforms where this API is implemented, the same HRC6000 register is
