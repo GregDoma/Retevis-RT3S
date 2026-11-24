@@ -715,10 +715,10 @@ static void exitCallback(void *data)
 		trxSetMicGainFM(nonVolatileSettings.micGainFM);
 		voxSetParameters(nonVolatileSettings.voxThreshold, nonVolatileSettings.voxTailUnits);
 
-		if (nonVolatileSettings.dmrRxAGC == 0)
-		{
-			soundResetDMRRxAGCGain();
-		}
+		// if (nonVolatileSettings.dmrRxAGC == 0)
+		// {
+		// 	soundResetDMRRxAGCGain();
+		// }
 
 #if defined(PLATFORM_RD5R)
 		settingsSetDirty();
