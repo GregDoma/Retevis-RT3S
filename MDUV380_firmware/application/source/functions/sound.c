@@ -148,7 +148,12 @@ static volatile dmrRxAgcState_t dmrRxAgcState =
 {
 	DMR_RX_AGC_DEFAULT_PEAK_SAMPLES, 1.0f, 1.0f, { 0U, 0U, 0U }
 };
+static volatile dmrRxAgcState_t dmrRxAgcTransitionState =
+{
+	DMR_RX_AGC_DEFAULT_PEAK_SAMPLES, 1.0f, 1.0f, { 0U, 0U, 0U }
+};
 static volatile dmrRxAgcOwner_t dmrRxAgcOwner;
+static volatile uint32_t dmrRxAgcTransitionBuffers;
 static volatile uint32_t melodyGeneration;
 
 uint8_t audioAmpGetStatus(void)
@@ -286,6 +291,7 @@ void soundInit(void)
 	wavbuffer_read_idx = 0;
 	wavbuffer_write_idx = 0;
 	wavbuffer_count = 0;
+	dmrRxAgcTransitionBuffers = 0U;
 }
 
 void soundTerminateSound(void)
@@ -352,13 +358,26 @@ static void soundDMRRxAGCSetHardwareGain(int8_t gain)
 
 void soundDMRRxAGCSetStationLevel(const void *station, uint32_t stationId, uint32_t stationToken, uint16_t rememberedPeak)
 {
+	dmrRxAgcOwnerSnapshot_t previousOwner;
+	dmrRxAgcState_t previousState;
+	bool sameOwner;
+	uint32_t queuedBuffers;
+
 	// The caller supplies the intended entry and identity explicitly. The owner
 	// is invalidated before state reset and published only after both are ready.
 	// I2S DMA runs at NVIC priority 6, below FreeRTOS's priority-5 mask, so this
 	// short critical section prevents the ISR from seeing a partial publication.
 	taskENTER_CRITICAL();
+	dmrRxAgcStateCopy(&previousState, &dmrRxAgcState);
+	sameOwner = dmrRxAgcOwnerSnapshot(&dmrRxAgcOwner, &previousOwner) &&
+			(previousOwner.entry == station) &&
+			(previousOwner.stationId == stationId) &&
+			(previousOwner.stationToken == stationToken);
+	queuedBuffers = ((!sameOwner) && (wavbuffer_count > 0)) ? (uint32_t)wavbuffer_count : 0U;
 	dmrRxAgcOwnerInvalidate(&dmrRxAgcOwner);
 	dmrRxAgcSetStationLevel(&dmrRxAgcState, rememberedPeak);
+	dmrRxAgcStateCopy(&dmrRxAgcTransitionState, &previousState);
+	dmrRxAgcTransitionBuffers = queuedBuffers;
 	dmrRxAgcOwnerPublish(&dmrRxAgcOwner, station, stationId, stationToken);
 	taskEXIT_CRITICAL();
 }
@@ -366,8 +385,10 @@ void soundDMRRxAGCSetStationLevel(const void *station, uint32_t stationId, uint3
 void soundDMRRxAGCInvalidateStation(void)
 {
 	taskENTER_CRITICAL();
+	dmrRxAgcStateCopy(&dmrRxAgcTransitionState, &dmrRxAgcState);
 	dmrRxAgcOwnerInvalidate(&dmrRxAgcOwner);
 	dmrRxAgcSetStationLevel(&dmrRxAgcState, 0U);
+	dmrRxAgcTransitionBuffers = (wavbuffer_count > 0) ? (uint32_t)wavbuffer_count : 0U;
 	taskEXIT_CRITICAL();
 }
 
@@ -394,6 +415,7 @@ bool soundRefillData(uint32_t bufNum)
 		{
 			uint8_t setting = nonVolatileSettings.dmrRxAGC;
 			uint32_t peak = 0;
+			bool transitionBuffer = (dmrRxAgcTransitionBuffers > 0U);
 
 			if ((setting == 0U) || voicePromptsIsPlaying())
 			{
@@ -404,6 +426,7 @@ bool soundRefillData(uint32_t bufNum)
 					i2s_Tx_Buffer[bufNum][j][2 * i] = (uint16_t)dmrRxAgcReadPcmSample(audioAndHotspotDataBuffer.wavbuffer[wavbuffer_read_idx], i);
 				}
 				dmrRxAgcSetBypass(&dmrRxAgcState);
+				dmrRxAgcSetBypass(&dmrRxAgcTransitionState);
 			}
 			else
 			{
@@ -414,9 +437,13 @@ bool soundRefillData(uint32_t bufNum)
 				// Only a coherent owner may update the persistent AGC state. A
 				// transition or list reset uses an isolated state so its bounded
 				// limiter output remains audible without learning across stations.
-				if (ownerValid)
+				if (ownerValid && !transitionBuffer)
 				{
 					dmrRxAgcStateCopy(&processingState, &dmrRxAgcState);
+				}
+				else if (transitionBuffer)
+				{
+					dmrRxAgcStateCopy(&processingState, &dmrRxAgcTransitionState);
 				}
 				else
 				{
@@ -450,7 +477,12 @@ bool soundRefillData(uint32_t bufNum)
 					sampleGain = dmrRxAgcInterpolatedGain(from, gain, gainStep, i);
 					i2s_Tx_Buffer[bufNum][j][2 * i] = (uint16_t)dmrRxAgcScaleSample(sample, sampleGain);
 				}
-				if (ownerValid && dmrRxAgcOwnerStillCurrent(&dmrRxAgcOwner, &ownerSnapshot))
+				dmrRxAgcSetAppliedGain(&processingState, gain);
+				if (transitionBuffer)
+				{
+					dmrRxAgcStateCopy(&dmrRxAgcTransitionState, &processingState);
+				}
+				else if (ownerValid && dmrRxAgcOwnerStillCurrent(&dmrRxAgcOwner, &ownerSnapshot))
 				{
 					dmrRxAgcStateCopy(&dmrRxAgcState, &processingState);
 					if ((peak > 500U) && (ownerSnapshot.entry != NULL))
@@ -458,6 +490,11 @@ bool soundRefillData(uint32_t bufNum)
 						((LinkItem_t *)ownerSnapshot.entry)->rxAGCGain = (uint16_t)processingState.peakAverage;
 					}
 				}
+			}
+
+			if (dmrRxAgcTransitionBuffers > 0U)
+			{
+				dmrRxAgcTransitionBuffers--;
 			}
 
 			wavbuffer_read_idx = ((wavbuffer_read_idx + 1) % WAV_BUFFER_COUNT);

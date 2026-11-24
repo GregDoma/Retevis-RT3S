@@ -58,6 +58,7 @@ void dmrRxAgcClearHistory(volatile dmrRxAgcState_t *state);
 void dmrRxAgcSetStationLevel(volatile dmrRxAgcState_t *state, uint16_t rememberedPeak);
 void dmrRxAgcSettingsChanged(volatile dmrRxAgcState_t *state);
 void dmrRxAgcSetBypass(volatile dmrRxAgcState_t *state);
+void dmrRxAgcSetAppliedGain(volatile dmrRxAgcState_t *state, float gain);
 float dmrRxAgcProcessPeak(volatile dmrRxAgcState_t *state, uint8_t setting, uint32_t peak);
 float dmrRxAgcTargetForSetting(uint8_t setting);
 

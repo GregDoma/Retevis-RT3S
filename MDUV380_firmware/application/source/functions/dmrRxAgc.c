@@ -124,6 +124,13 @@ void dmrRxAgcSetBypass(volatile dmrRxAgcState_t *state)
 	state->applied = 1.0f;
 }
 
+void dmrRxAgcSetAppliedGain(volatile dmrRxAgcState_t *state, float gain)
+{
+	// The gain returned for a buffer may be peak-limited. Store that actual
+	// ending gain so the next buffer's interpolation starts continuously.
+	state->applied = gain;
+}
+
 float dmrRxAgcTargetForSetting(uint8_t setting)
 {
 	if (setting < 1U)

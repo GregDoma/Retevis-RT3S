@@ -43,14 +43,24 @@ identity guarantee. List reset invalidates the owner before rebuilding the
 list. Station changes reset only the transient median history and output ramp,
 while a recalled `rxAGCGain` supplies the learned peak for a known station.
 
+`codecDecode()` writes each decoded 80-sample block into the next ring slot and
+calls `soundStoreBuffer()` immediately after the AMBE decode. Station identity
+is discovered by `hrc6000HandleLCData()`, then `applicationMain()` calls
+`lastHeardListUpdate()`; therefore a few old slots can already be queued when
+the new owner is published. `soundDMRRxAGCSetStationLevel()` captures the
+bounded `wavbuffer_count` at that transition. Each queued slot is drained in
+order through a local transition state, with peak limiting but no writeback to
+the new station, and the count is decremented as slots are consumed. New
+station PCM that is queued after the ownership update is processed with the new
+station state once the captured old slots have drained. This preserves queued
+audio without pretending that the untagged ring slots carry station metadata.
+
 `soundRefillData()` snapshots the owner before processing. If ownership is
-unknown or changes during processing, it uses a local initialized state and a
-bounded peak limiter; it does not commit median history, gain or learned peak
-data. It does not flush queued decoder audio. The existing ring-buffer
-lifecycle continues to drain queued PCM in order, so a transition can produce
-one bounded buffer from the fallback path without introducing an indiscriminate
-audio gap. An ordinary refill underrun preserves the learned station level and
-clears only transient median history.
+unknown, changes during processing, or the transition-buffer quarantine is
+active, it does not commit median history, gain or learned peak data to the
+station owner. It does not flush queued decoder audio. An ordinary refill
+underrun preserves the learned station level and clears only transient median
+history.
 
 The disabled-AGC and voice-prompt branches copy PCM bytes directly. They do not
 apply gain, interpolation or saturation, including for `INT16_MIN`.
