@@ -372,9 +372,13 @@ void soundDMRRxAGCSettingsChanged(void)
 	dmrRxAgcSettingsChanged(&dmrRxAgcState);
 	taskEXIT_CRITICAL();
 
-	// The HRC6000 gain is a platform-specific fallback. Always put it at the
-	// neutral point when the software AGC is enabled, disabled, or restored.
-	soundDMRRxAGCSetHardwareGain(0);
+	// On platforms where this API is implemented, the same HRC6000 register is
+	// also owned by the volume control while AGC is enabled. Only neutralize it
+	// for the disabled state; enabled-setting changes must not overwrite volume.
+	if (nonVolatileSettings.dmrRxAGC == 0U)
+	{
+		soundDMRRxAGCSetHardwareGain(0);
+	}
 }
 
 bool soundRefillData(uint32_t bufNum)
