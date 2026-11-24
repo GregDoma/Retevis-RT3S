@@ -399,6 +399,18 @@ static bool expandedRxLayoutActive(void)
 	return (dmrCallerLayoutActive() || fmDistanceLayoutActive());
 }
 
+static bool standbyDistanceLayoutActive(const emcomMainInfo_t *info)
+{
+	if ((menuSystemGetRootMenuNumber() != UI_CHANNEL_MODE) || (currentState() != ST_STBY) ||
+			(settingsIsOptionBitSet(BIT_DISPLAY_CHANNEL_DISTANCE) == false) || (DISPLAY_SIZE_Y < 128))
+	{
+		return false;
+	}
+
+	return ((info == NULL) || ((info->isVFO == false) && (info->showDetails == false) &&
+			(info->gotoChannel == 0) && (info->freqEntry == NULL)));
+}
+
 static bool gpsHasFix(void)
 {
 #if defined(HAS_GPS)
@@ -896,6 +908,17 @@ static void drawDetailsPanel(void)
 static void ageString(uint32_t ms, char *buf, size_t size);
 static bool distanceString(bool preferStation, char *label, size_t labelSize, char *distance, size_t distanceSize);
 
+static void drawDistanceLine(bool preferStation)
+{
+	char label[5];
+	char distance[16];
+
+	if (distanceString(preferStation, label, sizeof(label), distance, sizeof(distance)))
+	{
+		keyValue(2, (PANEL_Y3 + 2), label, distance, (strcmp(distance, "--") == 0) ? pal->mut : pal->fg);
+	}
+}
+
 static void drawRxPanel(void)
 {
 	char buf[16];
@@ -918,12 +941,7 @@ static void drawRxPanel(void)
 
 	if (fmDistanceLayoutActive())
 	{
-		char label[5];
-		char distance[16];
-		if (distanceString(false, label, sizeof(label), distance, sizeof(distance)))
-		{
-			keyValue(2, (PANEL_Y3 + 2), label, distance, (strcmp(distance, "--") == 0) ? pal->mut : pal->fg);
-		}
+		drawDistanceLine(false);
 	}
 }
 
@@ -975,12 +993,7 @@ static void drawCallerPanel(void)
 
 	if (dmrCallerLayoutActive())
 	{
-		char label[4];
-		char distance[16];
-		if (distanceString(true, label, sizeof(label), distance, sizeof(distance)))
-		{
-			keyValue(2, (PANEL_Y3 + 2), label, distance, (strcmp(distance, "--") == 0) ? pal->mut : pal->fg);
-		}
+		drawDistanceLine(true);
 	}
 }
 
@@ -1412,7 +1425,8 @@ static void rememberDrawn(emcomState_t st)
 void emcomRenderMain(const emcomMainInfo_t *info)
 {
 	emcomState_t st = currentState();
-	bool expandedRxLayout = expandedRxLayoutActive();
+	bool standbyDistanceLayout = standbyDistanceLayoutActive(info);
+	bool expandedLayout = (expandedRxLayoutActive() || standbyDistanceLayout);
 
 	selectPalette();
 	if (info->isTransmitting)
@@ -1464,12 +1478,16 @@ void emcomRenderMain(const emcomMainInfo_t *info)
 	else
 	{
 		drawParams();
+		if (standbyDistanceLayout)
+		{
+			drawDistanceLine(false);
+		}
 	}
 
 	if (st != ST_TX)
 	{
-		divider((expandedRxLayout ? RX_DIV2_Y : DIV2_Y));
-		drawEmcomRows(expandedRxLayout);
+		divider((expandedLayout ? RX_DIV2_Y : DIV2_Y));
+		drawEmcomRows(expandedLayout);
 	}
 	drawFooter(st);
 
@@ -1626,8 +1644,9 @@ static int16_t alertBand(int16_t h)
 {
 	static const uint8_t mainRows[] = { 12, 17, DIV1_Y, DIV2_Y, (EMCOM_Y2 - 1), (EMCOM_Y3 - 1), (EMCOM_Y3 + 9), FOOTER_Y };
 	static const uint8_t rxRows[] = { 12, 17, DIV1_Y, RX_DIV2_Y, (RX_EMCOM_Y2 - 1), (RX_EMCOM_Y3 - 1), FOOTER_Y };
-	const uint8_t *rows = (expandedRxLayoutActive() ? rxRows : mainRows);
-	size_t rowCount = (expandedRxLayoutActive() ? (sizeof(rxRows) / sizeof(rxRows[0])) : (sizeof(mainRows) / sizeof(mainRows[0])));
+	bool expandedLayout = (expandedRxLayoutActive() || standbyDistanceLayoutActive(NULL));
+	const uint8_t *rows = (expandedLayout ? rxRows : mainRows);
+	size_t rowCount = (expandedLayout ? (sizeof(rxRows) / sizeof(rxRows[0])) : (sizeof(mainRows) / sizeof(mainRows[0])));
 	int16_t y = (int16_t)((DISPLAY_SIZE_Y - h) / 2);
 	int16_t top = 0;
 	int16_t bottom = DISPLAY_SIZE_Y;

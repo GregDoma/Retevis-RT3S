@@ -257,8 +257,9 @@ def footer(s, P, left='14:32Z 19NOV', right=None, rc=None, est=None, blk=False):
 
 
 def screen_standby(P=DARK):
-    s = Screen(P['bg']); status_bar(s, P); bar(s, P, 0); zone_row(s, P); hero(s, P); divs(s, P)
-    params_fm(s, P); emcom_rows(s, P); footer(s, P); return s
+    s = Screen(P['bg']); status_bar(s, P); bar(s, P, 0); zone_row(s, P); hero(s, P); divs(s, P, RX_DIV2_Y)
+    params_fm(s, P); kv(s, P, 2, PANEL_Y3 + 2, 'DIST', '12.3km')
+    emcom_rows(s, P, y1=RX_EMCOM_Y1, y2=RX_EMCOM_Y2, y3=RX_EMCOM_Y3); footer(s, P); return s
 
 
 def screen_rx(P=DARK):
