@@ -6,7 +6,8 @@
  * word (RX green, TX red, SCAN amber, SOS flashing red), UTC clock and
  * position always visible. The classic OpenGD77 screen stays available
  * (Options > Display > Screen style) and is still used for the special
- * modes (VFO sweep, dual watch, frequency entry, channel details).
+ * modes (VFO sweep, dual watch and frequency entry); channel details remains
+ * in the compact EMCOM layout.
  *
  * Use of this source code or binary releases for commercial purposes is
  * strictly forbidden (see license.txt).

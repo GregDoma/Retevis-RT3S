@@ -234,6 +234,15 @@ aligned:
 | EMCOM rows (TX) | time-out timer bar with the remaining time (the last 10 s hatched, the countdown in an inverse chip), TX tone / bandwidth or TG / CC / TS and contact, the keys usable while transmitting |
 | Footer | UTC time and date, key / PTT lock, scan, SOS, `TX OFF` when TX inhibit is on |
 
+The **Show dist** setting in *Options → Display* controls the optional repeater
+distance row on channel-mode standby and during FM channel reception. It is not
+shown during FM VFO reception or DMR reception; DMR reception keeps the extra
+middle row for the second line of caller information. The operator position is
+taken from a valid GPS fix first, with the configured location used as the
+fallback. If the operator position or the selected channel's location is
+unavailable or invalid, the row remains visible as `DIST --` when distance
+display is enabled.
+
 The same style covers the whole UI: menu title bars (accent, capitals,
 list position), full-width selection, square boxes without shadows, soft
 key bars with a green (GREEN key) and a red (RED key) field, the APRS RX,
@@ -244,8 +253,8 @@ boot image is set).
 
 By day the screen is dark; at night (the existing day/night switch and
 auto-night) it uses a red-only palette that keeps night vision. VFO sweep,
-dual watch, frequency entry and the channel details view keep the classic
-screen.
+dual watch and frequency-entry special modes keep the classic screen; channel
+details remains in the EMCOM layout with its compact two-row detail panel.
 
 To give the menus the same colours: *Options → Theme → Day* (then *Night*),
 `*` loads the EMCOM colours (dark by day, red at night), `GREEN` applies,
