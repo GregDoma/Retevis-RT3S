@@ -659,10 +659,10 @@ static void handleEvent(uiEvent_t *ev)
 					{
 						settingsDecrement(nonVolatileSettings.dmrRxAGC, 1);
 
-						if (nonVolatileSettings.dmrRxAGC == 0)
-						{
-							soundResetDMRRxAGCGain();
-						}
+						// if (nonVolatileSettings.dmrRxAGC == 0)
+						// {
+						// 	soundResetDMRRxAGCGain();
+						// }
 					}
 					break;
 #if defined(PLATFORM_MD9600)
