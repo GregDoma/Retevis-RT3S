@@ -9,8 +9,8 @@
  *   20..47  channel number (16x32) + name (8x16) + frequency, or VFO frequency
  *   50      divider
  *   54..73  panel: parameters, or RX level, DMR caller, TX timer
- *   54..84  expanded FM / DMR RX panel: caller ID or RX data plus distance
- *   75      divider (normal screens); 85 on the expanded RX panel
+ *   54..84  expanded FM / DMR RX / TX panel
+ *   75      divider (normal screens); 85 on expanded RX and TX panels
  *   79..106 EMCOM rows: APRS stations / messages / locator, position, last heard
  *   116..127 footer: UTC clock, lock / scan / SOS
  *
@@ -1089,12 +1089,12 @@ static void drawTxRows(int remaining)
 	int16_t barX = 26;
 	int16_t barW = 86;
 	int16_t barH = (pal->large ? 9 : 7);
-	int16_t barY = (EMCOM_Y1 - (pal->large ? 1 : 0));
+	int16_t barY = (RX_EMCOM_Y1 - (pal->large ? 1 : 0));
 
-	text(2, EMCOM_Y1, "TOT", FONT_SIZE_1, pal->mut, false);
+	text(2, RX_EMCOM_Y1, "TOT", FONT_SIZE_1, pal->mut, false);
 	if (remaining < 0)
 	{
-		text(barX, EMCOM_Y1, "off", FONT_SIZE_1, pal->mut, false);
+		text(barX, RX_EMCOM_Y1, "off", FONT_SIZE_1, pal->mut, false);
 	}
 	else
 	{
@@ -1121,16 +1121,16 @@ static void drawTxRows(int remaining)
 		{
 			if (pal->cues)
 			{
-				inverseChip((DISPLAY_SIZE_X - 1), EMCOM_Y1, buf, warnColour(), pal->bg, true);
+				inverseChip((DISPLAY_SIZE_X - 1), RX_EMCOM_Y1, buf, warnColour(), pal->bg, true);
 			}
 			else
 			{
-				text((DISPLAY_SIZE_X - 2), EMCOM_Y1, buf, FONT_SIZE_1_BOLD, warnColour(), true);
+				text((DISPLAY_SIZE_X - 2), RX_EMCOM_Y1, buf, FONT_SIZE_1_BOLD, warnColour(), true);
 			}
 		}
 		else
 		{
-			text((DISPLAY_SIZE_X - 2), EMCOM_Y1, buf, FONT_SIZE_1, pal->fg, true);
+			text((DISPLAY_SIZE_X - 2), RX_EMCOM_Y1, buf, FONT_SIZE_1, pal->fg, true);
 		}
 	}
 
@@ -1140,11 +1140,11 @@ static void drawTxRows(int remaining)
 		char contact[20];
 
 		snprintf(buf, sizeof(buf), "%u", (unsigned)(PCorTG & 0xFFFFFF));
-		keyValue(2, EMCOM_Y2, (((PCorTG >> 24) == PC_CALL_FLAG) ? "PC" : "TG"), buf, pal->fg);
+		keyValue(2, RX_EMCOM_Y2, (((PCorTG >> 24) == PC_CALL_FLAG) ? "PC" : "TG"), buf, pal->fg);
 		snprintf(buf, sizeof(buf), "%u", (unsigned)trxGetDMRColourCode());
-		keyValue(COL2_X, EMCOM_Y2, "CC", buf, pal->fg);
+		keyValue(COL2_X, RX_EMCOM_Y2, "CC", buf, pal->fg);
 		snprintf(buf, sizeof(buf), "%d", (trxGetDMRTimeSlot() + 1));
-		keyValue(COL3_X, EMCOM_Y2, "TS", buf, pal->fg);
+		keyValue(COL3_X, RX_EMCOM_Y2, "TS", buf, pal->fg);
 
 		codeplugUtilConvertBufToString(currentContactData.name, contact, 16);
 		if (nonVolatileSettings.overrideTG != 0)
@@ -1152,15 +1152,15 @@ static void drawTxRows(int remaining)
 			uiUtilityBuildTgOrPCDisplayName(contact, sizeof(contact));
 		}
 		contact[16] = 0;
-		text(2, EMCOM_Y3, contact, FONT_SIZE_1, pal->fg, false);
-		text((DISPLAY_SIZE_X - 2), EMCOM_Y3, "SK1 LH", FONT_SIZE_1, pal->mut, true);
+		text(2, RX_EMCOM_Y3, contact, FONT_SIZE_1, pal->fg, false);
+		text((DISPLAY_SIZE_X - 2), RX_EMCOM_Y3, "SK1 LH", FONT_SIZE_1, pal->mut, true);
 	}
 	else
 	{
 		toneString(currentChannelData->txTone, buf, sizeof(buf));
-		keyValue(2, EMCOM_Y2, "TXT", buf, ((currentChannelData->txTone != CODEPLUG_CSS_TONE_NONE) ? pal->fg : pal->mut));
-		keyValue(COL2_X, EMCOM_Y2, "BW", (trxGetBandwidthIs25kHz() ? "25k" : "12.5k"), pal->fg);
-		text(2, EMCOM_Y3, "SK2 1750  0-9 DTMF", FONT_SIZE_1, pal->mut, false);
+		keyValue(2, RX_EMCOM_Y2, "TXT", buf, ((currentChannelData->txTone != CODEPLUG_CSS_TONE_NONE) ? pal->fg : pal->mut));
+		keyValue(COL2_X, RX_EMCOM_Y2, "BW", (trxGetBandwidthIs25kHz() ? "25k" : "12.5k"), pal->fg);
+		text(2, RX_EMCOM_Y3, "SK2 1750  0-9 DTMF", FONT_SIZE_1, pal->mut, false);
 	}
 }
 
@@ -1491,7 +1491,7 @@ void emcomRenderMain(const emcomMainInfo_t *info)
 		int elapsed = ((remaining >= 0) ? ((int)(currentChannelData->tot * 15U) - t) : t);
 
 		drawTxPanel(info, elapsed);
-		divider(DIV2_Y);
+		divider(RX_DIV2_Y);
 		drawTxRows(remaining);
 	}
 	else if (info->showDetails)
@@ -1603,7 +1603,7 @@ void emcomDrawEmblem(int16_t cx, int16_t ty, themeItem_t waves, themeItem_t mast
 void emcomDrawTxBanner(const char *str)
 {
 	selectPalette();
-	fill(0, (DIV1_Y + 1), DISPLAY_SIZE_X, ((DIV2_Y - DIV1_Y) - 1), pal->tx);
+	fill(0, (DIV1_Y + 1), DISPLAY_SIZE_X, ((RX_DIV2_Y - DIV1_Y) - 1), pal->tx);
 	textRaw((int16_t)((DISPLAY_SIZE_X - (int16_t)(strlen(str) * 16)) / 2), TX_TIMER_Y, str, FONT_SIZE_4, pal->txFg, false);
 	displayThemeResetToDefault();
 }
@@ -1675,7 +1675,8 @@ static int16_t alertBand(int16_t h)
 {
 	static const uint8_t mainRows[] = { 12, 17, DIV1_Y, DIV2_Y, (EMCOM_Y2 - 1), (EMCOM_Y3 - 1), (EMCOM_Y3 + 9), FOOTER_Y };
 	static const uint8_t rxRows[] = { 12, 17, DIV1_Y, RX_DIV2_Y, (RX_EMCOM_Y2 - 1), (RX_EMCOM_Y3 - 1), FOOTER_Y };
-	bool expandedLayout = (expandedRxLayoutActive() || standbyDistanceLayoutActive(NULL));
+	bool expandedLayout = (expandedRxLayoutActive() || standbyDistanceLayoutActive(NULL) ||
+			((currentState() == ST_TX) && (DISPLAY_SIZE_Y >= 128)));
 	const uint8_t *rows = (expandedLayout ? rxRows : mainRows);
 	size_t rowCount = (expandedLayout ? (sizeof(rxRows) / sizeof(rxRows[0])) : (sizeof(mainRows) / sizeof(mainRows[0])));
 	int16_t y = (int16_t)((DISPLAY_SIZE_Y - h) / 2);

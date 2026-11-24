@@ -63,9 +63,9 @@ def tx_screen(P, elapsed=12, total=180, digital=False, pwr='5W'):
     s.text(1, 46, mmss(elapsed), 4 if elapsed < 3600 else 3, P['tx'])
     s.text(W - 2, R.PANEL_Y1 - 1, 'PWR', f1(P), P['mut'], True)
     s.text(W - 2, R.PANEL_Y1 + 6, pwr, 3, P['fg'], True)
-    s.fill(0, R.DIV2_Y, W, 1, P['line'])
+    s.fill(0, R.RX_DIV2_Y, W, 1, P['line'])
     # TOT bar
-    y1, y2, y3 = R.EMCOM_Y1, R.EMCOM_Y2, R.EMCOM_Y3
+    y1, y2, y3 = R.RX_EMCOM_Y1, R.RX_EMCOM_Y2, R.RX_EMCOM_Y3
     s.text(2, y1, 'TOT', f1(P), P['mut'])
     bx, bw = 26, 86
     bh = 9 if P.get('large') else 7
@@ -104,7 +104,7 @@ def tx_screen(P, elapsed=12, total=180, digital=False, pwr='5W'):
 
 def aprs_tx_banner(P):
     s = tx_screen(P)
-    s.fill(0, R.DIV1_Y + 1, W, R.DIV2_Y - R.DIV1_Y - 1, P['tx'])
+    s.fill(0, R.DIV1_Y + 1, W, R.RX_DIV2_Y - R.DIV1_Y - 1, P['tx'])
     t = 'APRS Tx'
     s.text((W - len(t) * 16) // 2, 46, t, 4, P['txFg'])
     return s
