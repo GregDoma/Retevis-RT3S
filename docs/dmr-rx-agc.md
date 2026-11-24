@@ -43,17 +43,47 @@ identity guarantee. List reset invalidates the owner before rebuilding the
 list. Station changes reset only the transient median history and output ramp,
 while a recalled `rxAGCGain` supplies the learned peak for a known station.
 
-`codecDecode()` writes each decoded 80-sample block into the next ring slot and
-calls `soundStoreBuffer()` immediately after the AMBE decode. Station identity
-is discovered by `hrc6000HandleLCData()`, then `applicationMain()` calls
-`lastHeardListUpdate()`; therefore a few old slots can already be queued when
-the new owner is published. `soundDMRRxAGCSetStationLevel()` captures the
-bounded `wavbuffer_count` at that transition. Each queued slot is drained in
-order through a local transition state, with peak limiting but no writeback to
-the new station, and the count is decremented as slots are consumed. New
-station PCM that is queued after the ownership update is processed with the new
-station state once the captured old slots have drained. This preserves queued
-audio without pretending that the untagged ring slots carry station metadata.
+`hrc6000HandleLCData()` identifies a caller and sets `updateLastHeard`; later,
+`applicationMain()` calls `lastHeardListUpdate()`. On the receive path,
+`codecDecode()` runs inside the HRC task's critical section. For every decoded
+block it calls `soundSetupBuffer()`, decodes into that write slot, then calls
+`soundStoreBuffer()` to commit it. Owner publication also uses a task critical
+section. On this single-core firmware, publication therefore cannot interleave
+with an in-flight decoder call: blocks decoded before publication are committed
+before its queue count is captured, and later blocks are queued after the new
+owner is published.
+
+For a station change on the normal receive PCM path,
+`soundDMRRxAGCSetStationLevel()` captures the committed queue count. Rapid
+successive changes recapture the then-current count, so every already-queued
+slot remains quarantined for the latest owner; refreshing the same owner keeps
+its current transition state and count. Those slots drain in FIFO order through
+a transition state with peak limiting and no writeback to the new station.
+`soundRefillData()` and `soundRetrieveBuffer()` both decrement the
+quarantine only when they actually consume a queued slot. The shared
+`dmrRxAgcTransitionBuffersAfterConsume()` helper prevents underflow and clamps
+the count to the number of queue slots remaining. The latter is the transmit
+encoder consumer; normal DMR TX calls
+`codecInit()`/`soundInit()` first, which resets the queue and quarantine.
+
+The shared ring also serves microphone, hotspot-encoded and CPS AMBE-compression
+flows. Station updates during transmit, `USB_MODE_HOTSPOT`, or CPS AMBE
+compression do not create a DMR PCM quarantine. Hotspot queue discard uses
+`soundResetBufferQueue()` to reset the indices, count and quarantine together;
+`soundInit()` also resets all four.
+`soundTerminateSound()` only stops DMA and deliberately leaves queued data and
+its accounting intact. CPS AMBE compression is explicitly marked by
+`isCompressingAMBE`; its raw-buffer count is not treated as a DMR receive queue.
+Closing that CPS compression session discards any residual raw queue through
+`soundResetBufferQueue()` before clearing the mode flag.
+`soundStoreBuffer()` does not increase the count on overflow; underruns do not
+consume a slot or change the quarantine, and normal same-station underruns
+preserve the learned peak. Ring wraparound is handled by the existing modulo
+index updates and does not affect the prefix count.
+
+The queue remains untagged, so correctness relies on the serialized producer
+and owner-publication ordering above and on resetting accounting when a mode
+discards or repurposes the shared ring. No per-slot station metadata is added.
 
 `soundRefillData()` snapshots the owner before processing. If ownership is
 unknown, changes during processing, or the transition-buffer quarantine is

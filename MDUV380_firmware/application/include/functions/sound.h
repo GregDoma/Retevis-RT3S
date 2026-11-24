@@ -88,6 +88,7 @@ extern volatile uint8_t *currentWaveBuffer;
 
 
 void soundInit(void);
+void soundResetBufferQueue(void);
 void soundTerminateSound(void);
 void soundSetMelody(const int16_t *melody);
 void soundCreateSong(const uint8_t *melody);

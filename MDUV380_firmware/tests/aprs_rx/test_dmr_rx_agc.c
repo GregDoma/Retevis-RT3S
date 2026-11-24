@@ -303,6 +303,15 @@ static void testSettingsChangedPreservesLearnedLevels(void)
 	assert(transitionState.history[0] == 0U && transitionState.history[1] == 0U && transitionState.history[2] == 0U);
 }
 
+static void testTransitionBufferAccounting(void)
+{
+	assert(dmrRxAgcTransitionBuffersAfterConsume(3U, 4U) == 2U);
+	assert(dmrRxAgcTransitionBuffersAfterConsume(1U, 0U) == 0U);
+	assert(dmrRxAgcTransitionBuffersAfterConsume(0U, 5U) == 0U);
+	// A stale count is bounded by the queue that remains after consumption.
+	assert(dmrRxAgcTransitionBuffersAfterConsume(5U, 2U) == 2U);
+}
+
 static void testQuietSpeechAndNoise(void)
 {
 	static const uint32_t quietPeaks[] = { 0U, 199U, 200U, 300U, 400U, 500U };
@@ -382,6 +391,7 @@ int main(void)
 	testStationIsolation();
 	testUnderrunRecovery();
 	testSettingsChangedPreservesLearnedLevels();
+	testTransitionBufferAccounting();
 	testQuietSpeechAndNoise();
 	testExactPcmBypass();
 

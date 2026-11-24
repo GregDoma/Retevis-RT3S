@@ -37,6 +37,7 @@
 #include "interfaces/i2s.h"
 #include "functions/blackout.h"
 #include "user_interface/uiGlobals.h"
+#include "usb/usb_com.h"
 
 
 
@@ -294,6 +295,18 @@ void soundInit(void)
 	dmrRxAgcTransitionBuffers = 0U;
 }
 
+// Hotspot mode also uses the shared indices for encoded frames. Discard its
+// queue and any RX-PCM quarantine as one bounded task-context operation.
+void soundResetBufferQueue(void)
+{
+	taskENTER_CRITICAL();
+	wavbuffer_read_idx = 0;
+	wavbuffer_write_idx = 0;
+	wavbuffer_count = 0;
+	dmrRxAgcTransitionBuffers = 0U;
+	taskEXIT_CRITICAL();
+}
+
 void soundTerminateSound(void)
 {
 	I2STerminateTransfers();
@@ -325,6 +338,8 @@ void soundRetrieveBuffer(void)
 		currentWaveBuffer = (uint8_t *)audioAndHotspotDataBuffer.wavbuffer[wavbuffer_read_idx];// cast just to prevent compiler warning
 		wavbuffer_read_idx = ((wavbuffer_read_idx + 1) % WAV_BUFFER_COUNT);
 		wavbuffer_count--;
+		dmrRxAgcTransitionBuffers = dmrRxAgcTransitionBuffersAfterConsume(dmrRxAgcTransitionBuffers,
+				(uint32_t)wavbuffer_count);
 	}
 	taskEXIT_CRITICAL();
 }
@@ -361,7 +376,6 @@ void soundDMRRxAGCSetStationLevel(const void *station, uint32_t stationId, uint3
 	dmrRxAgcOwnerSnapshot_t previousOwner;
 	dmrRxAgcState_t previousState;
 	bool sameOwner;
-	uint32_t queuedBuffers;
 
 	// The caller supplies the intended entry and identity explicitly. The owner
 	// is invalidated before state reset and published only after both are ready.
@@ -373,11 +387,15 @@ void soundDMRRxAGCSetStationLevel(const void *station, uint32_t stationId, uint3
 			(previousOwner.entry == station) &&
 			(previousOwner.stationId == stationId) &&
 			(previousOwner.stationToken == stationToken);
-	queuedBuffers = ((!sameOwner) && (wavbuffer_count > 0)) ? (uint32_t)wavbuffer_count : 0U;
 	dmrRxAgcOwnerInvalidate(&dmrRxAgcOwner);
 	dmrRxAgcSetStationLevel(&dmrRxAgcState, rememberedPeak);
-	dmrRxAgcStateCopy(&dmrRxAgcTransitionState, &previousState);
-	dmrRxAgcTransitionBuffers = queuedBuffers;
+	if (!sameOwner)
+	{
+		dmrRxAgcStateCopy(&dmrRxAgcTransitionState, &previousState);
+		dmrRxAgcTransitionBuffers = ((trxTransmissionEnabled == false) &&
+				(settingsUsbMode != USB_MODE_HOTSPOT) && !isCompressingAMBE &&
+				(wavbuffer_count > 0)) ? (uint32_t)wavbuffer_count : 0U;
+	}
 	dmrRxAgcOwnerPublish(&dmrRxAgcOwner, station, stationId, stationToken);
 	taskEXIT_CRITICAL();
 }
@@ -388,7 +406,9 @@ void soundDMRRxAGCInvalidateStation(void)
 	dmrRxAgcStateCopy(&dmrRxAgcTransitionState, &dmrRxAgcState);
 	dmrRxAgcOwnerInvalidate(&dmrRxAgcOwner);
 	dmrRxAgcSetStationLevel(&dmrRxAgcState, 0U);
-	dmrRxAgcTransitionBuffers = (wavbuffer_count > 0) ? (uint32_t)wavbuffer_count : 0U;
+	dmrRxAgcTransitionBuffers = ((trxTransmissionEnabled == false) &&
+			(settingsUsbMode != USB_MODE_HOTSPOT) && !isCompressingAMBE &&
+			(wavbuffer_count > 0)) ? (uint32_t)wavbuffer_count : 0U;
 	taskEXIT_CRITICAL();
 }
 
@@ -493,13 +513,10 @@ bool soundRefillData(uint32_t bufNum)
 				}
 			}
 
-			if (dmrRxAgcTransitionBuffers > 0U)
-			{
-				dmrRxAgcTransitionBuffers--;
-			}
-
 			wavbuffer_read_idx = ((wavbuffer_read_idx + 1) % WAV_BUFFER_COUNT);
 			wavbuffer_count--;
+			dmrRxAgcTransitionBuffers = dmrRxAgcTransitionBuffersAfterConsume(dmrRxAgcTransitionBuffers,
+					(uint32_t)wavbuffer_count);
 		}
 		return (wavbuffer_count > 0);
 	}

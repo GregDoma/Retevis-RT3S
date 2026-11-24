@@ -62,6 +62,16 @@ void dmrRxAgcSetAppliedGain(volatile dmrRxAgcState_t *state, float gain);
 float dmrRxAgcProcessPeak(volatile dmrRxAgcState_t *state, uint8_t setting, uint32_t peak);
 float dmrRxAgcTargetForSetting(uint8_t setting);
 
+static inline uint32_t dmrRxAgcTransitionBuffersAfterConsume(uint32_t transitionBuffers, uint32_t queuedBuffers)
+{
+	if (transitionBuffers > 0U)
+	{
+		transitionBuffers--;
+	}
+
+	return (transitionBuffers > queuedBuffers) ? queuedBuffers : transitionBuffers;
+}
+
 static inline int16_t dmrRxAgcReadPcmSample(const volatile uint8_t *buffer, uint32_t sampleIndex)
 {
 	uint16_t bits = (uint16_t)buffer[2U * sampleIndex] |
