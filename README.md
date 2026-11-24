@@ -234,6 +234,11 @@ aligned:
 | EMCOM rows (TX) | time-out timer bar with the remaining time (the last 10 s hatched, the countdown in an inverse chip), TX tone / bandwidth or TG / CC / TS and contact, the keys usable while transmitting |
 | Footer | UTC time and date, `RX` / `TX` / `SCAN`, key / PTT lock, SOS, `TX OFF` when TX inhibit is on |
 
+The existing *Options → Display* header settings also apply to the EMCOM status
+bar: **Time in header** replaces the battery readout (unless a low-battery
+warning or forced battery display is active), and **Battery** selects percentage
+or voltage. The footer clock remains available in either case.
+
 The **Show dist** setting in *Options → Display* controls whether the repeater
 distance is calculated on channel-mode standby and during FM channel reception.
 The `DIST` row remains reserved in those layouts and shows `DIST --` when the

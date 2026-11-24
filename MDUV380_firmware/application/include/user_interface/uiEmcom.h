@@ -63,7 +63,7 @@ void emcomSetVfoAllowed(bool allowed); // VFO mode: false in sweep / dual watch 
 void emcomSetChannelAllowed(bool allowed); // channel mode: false for the channel details / direct channel entry
 
 void emcomRenderMain(const emcomMainInfo_t *info); // whole screen, rendered
-void emcomRenderStatusBar(void);                   // rows 0..10 (no render)
+void emcomRenderStatusBar(bool forceBatteryDisplay); // rows 0..10 (no render)
 void emcomDrawBar(int barWidth, bool isTx);        // S-meter / mic level, y 12..14 (no render)
 void emcomDrawRssi(int dBm);                       // S-meter from dBm (no render)
 bool emcomNeedsFullRedraw(uint32_t now);           // state, clock, messages... changed

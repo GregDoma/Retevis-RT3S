@@ -682,12 +682,14 @@ static void toneString(uint16_t tone, char *buf, size_t size)
 	}
 }
 
-void emcomRenderStatusBar(void)
+void emcomRenderStatusBar(bool forceBatteryDisplay)
 {
 	char buf[16];
 	emcomState_t st = currentState();
 	bool isTx = (st == ST_TX);
 	bool digital = (trxGetMode() == RADIO_MODE_DIGITAL);
+	bool batteryIsLow = batteryIsLowWarning();
+	bool displayTime = (settingsIsOptionBitSet(BIT_DISPLAY_TIME_IN_HEADER) && (forceBatteryDisplay == false) && (batteryIsLow == false));
 	uint32_t barCol, fg;
 	int16_t x;
 
@@ -776,30 +778,53 @@ void emcomRenderStatusBar(void)
 		textRaw(x, 2, "a", (beaconing ? FONT_SIZE_1_BOLD : FONT_SIZE_1), (isTx ? fg : (beaconing ? (colourStateRxHeader ? fg : pal->rx) : pal->mut)), false);
 	}
 
-	// Right side: battery icon + %, volume, GPS
+	// Right side: time or battery, volume, GPS. The Display menu controls whether
+	// time replaces the battery readout and whether that readout is percent or voltage.
 	int16_t r = (DISPLAY_SIZE_X - 2);
-	int pct = getBatteryPercentage();
-	bool low = batteryIsLowWarning();
+	bool low = batteryIsLow;
 	uint32_t battCol = (low ? pal->tx : fg);
 
-	if (pal->cues)
+	if (displayTime)
 	{
-		battCol = fg; // low battery: '!' and an inverse chip instead of a colour
-	}
-	colour(battCol);
-	displayDrawRect((r - 13), 2, 12, 7, false);
-	displayFillRect((r - 1), 4, 1, 3, false);
-	displayFillRect((r - 12), 3, (int16_t)CLAMP(((pct * 10) + 50) / 100, 0, 10), 5, false);
-	r -= 16;
-	if (pal->cues && low)
-	{
-		snprintf(buf, sizeof(buf), "!%d%%", pct);
-		r -= inverseChip((r + 2), 2, buf, fg, barCol, true) + 2;
+		struct tm t;
+		time_t_custom secs = uiDataGlobal.dateTimeSecs;
+
+		gmtime_r_Custom(&secs, &t);
+		snprintf(buf, sizeof(buf), "%02d%c%02d", t.tm_hour, (((t.tm_sec % 2) == 0) ? ':' : ' '), t.tm_min);
+		r -= text(r, 2, buf, FONT_SIZE_1, fg, true) + 4;
 	}
 	else
 	{
-		snprintf(buf, sizeof(buf), "%d%%", pct);
-		r -= text(r, 2, buf, FONT_SIZE_1, battCol, true) + 4;
+		int pct = getBatteryPercentage();
+
+		if (pal->cues)
+		{
+			battCol = fg; // low battery: '!' and an inverse chip instead of a colour
+		}
+		colour(battCol);
+		displayDrawRect((r - 13), 2, 12, 7, false);
+		displayFillRect((r - 1), 4, 1, 3, false);
+		displayFillRect((r - 12), 3, (int16_t)CLAMP(((pct * 10) + 50) / 100, 0, 10), 5, false);
+		r -= 16;
+		if (pal->cues && low)
+		{
+			snprintf(buf, sizeof(buf), "!%d%%", pct);
+			r -= inverseChip((r + 2), 2, buf, fg, barCol, true) + 2;
+		}
+		else if (settingsIsOptionBitSet(BIT_BATTERY_VOLTAGE_IN_HEADER))
+		{
+			int volts;
+			int mvolts;
+
+			getBatteryVoltage(&volts, &mvolts);
+			snprintf(buf, sizeof(buf), "%2d.%1dV", volts, mvolts);
+			r -= text(r, 2, buf, FONT_SIZE_1, battCol, true) + 4;
+		}
+		else
+		{
+			snprintf(buf, sizeof(buf), "%d%%", pct);
+			r -= text(r, 2, buf, FONT_SIZE_1, battCol, true) + 4;
+		}
 	}
 
 	int vol = volumeLevel();
@@ -1798,7 +1823,7 @@ void emcomRenderMain(const emcomMainInfo_t *info)
 	colour(pal->bg);
 	displayFillRect(0, 0, DISPLAY_SIZE_X, DISPLAY_SIZE_Y, true);
 
-	emcomRenderStatusBar();
+	emcomRenderStatusBar(false);
 	if (st != ST_TX)
 	{
 		emcomDrawRssi(trxGetRSSIdBm(RADIO_DEVICE_PRIMARY));

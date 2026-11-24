@@ -160,11 +160,12 @@ def kv(s, P, x, y, k, v, c=None):
 
 
 def status_bar(s, P, state='STBY', mode='FMN', pwr='5W', tone='CTR', aprs=True, gps=True, vol=3, batt=78, sos_phase=None,
-               low=False, fix=True):
+               low=False, fix=True, time_header=False, battery_voltage=False, force_battery=False):
     is_tx = state == 'TX'
     cues = P.get('cues', False)
     colour_state_header = (not P.get('night', False)) and (not cues)
     colour_state_rx_header = colour_state_header and state == 'RX'
+    display_time = time_header and (not force_battery) and (not low)
     fg = P['txFg'] if is_tx else (P['bar'] if colour_state_rx_header else P['barFg'])
     s.fill(0, 0, W, STATUS_H, P['tx'] if is_tx else (P['rx'] if colour_state_rx_header else P['bar']))
     if sos_phase is not None:
@@ -196,12 +197,16 @@ def status_bar(s, P, state='STBY', mode='FMN', pwr='5W', tone='CTR', aprs=True, 
         s.text(x, 2, 'a', '1b', fg if (is_tx or colour_state_rx_header) else P['rx'])
     r = W - 2
     bc = P['tx'] if (low and not cues) else fg
-    s.rect(r - 13, 2, 12, 7, bc); s.fill(r - 1, 4, 1, 3, bc); s.fill(r - 12, 3, (batt * 10 + 50) // 100, 5, bc)
-    r -= 16
-    if cues and low:
-        r -= inverse_chip(s, P, r + 2, 2, f'!{batt}%', fg, True, P['tx'] if is_tx else P['bar']) + 2
+    if display_time:
+        r -= s.text(r, 2, '14:32', f1(P), fg, True) + 4
     else:
-        r -= s.text(r, 2, f'{batt}%', f1(P), bc, True) + 4
+        s.rect(r - 13, 2, 12, 7, bc); s.fill(r - 1, 4, 1, 3, bc); s.fill(r - 12, 3, (batt * 10 + 50) // 100, 5, bc)
+        r -= 16
+        if cues and low:
+            r -= inverse_chip(s, P, r + 2, 2, f'!{batt}%', fg, True, P['tx'] if is_tx else P['bar']) + 2
+        else:
+            battery_text = '12.3V' if battery_voltage else f'{batt}%'
+            r -= s.text(r, 2, battery_text, f1(P), bc, True) + 4
     for b in range(4):
         h = 2 * (b + 1)
         bx = r - 8 + b * 2
