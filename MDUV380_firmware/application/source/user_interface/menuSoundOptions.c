@@ -266,7 +266,7 @@ static void updateScreen(bool isFirstRun)
 					leftSide = currentLanguage->dmr_rx_agc;
 					if (nonVolatileSettings.dmrRxAGC > 0)
 					{
-						snprintf(rightSideVar, SCREEN_LINE_BUFFER_SIZE, "%ddB", ((nonVolatileSettings.dmrRxAGC - 4) * 3));
+						snprintf(rightSideVar, SCREEN_LINE_BUFFER_SIZE, "%udB", ((nonVolatileSettings.dmrRxAGC - 1) * 3));
 					}
 					else
 					{
@@ -659,10 +659,10 @@ static void handleEvent(uiEvent_t *ev)
 					{
 						settingsDecrement(nonVolatileSettings.dmrRxAGC, 1);
 
-						// if (nonVolatileSettings.dmrRxAGC == 0)
-						// {
-						// 	soundResetDMRRxAGCGain();
-						// }
+						if (nonVolatileSettings.dmrRxAGC == 0)
+						{
+							soundResetDMRRxAGCGain();
+						}
 					}
 					break;
 #if defined(PLATFORM_MD9600)
