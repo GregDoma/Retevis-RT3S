@@ -249,6 +249,7 @@ static struct
 	bool     sosPhase;
 	int16_t  rxDbm;
 	uint8_t  radioMode;
+	emcomPanel_t panel;
 	bool     isVFO;
 	int16_t  zoneIndex;
 	int16_t  channelIndex;
@@ -558,7 +559,7 @@ static bool channelDistanceRowVisible(const emcomMainInfo_t *info, emcomState_t 
 		return ((st == ST_RX) && (trxGetMode() == RADIO_MODE_ANALOG));
 	}
 
-	return ((panel == EMCOM_PANEL_PARAMS) && (st == ST_STBY) && (info->showDetails == false) &&
+	return ((panel == EMCOM_PANEL_PARAMS) && (st != ST_TX) && (st != ST_SCAN) && (info->showDetails == false) &&
 			(info->gotoChannel == 0) && (info->freqEntry == NULL));
 }
 
@@ -582,6 +583,35 @@ static emcomPanel_t renderedPanel(const emcomMainInfo_t *info, emcomState_t st)
 
 	// drawCallerPanel() falls back to drawParams() when the QSO panel has no
 	// caller data, so only classify it as DMR RX when it will show that panel.
+	if (dmrCallerPanelActive())
+	{
+		return EMCOM_PANEL_DMR_RX;
+	}
+
+	if ((st == ST_RX) && (trxGetMode() == RADIO_MODE_ANALOG))
+	{
+		return EMCOM_PANEL_FM_RX;
+	}
+
+	return EMCOM_PANEL_PARAMS;
+}
+
+// The redraw poll does not have the full emcomMainInfo_t passed to the render
+// entry point, but it still needs to notice a DMR QSO panel ending while the
+// radio state is in the short digital-RX tail. Keep this equivalent to the
+// panel precedence used by renderedPanel().
+static emcomPanel_t currentPanelForRedraw(emcomState_t st)
+{
+	if (st == ST_TX)
+	{
+		return EMCOM_PANEL_TX;
+	}
+
+	if (uiDataGlobal.displayChannelSettings)
+	{
+		return EMCOM_PANEL_DETAILS;
+	}
+
 	if (dmrCallerPanelActive())
 	{
 		return EMCOM_PANEL_DMR_RX;
@@ -1659,7 +1689,7 @@ static void drawFooter(emcomState_t st)
 	}
 }
 
-static void rememberDrawn(emcomState_t st, const emcomMainInfo_t *info,
+static void rememberDrawn(emcomState_t st, const emcomMainInfo_t *info, emcomPanel_t panel,
 		const emcomPositionDisplay_t *position, uint32_t renderedAt)
 {
 	drawn.state = (uint8_t)st;
@@ -1673,6 +1703,7 @@ static void rememberDrawn(emcomState_t st, const emcomMainInfo_t *info,
 	drawn.sosPhase = (((renderedAt / 600U) & 1U) == 0U);
 	drawn.rxDbm = (int16_t)trxGetRSSIdBm(RADIO_DEVICE_PRIMARY);
 	drawn.radioMode = (uint8_t)trxGetMode();
+	drawn.panel = panel;
 	drawn.isVFO = info->isVFO;
 	drawn.zoneIndex = currentZone.NOT_IN_CODEPLUGDATA_indexNumber;
 	drawn.channelIndex = (info->isVFO ? -1 : codeplugGetLastUsedChannelInCurrentZone());
@@ -1803,12 +1834,13 @@ void emcomRenderMain(const emcomMainInfo_t *info)
 
 	displayThemeResetToDefault();
 	displayRender();
-	rememberDrawn(st, info, &positionDisplay, ticksGetMillis());
+	rememberDrawn(st, info, panel, &positionDisplay, ticksGetMillis());
 }
 
 bool emcomNeedsFullRedraw(uint32_t now)
 {
 	emcomState_t st = currentState();
+	emcomPanel_t panel = currentPanelForRedraw(st);
 	bool isVFO = (menuSystemGetRootMenuNumber() == UI_VFO_MODE);
 
 	if (drawn.valid == false)
@@ -1816,7 +1848,7 @@ bool emcomNeedsFullRedraw(uint32_t now)
 		return true;
 	}
 
-	if (((uint8_t)st != drawn.state) || (volumeLevel() != drawn.volume) ||
+	if (((uint8_t)st != drawn.state) || (panel != drawn.panel) || (volumeLevel() != drawn.volume) ||
 			((uiDataGlobal.dateTimeSecs / 60U) != drawn.minute) || (gpsHasFix() != drawn.gpsFix) || (blackoutActive() != drawn.blackout))
 	{
 		return true;

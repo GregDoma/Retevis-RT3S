@@ -317,6 +317,18 @@ def screen_dmr(P=DARK):
     footer(s, P, '14:35Z 19NOV', right='RX', rc=P['rx']); return s
 
 
+def screen_dmr_standby(P=DARK, distance=True):
+    """DMR channel idle immediately after a call, including the stable DIST row."""
+    s = Screen(P['bg']); status_bar(s, P, mode='DMR', tone='TS1', aprs=False); bar(s, P, 0)
+    zone_row(s, P, 'DMR SR7', 'CH 7/16'); hero(s, P, '07', 'SR7L TG260', '439.4250 MHz')
+    divs(s, P, EXPANDED_DIV2_Y)
+    kv(s, P, 2, PANEL_Y1, 'TG', '260'); kv(s, P, 66, PANEL_Y1, 'CC', '1'); kv(s, P, 120, PANEL_Y1, 'TS', '1')
+    s.text(2, PANEL_Y2, 'SR7L TG260', f1(P), P['fg'])
+    kv(s, P, 2, PANEL_Y3, 'DIST', '12.3km' if distance else '--', P['fg'] if distance else P['mut'])
+    emcom_rows(s, P, y1=EXPANDED_ROW_Y1, y2=EXPANDED_ROW_Y2, y3=EXPANDED_ROW_Y3)
+    footer(s, P); return s
+
+
 def screen_dmr_short(P=DARK):
     s = Screen(P['bg']); status_bar(s, P, 'RX', mode='DMR', tone='TS1', aprs=False); bar(s, P, 19)
     zone_row(s, P, 'DMR SR7', 'CH 7/16'); hero(s, P, '07', 'SR7L TG260', '439.4250 MHz')
@@ -362,6 +374,7 @@ def main():
         'emcom_rx.png': screen_rx(distance=True),
         'emcom_tx.png': screen_tx(),
         'emcom_dmr.png': screen_dmr(),
+        'emcom_dmr_standby.png': screen_dmr_standby(),
         'emcom_vfo.png': screen_vfo(),
         'emcom_scan.png': screen_scan(),
         'emcom_sos.png': screen_sos(),
