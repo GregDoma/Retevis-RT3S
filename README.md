@@ -229,7 +229,7 @@ aligned:
 | Status bar | mode / TX / SCAN field, power, CTCSS/DCS or time slot, APRS beacon, GPS fix, volume, battery; RX is shown in the footer |
 | S-meter | 32 segments, S9 and above in amber; mic level while transmitting |
 | Channel | zone and `CH n/m`, channel number (16x32), name, frequency (`TX`, `REV`, `TA` marks); VFO: the frequency in 16x32 |
-| Panel | FM: offset, RX/TX tone, squelch, bandwidth, TOT; DMR: TG/PC, CC, TS, contact. Receiving FM: level in dBm and S units plus a stable reserved repeater-distance row. DMR call: callsign, TG and two-line caller ID. Transmitting: elapsed time in 16x32 and the power level |
+| Panel | FM: offset, RX/TX tone, squelch, bandwidth, TOT; DMR: TG/PC, CC, TS, contact. Receiving FM: level in dBm and S units plus a stable reserved repeater-distance row. Channel scan uses the parameter panel and the same distance row. DMR call: callsign, TG and two-line caller ID. Transmitting: elapsed time in 16x32 and the power level |
 | EMCOM rows | APRS stations heard, unread APRS messages, Maidenhead locator, position (GPS, else the fixed location), last heard (DMR station, or the last APRS station with distance) |
 | EMCOM rows (TX) | time-out timer bar with the remaining time (the last 10 s hatched, the countdown in an inverse chip), TX tone / bandwidth or TG / CC / TS and contact, the keys usable while transmitting |
 | Footer | UTC time and date, `RX` / `TX` / `SCAN`, key / PTT lock, SOS, `TX OFF` when TX inhibit is on |
@@ -244,7 +244,8 @@ the trailing `Z` marker on the Zulu time; with **UTC = Yes**, it shows Zulu
 time only.
 
 The **Show dist** setting in *Options → Display* controls whether the repeater
-distance is calculated on channel-mode standby and during FM channel reception.
+distance is calculated on channel-mode standby, during FM channel reception,
+and on the channel-scan parameter screen.
 The `DIST` row remains reserved in those layouts and is blank when the setting
 is off. With distance enabled, it shows `DIST --` when either location is
 unavailable or invalid. It is not shown during FM VFO reception or DMR

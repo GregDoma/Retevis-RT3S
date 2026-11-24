@@ -382,9 +382,12 @@ def screen_sos(P=DARK):
     params_fm(s, P); emcom_rows(s, P); footer(s, P, right='SOS', rc=P['tx']); return s
 
 
-def screen_scan(P=DARK):
+def screen_scan(P=DARK, distance=True, distance_text='12.3km'):
     s = Screen(P['bg']); status_bar(s, P, 'SCAN', tone=''); bar(s, P, 0); zone_row(s, P, ch='CH 5/16')
-    hero(s, P, '05', 'PSP-LODZ', '149.1500 MHz'); divs(s, P); params_fm(s, P); emcom_rows(s, P)
+    hero(s, P, '05', 'PSP-LODZ', '149.1500 MHz'); divs(s, P, EXPANDED_DIV2_Y); params_fm(s, P)
+    if distance:
+        kv(s, P, 2, PANEL_Y3, 'DIST', distance_text, P['mut'] if distance_text == '--' else P['fg'])
+    emcom_rows(s, P, y1=EXPANDED_ROW_Y1, y2=EXPANDED_ROW_Y2, y3=EXPANDED_ROW_Y3)
     footer(s, P, 'ANY KEY: STOP', 'SCAN', P['scan']); return s
 
 
@@ -396,7 +399,8 @@ def main():
         'emcom_dmr.png': screen_dmr(),
         'emcom_dmr_standby.png': screen_dmr_standby(),
         'emcom_vfo.png': screen_vfo(),
-        'emcom_scan.png': screen_scan(),
+        'emcom_scan.png': screen_scan(distance=True),
+        'emcom_scan_no_distance.png': screen_scan(distance=False),
         'emcom_sos.png': screen_sos(),
         'emcom_night.png': screen_standby(NIGHT),
         'emcom_standby_no_distance.png': screen_standby(distance=False),

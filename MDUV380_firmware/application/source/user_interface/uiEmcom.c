@@ -544,8 +544,8 @@ static bool dmrCallerPanelActive(void)
 // Distance is a channel-mode feature. Keep this decision tied to the panel
 // selected for this render so VFO reception and higher-priority panels cannot
 // accidentally inherit the distance layout. The row remains reserved on the
-// channel standby/FM RX layouts even when the setting is off, so rows below it
-// do not move; drawDistanceLine() leaves that reserved row empty.
+// channel standby/FM RX/scan parameter layouts even when the setting is off,
+// so rows below it do not move; drawDistanceLine() leaves that row empty.
 static bool channelDistanceRowVisible(const emcomMainInfo_t *info, emcomState_t st, emcomPanel_t panel)
 {
 	if ((info == NULL) || info->isVFO || (menuSystemGetRootMenuNumber() != UI_CHANNEL_MODE) ||
@@ -559,7 +559,7 @@ static bool channelDistanceRowVisible(const emcomMainInfo_t *info, emcomState_t 
 		return ((st == ST_RX) && (trxGetMode() == RADIO_MODE_ANALOG));
 	}
 
-	return ((panel == EMCOM_PANEL_PARAMS) && (st != ST_TX) && (st != ST_SCAN) && (info->showDetails == false) &&
+	return ((panel == EMCOM_PANEL_PARAMS) && (st != ST_TX) && (info->showDetails == false) &&
 			(info->gotoChannel == 0) && (info->freqEntry == NULL));
 }
 
