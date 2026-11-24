@@ -8,21 +8,22 @@
  *   17      zone (or VFO) | CH n/m
  *   20..47  channel number (16x32) + name (8x16) + frequency, or VFO frequency
  *   50      divider
- *   54..73  panel: parameters, or RX level, DMR caller, TX timer
- *   54..84  expanded FM / DMR RX / TX panel
- *   75      divider (normal screens); 85 on expanded RX and TX panels
- *   79..106 EMCOM rows: APRS stations / messages / locator, position, last heard
+ *   54..74  panel: parameters, or RX level, DMR caller, TX timer
+ *   75 / 83 compact / expanded lower divider
+ *   79,89,99 compact rows; 86,96,106 expanded rows: APRS, position, last heard
  *   116..127 footer: UTC clock, lock / scan / SOS
  *
  * Use of this source code or binary releases for commercial purposes is
  * strictly forbidden (see license.txt).
  */
 #include <math.h>
+#include <string.h>
 #include "user_interface/uiGlobals.h"
 #include "user_interface/menuSystem.h"
 #include "user_interface/uiUtilities.h"
 #include "user_interface/uiLocalisation.h"
 #include "user_interface/uiEmcom.h"
+#include "user_interface/emcomDistance.h"
 #include "user_interface/uiTextEdit.h"
 #include "functions/settings.h"
 #include "functions/trx.h"
@@ -111,22 +112,70 @@ static const emcomPalette_t PALETTE_CONTRAST_NIGHT =
 #define FREQ_Y          40
 #define NAME_Y_LARGE    23   // contrast: name glyphs in rows 25..35,
 #define FREQ_Y_LARGE    36   // 8x16 frequency under it in rows 38..48
-#define DIV1_Y          50
-#define PANEL_Y1        54
-#define PANEL_Y2        64
-#define PANEL_Y3        74   // DMR RX only: distance to station / repeater
-#define DIV2_Y          75
-#define RX_DIV2_Y       85
-#define RX_EMCOM_Y1     88
-#define RX_EMCOM_Y2     98
-#define RX_EMCOM_Y3     108
-#define EMCOM_Y1        79
-#define EMCOM_Y2        89
-#define EMCOM_Y3        99
+#define EMCOM_SMALL_ROW_PITCH  10
+#define EMCOM_DIV1_Y           50
+#define EMCOM_PANEL_Y1         54
+#define EMCOM_PANEL_Y2         (EMCOM_PANEL_Y1 + EMCOM_SMALL_ROW_PITCH)
+#define EMCOM_PANEL_Y3         (EMCOM_PANEL_Y2 + EMCOM_SMALL_ROW_PITCH)
+#define EMCOM_CHIP_TOP_OFFSET (-1)
+#define EMCOM_CHIP_HEIGHT      10
+
+// FONT_SIZE_3 is an 8x16 cell whose normal glyphs occupy rows +2..+12. Start
+// it at 51 so the first small row at 54 does not overlap its final pixels.
+#define EMCOM_PANEL_LARGE_Y1   51
+
+// The inverse chip occupies y-1..y+8. Keeping the third panel row at 74
+// therefore leaves row 82 clear before the expanded divider at 83.
+#define EMCOM_COMPACT_DIV2_Y  75
+#define EMCOM_EXPANDED_DIV2_Y 83
+
+// FONT_SIZE_1 is an 8-pixel cell. The expanded rows end at 113, leaving
+// rows 114..115 clear before the 116 footer on 128-line displays.
+#define EMCOM_COMPACT_ROW_Y1  79
+#define EMCOM_COMPACT_ROW_Y2  (EMCOM_COMPACT_ROW_Y1 + EMCOM_SMALL_ROW_PITCH)
+#define EMCOM_COMPACT_ROW_Y3  (EMCOM_COMPACT_ROW_Y2 + EMCOM_SMALL_ROW_PITCH)
+#define EMCOM_EXPANDED_ROW_Y1 86
+#define EMCOM_EXPANDED_ROW_Y2 (EMCOM_EXPANDED_ROW_Y1 + EMCOM_SMALL_ROW_PITCH)
+#define EMCOM_EXPANDED_ROW_Y3 (EMCOM_EXPANDED_ROW_Y2 + EMCOM_SMALL_ROW_PITCH)
+
 #define FOOTER_Y        (DISPLAY_SIZE_Y - 12) // 116 on 128-line screens, 108 on the DM-1701
 #define S9_SEGMENT      20
 #define COL2_X          66   // parameter columns
 #define COL3_X          120
+
+typedef struct
+{
+	int16_t lowerDividerY;
+	int16_t rowY1;
+	int16_t rowY2;
+	int16_t rowY3;
+	bool    expanded;
+} emcomLayout_t;
+
+static const emcomLayout_t EMCOM_LAYOUT_COMPACT =
+{
+	.lowerDividerY = EMCOM_COMPACT_DIV2_Y,
+	.rowY1 = EMCOM_COMPACT_ROW_Y1,
+	.rowY2 = EMCOM_COMPACT_ROW_Y2,
+	.rowY3 = EMCOM_COMPACT_ROW_Y3,
+	.expanded = false
+};
+
+static const emcomLayout_t EMCOM_LAYOUT_EXPANDED =
+{
+	.lowerDividerY = EMCOM_EXPANDED_DIV2_Y,
+	.rowY1 = EMCOM_EXPANDED_ROW_Y1,
+	.rowY2 = EMCOM_EXPANDED_ROW_Y2,
+	.rowY3 = EMCOM_EXPANDED_ROW_Y3,
+	.expanded = true
+};
+
+_Static_assert((EMCOM_PANEL_Y2 - EMCOM_PANEL_Y1) == EMCOM_SMALL_ROW_PITCH, "EMCOM panel pitch");
+_Static_assert((EMCOM_PANEL_Y3 - EMCOM_PANEL_Y2) == EMCOM_SMALL_ROW_PITCH, "EMCOM panel pitch");
+_Static_assert(EMCOM_EXPANDED_DIV2_Y >= (EMCOM_PANEL_Y3 + EMCOM_CHIP_TOP_OFFSET + EMCOM_CHIP_HEIGHT),
+		"EMCOM expanded panel clearance");
+_Static_assert((EMCOM_COMPACT_ROW_Y3 + FONT_SIZE_1_HEIGHT + 1) <= FOOTER_Y, "EMCOM compact rows fit");
+_Static_assert((DISPLAY_SIZE_Y < 128) || ((EMCOM_EXPANDED_ROW_Y3 + FONT_SIZE_1_HEIGHT + 2) <= FOOTER_Y), "EMCOM expanded rows fit");
 
 typedef enum
 {
@@ -136,9 +185,54 @@ typedef enum
 	ST_SCAN
 } emcomState_t;
 
+typedef enum
+{
+	EMCOM_PANEL_PARAMS = 0,
+	EMCOM_PANEL_DETAILS,
+	EMCOM_PANEL_DMR_RX,
+	EMCOM_PANEL_FM_RX,
+	EMCOM_PANEL_TX
+} emcomPanel_t;
+
+typedef enum
+{
+	EMCOM_POSITION_NONE = 0,
+	EMCOM_POSITION_GPS,
+	EMCOM_POSITION_CONFIGURED
+} emcomPositionSource_t;
+
+typedef struct
+{
+	bool                    valid;
+	emcomPositionSource_t   source;
+	double                  latitude;
+	double                  longitude;
+} emcomPosition_t;
+
+#define EMCOM_POSITION_TEXT_SIZE   24
+#define EMCOM_MAIDENHEAD_SIZE      7
+#define EMCOM_DISTANCE_TEXT_SIZE   16
+#define EMCOM_POSITION_REFRESH_MS  1000U
+
+typedef struct
+{
+	bool                    valid;
+	emcomPositionSource_t   source;
+	char                    positionText[EMCOM_POSITION_TEXT_SIZE];
+	char                    maidenhead[EMCOM_MAIDENHEAD_SIZE];
+	bool                    repeaterDistanceVisible;
+	char                    repeaterDistance[EMCOM_DISTANCE_TEXT_SIZE];
+	bool                    aprsDistanceVisible;
+	char                    aprsDistance[EMCOM_DISTANCE_TEXT_SIZE];
+} emcomPositionDisplay_t;
+
 static const emcomPalette_t *pal = &PALETTE_DARK;
 static bool vfoAllowed = true;
 static bool channelAllowed = true;
+static const emcomLayout_t *lastRenderedLayout = &EMCOM_LAYOUT_COMPACT;
+static const emcomLayout_t *lastTxLayout =
+		((DISPLAY_SIZE_Y >= 128) ? &EMCOM_LAYOUT_EXPANDED : &EMCOM_LAYOUT_COMPACT);
+static emcomPanel_t lastRenderedPanel = EMCOM_PANEL_PARAMS;
 
 // last drawn state (for emcomNeedsFullRedraw)
 static struct
@@ -151,11 +245,24 @@ static struct
 	bool     gpsFix;
 	bool     sosPhase;
 	int16_t  rxDbm;
+	uint8_t  radioMode;
+	bool     isVFO;
+	int16_t  zoneIndex;
+	int16_t  channelIndex;
+	uint32_t rxFreq;
+	uint32_t txFreq;
+	bool     positionVisible;
 	bool     positionValid;
-	double   positionLat;
-	double   positionLon;
+	emcomPositionSource_t positionSource;
+	char     positionText[EMCOM_POSITION_TEXT_SIZE];
+	char     maidenhead[EMCOM_MAIDENHEAD_SIZE];
+	bool     repeaterDistanceVisible;
+	char     repeaterDistance[EMCOM_DISTANCE_TEXT_SIZE];
+	bool     aprsDistanceVisible;
+	char     aprsDistance[EMCOM_DISTANCE_TEXT_SIZE];
 	bool     distanceEnabled;
 	uint32_t lastFull;
+	uint32_t lastPositionRendered;
 	bool     valid;
 	bool     blackout;
 } drawn;
@@ -220,7 +327,7 @@ static int16_t inverseChip(int16_t x, int16_t y, const char *str, uint32_t rgb, 
 	{
 		x -= w;
 	}
-	fill(x, (y - 1), w, 10, rgb);
+	fill(x, (y + EMCOM_CHIP_TOP_OFFSET), w, EMCOM_CHIP_HEIGHT, rgb);
 	textRaw((x + 2), y, str, FONT_SIZE_1_BOLD, textRgb, false);
 	return w;
 }
@@ -367,48 +474,134 @@ static emcomState_t currentState(void)
 	return ST_STBY;
 }
 
-static bool ownPosition(double *lat, double *lon)
+static bool ownPositionInfo(emcomPosition_t *position)
 {
-#if defined(I2S_APRS_RX)
-	return aprsRxOwnPosition(lat, lon);
-#else
-	if (settingsLocationIsValid())
+	if (position == NULL)
 	{
-		*lat = settingsLocationGetLatitude();
-		*lon = settingsLocationGetLongitude();
+		return false;
+	}
+
+	memset(position, 0, sizeof(*position));
+	position->source = EMCOM_POSITION_NONE;
+
+#if defined(I2S_APRS_RX)
+	bool gpsPositionAvailable = false;
+
+#if defined(HAS_GPS)
+	gpsPositionAvailable = ((gpsData.Status & (GPS_STATUS_HAS_FIX | GPS_STATUS_HAS_POSITION)) ==
+			(GPS_STATUS_HAS_FIX | GPS_STATUS_HAS_POSITION));
+#endif
+
+	if (aprsRxOwnPosition(&position->latitude, &position->longitude) &&
+			emcomCoordinateIsValid(position->latitude, position->longitude))
+	{
+		position->valid = true;
+		position->source = (gpsPositionAvailable ? EMCOM_POSITION_GPS : EMCOM_POSITION_CONFIGURED);
 		return true;
 	}
-	return false;
+
+	// aprsRxOwnPosition() is GPS-first, but validate its result before using
+	// it and retain the configured-location fallback for an invalid GPS fix.
 #endif
+	if (settingsLocationIsValid())
+	{
+		position->latitude = settingsLocationGetLatitude();
+		position->longitude = settingsLocationGetLongitude();
+		if (emcomCoordinateIsValid(position->latitude, position->longitude))
+		{
+			position->valid = true;
+			position->source = EMCOM_POSITION_CONFIGURED;
+			return true;
+		}
+	}
+	return false;
 }
 
-static bool dmrCallerLayoutActive(void)
+static bool ownPosition(double *lat, double *lon)
+{
+	emcomPosition_t position;
+
+	if (ownPositionInfo(&position) == false)
+	{
+		return false;
+	}
+
+	*lat = position.latitude;
+	*lon = position.longitude;
+	return true;
+}
+
+static bool dmrCallerPanelActive(void)
 {
 	return ((trxGetMode() == RADIO_MODE_DIGITAL) && uiDataGlobal.isDisplayingQSOData &&
-			(LinkHead != NULL) && (HRC6000GetReceivedTgOrPcId() != 0) && (DISPLAY_SIZE_Y >= 128));
+			(LinkHead != NULL) && (HRC6000GetReceivedTgOrPcId() != 0));
 }
 
-static bool fmDistanceLayoutActive(void)
+// Distance is a channel-mode feature. Keep this decision tied to the panel
+// selected for this render so VFO reception and higher-priority panels cannot
+// accidentally inherit the distance layout.
+static bool channelDistanceDisplayEligible(const emcomMainInfo_t *info, emcomState_t st, emcomPanel_t panel)
 {
-	return ((trxGetMode() == RADIO_MODE_ANALOG) && (currentState() == ST_RX) &&
-			settingsIsOptionBitSet(BIT_DISPLAY_CHANNEL_DISTANCE) && (DISPLAY_SIZE_Y >= 128));
-}
-
-static bool expandedRxLayoutActive(void)
-{
-	return (dmrCallerLayoutActive() || fmDistanceLayoutActive());
-}
-
-static bool standbyDistanceLayoutActive(const emcomMainInfo_t *info)
-{
-	if ((menuSystemGetRootMenuNumber() != UI_CHANNEL_MODE) || (currentState() != ST_STBY) ||
+	if ((info == NULL) || info->isVFO || (menuSystemGetRootMenuNumber() != UI_CHANNEL_MODE) ||
 			(settingsIsOptionBitSet(BIT_DISPLAY_CHANNEL_DISTANCE) == false) || (DISPLAY_SIZE_Y < 128))
 	{
 		return false;
 	}
 
-	return ((info == NULL) || ((info->isVFO == false) && (info->showDetails == false) &&
-			(info->gotoChannel == 0) && (info->freqEntry == NULL)));
+	if (panel == EMCOM_PANEL_FM_RX)
+	{
+		return ((st == ST_RX) && (trxGetMode() == RADIO_MODE_ANALOG));
+	}
+
+	return ((panel == EMCOM_PANEL_PARAMS) && (st == ST_STBY) && (info->showDetails == false) &&
+			(info->gotoChannel == 0) && (info->freqEntry == NULL));
+}
+
+static emcomPanel_t renderedPanel(const emcomMainInfo_t *info, emcomState_t st)
+{
+	if (st == ST_TX)
+	{
+		return EMCOM_PANEL_TX;
+	}
+
+	if (info->showDetails)
+	{
+		return EMCOM_PANEL_DETAILS;
+	}
+
+	// drawCallerPanel() falls back to drawParams() when the QSO panel has no
+	// caller data, so only classify it as DMR RX when it will show that panel.
+	if (dmrCallerPanelActive())
+	{
+		return EMCOM_PANEL_DMR_RX;
+	}
+
+	if ((st == ST_RX) && (trxGetMode() == RADIO_MODE_ANALOG))
+	{
+		return EMCOM_PANEL_FM_RX;
+	}
+
+	return EMCOM_PANEL_PARAMS;
+}
+
+static const emcomLayout_t *layoutForPanel(emcomPanel_t panel, bool channelDistanceEligible)
+{
+	bool expanded = channelDistanceEligible;
+
+	if (DISPLAY_SIZE_Y >= 128)
+	{
+		switch (panel)
+		{
+			case EMCOM_PANEL_DMR_RX:
+			case EMCOM_PANEL_TX:
+				expanded = true;
+				break;
+			default:
+				break;
+		}
+	}
+
+	return (expanded ? &EMCOM_LAYOUT_EXPANDED : &EMCOM_LAYOUT_COMPACT);
 }
 
 static bool gpsHasFix(void)
@@ -822,11 +1015,11 @@ static void drawParams(void)
 		char contact[20];
 
 		snprintf(buf, sizeof(buf), "%u", (unsigned)(PCorTG & 0xFFFFFF));
-		keyValue(2, PANEL_Y1, (((PCorTG >> 24) == PC_CALL_FLAG) ? "PC" : "TG"), buf, pal->fg);
+		keyValue(2, EMCOM_PANEL_Y1, (((PCorTG >> 24) == PC_CALL_FLAG) ? "PC" : "TG"), buf, pal->fg);
 		snprintf(buf, sizeof(buf), "%u", (unsigned)trxGetDMRColourCode());
-		keyValue(COL2_X, PANEL_Y1, "CC", buf, pal->fg);
+		keyValue(COL2_X, EMCOM_PANEL_Y1, "CC", buf, pal->fg);
 		snprintf(buf, sizeof(buf), "%d", (trxGetDMRTimeSlot() + 1));
-		keyValue(COL3_X, PANEL_Y1, "TS", buf, pal->fg);
+		keyValue(COL3_X, EMCOM_PANEL_Y1, "TS", buf, pal->fg);
 
 		codeplugUtilConvertBufToString(currentContactData.name, contact, 16);
 		if (nonVolatileSettings.overrideTG != 0)
@@ -834,7 +1027,7 @@ static void drawParams(void)
 			uiUtilityBuildTgOrPCDisplayName(contact, sizeof(contact));
 		}
 		contact[16] = 0;
-		text(2, PANEL_Y2, contact, FONT_SIZE_1, pal->fg, false);
+		text(2, EMCOM_PANEL_Y2, contact, FONT_SIZE_1, pal->fg, false);
 		return;
 	}
 
@@ -847,19 +1040,19 @@ static void drawParams(void)
 	{
 		snprintf(buf, sizeof(buf), "%c%d.%03d", ((offset < 0) ? '-' : '+'), (int)(abs(offset) / 1000), (int)(abs(offset) % 1000));
 	}
-	keyValue(2, PANEL_Y1, "OFS", buf, pal->fg);
+	keyValue(2, EMCOM_PANEL_Y1, "OFS", buf, pal->fg);
 
 	toneString(currentChannelData->rxTone, buf, sizeof(buf));
-	keyValue(COL2_X, PANEL_Y1, "RXT", buf, pal->fg);
+	keyValue(COL2_X, EMCOM_PANEL_Y1, "RXT", buf, pal->fg);
 
 	uint8_t sql = ((currentChannelData->sql == 0) ? nonVolatileSettings.squelchDefaults[currentRadioDevice->trxCurrentBand[TRX_RX_FREQ_BAND]] : currentChannelData->sql);
 	snprintf(buf, sizeof(buf), "%d", (int)((sql > 0) ? (5 * (sql - 1)) : 0));
-	keyValue(COL3_X, PANEL_Y1, "SQL", buf, pal->fg);
+	keyValue(COL3_X, EMCOM_PANEL_Y1, "SQL", buf, pal->fg);
 
-	keyValue(2, PANEL_Y2, "BW", (trxGetBandwidthIs25kHz() ? "25k" : "12.5k"), pal->fg);
+	keyValue(2, EMCOM_PANEL_Y2, "BW", (trxGetBandwidthIs25kHz() ? "25k" : "12.5k"), pal->fg);
 
 	toneString(currentChannelData->txTone, buf, sizeof(buf));
-	keyValue(COL2_X, PANEL_Y2, "TXT", buf, pal->fg);
+	keyValue(COL2_X, EMCOM_PANEL_Y2, "TXT", buf, pal->fg);
 
 	if (currentChannelData->tot == 0)
 	{
@@ -869,7 +1062,7 @@ static void drawParams(void)
 	{
 		totString(buf, sizeof(buf));
 	}
-	keyValue(COL3_X, PANEL_Y2, "TOT", buf, pal->fg);
+	keyValue(COL3_X, EMCOM_PANEL_Y2, "TOT", buf, pal->fg);
 }
 
 // SK1 held: both frequencies with their tones / CC and TS
@@ -878,7 +1071,7 @@ static void drawDetailsPanel(void)
 	char f[16], t[16];
 	bool digital = (trxGetMode() == RADIO_MODE_DIGITAL);
 
-	fill(0, (PANEL_Y1 - 1), 2, ((PANEL_Y2 + 9) - (PANEL_Y1 - 1)), pal->info);
+	fill(0, (EMCOM_PANEL_Y1 - 1), 2, ((EMCOM_PANEL_Y2 + 9) - (EMCOM_PANEL_Y1 - 1)), pal->info);
 
 	formatFreq(currentChannelData->rxFreq, f, sizeof(f), false);
 	if (digital)
@@ -889,8 +1082,8 @@ static void drawDetailsPanel(void)
 	{
 		toneString(currentChannelData->rxTone, t, sizeof(t));
 	}
-	keyValue(6, PANEL_Y1, "RX", f, pal->fg);
-	text((DISPLAY_SIZE_X - 2), PANEL_Y1, t, FONT_SIZE_1, pal->info, true);
+	keyValue(6, EMCOM_PANEL_Y1, "RX", f, pal->fg);
+	text((DISPLAY_SIZE_X - 2), EMCOM_PANEL_Y1, t, FONT_SIZE_1, pal->info, true);
 
 	formatFreq(currentChannelData->txFreq, f, sizeof(f), false);
 	if (digital)
@@ -901,51 +1094,147 @@ static void drawDetailsPanel(void)
 	{
 		toneString(currentChannelData->txTone, t, sizeof(t));
 	}
-	keyValue(6, PANEL_Y2, "TX", f, pal->fg);
-	text((DISPLAY_SIZE_X - 2), PANEL_Y2, t, FONT_SIZE_1, pal->info, true);
+	keyValue(6, EMCOM_PANEL_Y2, "TX", f, pal->fg);
+	text((DISPLAY_SIZE_X - 2), EMCOM_PANEL_Y2, t, FONT_SIZE_1, pal->info, true);
 }
 
-static void ageString(uint32_t ms, char *buf, size_t size);
-static bool distanceString(bool preferStation, char *label, size_t labelSize, char *distance, size_t distanceSize);
-
-static void drawDistanceLine(bool preferStation)
+static bool channelLocation(double *lat, double *lon)
 {
-	char label[5];
-	char distance[16];
+	uint32_t fixedLat;
+	uint32_t fixedLon;
 
-	if (distanceString(preferStation, label, sizeof(label), distance, sizeof(distance)))
+	// Keep the codeplug's existing convention: either zero component means
+	// that the channel has no configured location.
+	if (codeplugChannelLocationIsValid(currentChannelData) == false)
 	{
-		keyValue(2, (PANEL_Y3 + 2), label, distance, (strcmp(distance, "--") == 0) ? pal->mut : pal->fg);
+		return false;
 	}
+
+	fixedLat = ((currentChannelData->locationLat2 << 16) | (currentChannelData->locationLat1 << 8) | currentChannelData->locationLat0);
+	fixedLon = ((currentChannelData->locationLon2 << 16) | (currentChannelData->locationLon1 << 8) | currentChannelData->locationLon0);
+	*lat = latLonFixed24ToDouble(fixedLat);
+	*lon = latLonFixed24ToDouble(fixedLon);
+	return emcomCoordinateIsValid(*lat, *lon);
 }
 
-static void drawRxPanel(void)
+static void formatPosition(double lat, double lon, char *buf, size_t size)
+{
+	uint32_t la = (uint32_t)((fabs(lat) * 10000.0) + 0.5);
+	uint32_t lo = (uint32_t)((fabs(lon) * 10000.0) + 0.5);
+
+	snprintf(buf, size, "%u.%04u%c %u.%04u%c", (unsigned)(la / 10000U), (unsigned)(la % 10000U), ((lat >= 0.0) ? 'N' : 'S'),
+			(unsigned)(lo / 10000U), (unsigned)(lo % 10000U), ((lon >= 0.0) ? 'E' : 'W'));
+}
+
+static bool aprsLastHeardCanShowDistance(void)
+{
+#if defined(I2S_APRS_RX)
+	return (((trxGetMode() != RADIO_MODE_DIGITAL) || (uiDataGlobal.lastHeardCount == 0) || (LinkHead == NULL)) &&
+			(aprsRxStationCount() > 0));
+#else
+	return false;
+#endif
+}
+
+static void buildPositionDisplay(const emcomPosition_t *position, bool repeaterDistanceVisible,
+		emcomPositionDisplay_t *display)
+{
+	memset(display, 0, sizeof(*display));
+	display->valid = position->valid;
+	display->source = position->source;
+	snprintf(display->repeaterDistance, sizeof(display->repeaterDistance), "--");
+	snprintf(display->aprsDistance, sizeof(display->aprsDistance), "--");
+
+	if (position->valid)
+	{
+		coordsToMaidenhead((uint8_t *)display->maidenhead, position->latitude, position->longitude);
+		display->maidenhead[EMCOM_MAIDENHEAD_SIZE - 1] = 0;
+		formatPosition(position->latitude, position->longitude, display->positionText, sizeof(display->positionText));
+	}
+
+	if (repeaterDistanceVisible)
+	{
+		double targetLat, targetLon;
+
+		display->repeaterDistanceVisible = true;
+		if (position->valid && channelLocation(&targetLat, &targetLon))
+		{
+			emcomFormatDistanceMeters(distanceBetweenTwoCoords(position->latitude, position->longitude,
+					targetLat, targetLon, false), display->repeaterDistance, sizeof(display->repeaterDistance));
+		}
+	}
+
+#if defined(I2S_APRS_RX)
+	if (position->valid && aprsLastHeardCanShowDistance())
+	{
+		const aprsRxStation_t *station = aprsRxStationGet(0);
+
+		if ((station != NULL) && station->hasPos)
+		{
+			aprsRxFormatDistance(aprsRxDistanceKm(position->latitude, position->longitude, station->lat, station->lon),
+					display->aprsDistance, sizeof(display->aprsDistance));
+			display->aprsDistanceVisible = true;
+		}
+	}
+#endif
+}
+
+static bool positionDisplayChanged(const emcomPositionDisplay_t *position)
+{
+	if (position->valid != drawn.positionValid)
+	{
+		return true;
+	}
+
+	if (position->valid && ((strcmp(position->positionText, drawn.positionText) != 0) ||
+			(strcmp(position->maidenhead, drawn.maidenhead) != 0)))
+	{
+		return true;
+	}
+
+	if ((position->repeaterDistanceVisible != drawn.repeaterDistanceVisible) ||
+			(position->repeaterDistanceVisible && (strcmp(position->repeaterDistance, drawn.repeaterDistance) != 0)))
+	{
+		return true;
+	}
+
+	return ((position->aprsDistanceVisible != drawn.aprsDistanceVisible) ||
+			(position->aprsDistanceVisible && (strcmp(position->aprsDistance, drawn.aprsDistance) != 0)));
+}
+
+static void drawDistanceLine(const emcomPositionDisplay_t *position)
+{
+	keyValue(2, EMCOM_PANEL_Y3, "DIST", position->repeaterDistance,
+			(strcmp(position->repeaterDistance, "--") == 0) ? pal->mut : pal->fg);
+}
+
+static void drawRxPanel(bool showChannelDistance, const emcomPositionDisplay_t *position)
 {
 	char buf[16];
 	int dBm = trxGetRSSIdBm(RADIO_DEVICE_PRIMARY);
 
 	snprintf(buf, sizeof(buf), "%ddBm", dBm);
-	text(2, (PANEL_Y1 - 2), buf, FONT_SIZE_3, pal->rx, false);
+	text(2, EMCOM_PANEL_LARGE_Y1, buf, FONT_SIZE_3, pal->rx, false);
 	sUnits(dBm, buf, sizeof(buf));
-	text((DISPLAY_SIZE_X - 2), (PANEL_Y1 - 2), buf, FONT_SIZE_3, pal->rx, true);
+	text((DISPLAY_SIZE_X - 2), EMCOM_PANEL_LARGE_Y1, buf, FONT_SIZE_3, pal->rx, true);
 
 	if (currentChannelData->rxTone != CODEPLUG_CSS_TONE_NONE)
 	{
 		toneString(currentChannelData->rxTone, buf, sizeof(buf));
-		keyValue(2, (PANEL_Y2 + 2), "RXT", buf, pal->rx);
+		keyValue(2, EMCOM_PANEL_Y2, "RXT", buf, pal->rx);
 	}
 	else
 	{
-		text(2, (PANEL_Y2 + 2), "CARRIER", FONT_SIZE_1, pal->mut, false);
+		text(2, EMCOM_PANEL_Y2, "CARRIER", FONT_SIZE_1, pal->mut, false);
 	}
 
-	if (fmDistanceLayoutActive())
+	if (showChannelDistance)
 	{
-		drawDistanceLine(false);
+		drawDistanceLine(position);
 	}
 }
 
-static void drawCallerPanel(void)
+static void drawCallerPanel(const emcomLayout_t *layout)
 {
 	char buf[40];
 	char call[SCREEN_LINE_BUFFER_SIZE]; // getCallsignOnly() writes up to SCREEN_LINE_BUFFER_SIZE bytes
@@ -964,17 +1253,17 @@ static void drawCallerPanel(void)
 
 	getCallsignOnly(call, src);
 	call[12] = 0;
-	text(2, (PANEL_Y1 - 2), call, FONT_SIZE_3, pal->rx, false);
+	text(2, EMCOM_PANEL_LARGE_Y1, call, FONT_SIZE_3, pal->rx, false);
 
 	if ((LinkHead->talkGroupOrPcId >> 24) == PC_CALL_FLAG)
 	{
-		text((DISPLAY_SIZE_X - 2), PANEL_Y1, "PRIVATE", FONT_SIZE_1_BOLD, pal->scan, true);
+		text((DISPLAY_SIZE_X - 2), EMCOM_PANEL_Y1, "PRIVATE", FONT_SIZE_1_BOLD, pal->scan, true);
 	}
 	else
 	{
 		snprintf(buf, sizeof(buf), "%u", (unsigned)(LinkHead->talkGroupOrPcId & 0xFFFFFF));
 		int16_t w = (int16_t)((strlen(buf) + 3) * 6);
-		keyValue((DISPLAY_SIZE_X - 2 - w), PANEL_Y1, "TG", buf, pal->fg);
+		keyValue((DISPLAY_SIZE_X - 2 - w), EMCOM_PANEL_Y1, "TG", buf, pal->fg);
 	}
 
 	// Rest of the contact / TA text (name, place) uses the two small lines
@@ -1021,10 +1310,10 @@ static void drawCallerPanel(void)
 	}
 	snprintf(callerLine2, sizeof(callerLine2), "%s", line2);
 	callerLine2[sizeof(callerLine2) - 1] = 0;
-	text(2, (PANEL_Y2 + 2), callerLine1, FONT_SIZE_1, pal->fg, false);
-	if (dmrCallerLayoutActive() && (callerLine2[0] != 0))
+	text(2, EMCOM_PANEL_Y2, callerLine1, FONT_SIZE_1, pal->fg, false);
+	if (layout->expanded && (callerLine2[0] != 0))
 	{
-		text(2, (PANEL_Y3 + 2), callerLine2, FONT_SIZE_1, pal->fg, false);
+		text(2, EMCOM_PANEL_Y3, callerLine2, FONT_SIZE_1, pal->fg, false);
 	}
 }
 
@@ -1075,26 +1364,26 @@ static void drawTxPanel(const emcomMainInfo_t *info, int elapsed)
 	mmss(elapsed, buf, sizeof(buf));
 	text(1, TX_TIMER_Y, buf, ((elapsed >= 3600) ? FONT_SIZE_3 : FONT_SIZE_4), pal->tx, false);
 
-	text((DISPLAY_SIZE_X - 2), (PANEL_Y1 - 1), "PWR", FONT_SIZE_1, pal->mut, true);
+	text((DISPLAY_SIZE_X - 2), (EMCOM_PANEL_Y1 - 1), "PWR", FONT_SIZE_1, pal->mut, true);
 	snprintf(buf, sizeof(buf), "%s%s", getPowerLevel(powerLevel), getPowerLevelUnit(powerLevel));
-	text((DISPLAY_SIZE_X - 2), (PANEL_Y1 + 6), buf, FONT_SIZE_3, pal->fg, true);
+	text((DISPLAY_SIZE_X - 2), (EMCOM_PANEL_Y1 + 6), buf, FONT_SIZE_3, pal->fg, true);
 }
 
 // TX: the time-out timer bar (remaining time, hatched in the last seconds), the TG / tone and the key hints,
 // in place of the EMCOM rows
-static void drawTxRows(int remaining)
+static void drawTxRows(const emcomLayout_t *layout, int remaining)
 {
 	char buf[24];
 	bool digital = (trxGetMode() == RADIO_MODE_DIGITAL);
 	int16_t barX = 26;
 	int16_t barW = 86;
 	int16_t barH = (pal->large ? 9 : 7);
-	int16_t barY = (RX_EMCOM_Y1 - (pal->large ? 1 : 0));
+	int16_t barY = (layout->rowY1 - (pal->large ? 1 : 0));
 
-	text(2, RX_EMCOM_Y1, "TOT", FONT_SIZE_1, pal->mut, false);
+	text(2, layout->rowY1, "TOT", FONT_SIZE_1, pal->mut, false);
 	if (remaining < 0)
 	{
-		text(barX, RX_EMCOM_Y1, "off", FONT_SIZE_1, pal->mut, false);
+		text(barX, layout->rowY1, "off", FONT_SIZE_1, pal->mut, false);
 	}
 	else
 	{
@@ -1121,16 +1410,16 @@ static void drawTxRows(int remaining)
 		{
 			if (pal->cues)
 			{
-				inverseChip((DISPLAY_SIZE_X - 1), RX_EMCOM_Y1, buf, warnColour(), pal->bg, true);
+				inverseChip((DISPLAY_SIZE_X - 1), layout->rowY1, buf, warnColour(), pal->bg, true);
 			}
 			else
 			{
-				text((DISPLAY_SIZE_X - 2), RX_EMCOM_Y1, buf, FONT_SIZE_1_BOLD, warnColour(), true);
+				text((DISPLAY_SIZE_X - 2), layout->rowY1, buf, FONT_SIZE_1_BOLD, warnColour(), true);
 			}
 		}
 		else
 		{
-			text((DISPLAY_SIZE_X - 2), RX_EMCOM_Y1, buf, FONT_SIZE_1, pal->fg, true);
+			text((DISPLAY_SIZE_X - 2), layout->rowY1, buf, FONT_SIZE_1, pal->fg, true);
 		}
 	}
 
@@ -1140,11 +1429,11 @@ static void drawTxRows(int remaining)
 		char contact[20];
 
 		snprintf(buf, sizeof(buf), "%u", (unsigned)(PCorTG & 0xFFFFFF));
-		keyValue(2, RX_EMCOM_Y2, (((PCorTG >> 24) == PC_CALL_FLAG) ? "PC" : "TG"), buf, pal->fg);
+		keyValue(2, layout->rowY2, (((PCorTG >> 24) == PC_CALL_FLAG) ? "PC" : "TG"), buf, pal->fg);
 		snprintf(buf, sizeof(buf), "%u", (unsigned)trxGetDMRColourCode());
-		keyValue(COL2_X, RX_EMCOM_Y2, "CC", buf, pal->fg);
+		keyValue(COL2_X, layout->rowY2, "CC", buf, pal->fg);
 		snprintf(buf, sizeof(buf), "%d", (trxGetDMRTimeSlot() + 1));
-		keyValue(COL3_X, RX_EMCOM_Y2, "TS", buf, pal->fg);
+		keyValue(COL3_X, layout->rowY2, "TS", buf, pal->fg);
 
 		codeplugUtilConvertBufToString(currentContactData.name, contact, 16);
 		if (nonVolatileSettings.overrideTG != 0)
@@ -1152,25 +1441,16 @@ static void drawTxRows(int remaining)
 			uiUtilityBuildTgOrPCDisplayName(contact, sizeof(contact));
 		}
 		contact[16] = 0;
-		text(2, RX_EMCOM_Y3, contact, FONT_SIZE_1, pal->fg, false);
-		text((DISPLAY_SIZE_X - 2), RX_EMCOM_Y3, "SK1 LH", FONT_SIZE_1, pal->mut, true);
+		text(2, layout->rowY3, contact, FONT_SIZE_1, pal->fg, false);
+		text((DISPLAY_SIZE_X - 2), layout->rowY3, "SK1 LH", FONT_SIZE_1, pal->mut, true);
 	}
 	else
 	{
 		toneString(currentChannelData->txTone, buf, sizeof(buf));
-		keyValue(2, RX_EMCOM_Y2, "TXT", buf, ((currentChannelData->txTone != CODEPLUG_CSS_TONE_NONE) ? pal->fg : pal->mut));
-		keyValue(COL2_X, RX_EMCOM_Y2, "BW", (trxGetBandwidthIs25kHz() ? "25k" : "12.5k"), pal->fg);
-		text(2, RX_EMCOM_Y3, "SK2 1750  0-9 DTMF", FONT_SIZE_1, pal->mut, false);
+		keyValue(2, layout->rowY2, "TXT", buf, ((currentChannelData->txTone != CODEPLUG_CSS_TONE_NONE) ? pal->fg : pal->mut));
+		keyValue(COL2_X, layout->rowY2, "BW", (trxGetBandwidthIs25kHz() ? "25k" : "12.5k"), pal->fg);
+		text(2, layout->rowY3, "SK2 1750  0-9 DTMF", FONT_SIZE_1, pal->mut, false);
 	}
-}
-
-static void formatPosition(double lat, double lon, char *buf, size_t size)
-{
-	uint32_t la = (uint32_t)((fabs(lat) * 10000.0) + 0.5);
-	uint32_t lo = (uint32_t)((fabs(lon) * 10000.0) + 0.5);
-
-	snprintf(buf, size, "%u.%04u%c %u.%04u%c", (unsigned)(la / 10000U), (unsigned)(la % 10000U), ((lat >= 0.0) ? 'N' : 'S'),
-			(unsigned)(lo / 10000U), (unsigned)(lo % 10000U), ((lon >= 0.0) ? 'E' : 'W'));
 }
 
 static void ageString(uint32_t ms, char *buf, size_t size)
@@ -1191,77 +1471,13 @@ static void ageString(uint32_t ms, char *buf, size_t size)
 	}
 }
 
-static bool distanceString(bool preferStation, char *label, size_t labelSize, char *distance, size_t distanceSize)
-{
-	double ownLat, ownLon;
-	double targetLat = 0.0, targetLon = 0.0;
-	bool targetIsValid = false;
-
-	if (settingsIsOptionBitSet(BIT_DISPLAY_CHANNEL_DISTANCE) == false)
-	{
-		return false;
-	}
-
-	snprintf(label, labelSize, "DST");
-	snprintf(distance, distanceSize, "--");
-
-	if (ownPosition(&ownLat, &ownLon) == false)
-	{
-		return true;
-	}
-
-	// A DMR GPS position is more specific than the configured repeater
-	// position, so prefer it whenever the received station supplied one.
-	if (preferStation && (LinkHead != NULL) && isfinite(LinkHead->locationLat) && isfinite(LinkHead->locationLon) &&
-			(LinkHead->locationLat >= -90.0) && (LinkHead->locationLat <= 90.0) &&
-			(LinkHead->locationLon >= -180.0) && (LinkHead->locationLon <= 180.0))
-	{
-		targetLat = LinkHead->locationLat;
-		targetLon = LinkHead->locationLon;
-		snprintf(label, labelSize, "STN");
-		targetIsValid = true;
-	}
-	else if (codeplugChannelLocationIsValid(currentChannelData))
-	{
-		uint32_t lat = ((currentChannelData->locationLat2 << 16) | (currentChannelData->locationLat1 << 8) | currentChannelData->locationLat0);
-		uint32_t lon = ((currentChannelData->locationLon2 << 16) | (currentChannelData->locationLon1 << 8) | currentChannelData->locationLon0);
-
-		targetLat = latLonFixed24ToDouble(lat);
-		targetLon = latLonFixed24ToDouble(lon);
-		snprintf(label, labelSize, "DIST");
-		targetIsValid = true;
-	}
-
-	if (targetIsValid)
-	{
-		uint32_t meters = (uint32_t)(distanceBetweenTwoCoords(ownLat, ownLon, targetLat, targetLon, false) + 0.5);
-
-		if (meters < 1000U)
-		{
-			snprintf(distance, distanceSize, "%um", (unsigned)meters);
-		}
-		else if (meters < 100000U)
-		{
-			snprintf(distance, distanceSize, "%u.%ukm", (unsigned)(meters / 1000U), (unsigned)((meters % 1000U) / 100U));
-		}
-		else
-		{
-			snprintf(distance, distanceSize, "%ukm", (unsigned)((meters + 500U) / 1000U));
-		}
-	}
-
-	return true;
-}
-
-static void drawEmcomRows(bool expandedRxLayout)
+static void drawEmcomRows(const emcomLayout_t *layout, const emcomPositionDisplay_t *position)
 {
 	char buf[28];
-	double lat, lon;
-	bool hasPos = ownPosition(&lat, &lon);
 	uint32_t now = ticksGetMillis();
-	int16_t y1 = (expandedRxLayout ? RX_EMCOM_Y1 : EMCOM_Y1);
-	int16_t y2 = (expandedRxLayout ? RX_EMCOM_Y2 : EMCOM_Y2);
-	int16_t y3 = (expandedRxLayout ? RX_EMCOM_Y3 : EMCOM_Y3);
+	int16_t y1 = layout->rowY1;
+	int16_t y2 = layout->rowY2;
+	int16_t y3 = layout->rowY3;
 
 #if defined(I2S_APRS_RX)
 	uint32_t unread = aprsRxMessageUnreadCount();
@@ -1279,7 +1495,7 @@ static void drawEmcomRows(bool expandedRxLayout)
 	if (unread)
 	{
 		snprintf(buf, sizeof(buf), "MSG %u", (unsigned)unread);
-		fill(72, (y1 - 1), (int16_t)((strlen(buf) * 6) + 4), 10, pal->info);
+		fill(72, (y1 + EMCOM_CHIP_TOP_OFFSET), (int16_t)((strlen(buf) * 6) + 4), EMCOM_CHIP_HEIGHT, pal->info);
 		text(74, y1, buf, FONT_SIZE_1_BOLD, pal->bg, false);
 	}
 	else
@@ -1288,17 +1504,11 @@ static void drawEmcomRows(bool expandedRxLayout)
 	}
 #endif
 
-	if (hasPos)
+	if (position->valid)
 	{
-		char loc[10];
-
-		memset(loc, 0, sizeof(loc));
-		coordsToMaidenhead((uint8_t *)loc, lat, lon);
-		loc[6] = 0;
-		text((DISPLAY_SIZE_X - 2), y1, loc, FONT_SIZE_1, (gpsHasFix() ? pal->rx : pal->fg), true);
-
-		formatPosition(lat, lon, buf, sizeof(buf));
-		keyValue(2, y2, "POS", buf, pal->fg);
+		text((DISPLAY_SIZE_X - 2), y1, position->maidenhead, FONT_SIZE_1,
+				((position->source == EMCOM_POSITION_GPS) ? pal->rx : pal->fg), true);
+		keyValue(2, y2, "POS", position->positionText, pal->fg);
 	}
 	else
 	{
@@ -1324,11 +1534,9 @@ static void drawEmcomRows(bool expandedRxLayout)
 		char age[8];
 
 		ageString((now - st->lastMs), age, sizeof(age));
-		if (st->hasPos && hasPos)
+		if (position->aprsDistanceVisible)
 		{
-			char dist[12];
-			aprsRxFormatDistance(aprsRxDistanceKm(lat, lon, st->lat, st->lon), dist, sizeof(dist));
-			snprintf(buf, sizeof(buf), "%s %s %s", st->name, dist, age);
+			snprintf(buf, sizeof(buf), "%s %s %s", st->name, position->aprsDistance, age);
 		}
 		else
 		{
@@ -1434,7 +1642,8 @@ static void drawFooter(emcomState_t st)
 	}
 }
 
-static void rememberDrawn(emcomState_t st)
+static void rememberDrawn(emcomState_t st, const emcomMainInfo_t *info,
+		const emcomPositionDisplay_t *position, uint32_t renderedAt)
 {
 	drawn.state = (uint8_t)st;
 	drawn.volume = (int8_t)volumeLevel();
@@ -1444,11 +1653,44 @@ static void rememberDrawn(emcomState_t st)
 	drawn.stations = aprsRxStationCount();
 #endif
 	drawn.gpsFix = gpsHasFix();
-	drawn.sosPhase = (((ticksGetMillis() / 600U) & 1U) == 0U);
+	drawn.sosPhase = (((renderedAt / 600U) & 1U) == 0U);
 	drawn.rxDbm = (int16_t)trxGetRSSIdBm(RADIO_DEVICE_PRIMARY);
-	drawn.positionValid = ownPosition(&drawn.positionLat, &drawn.positionLon);
+	drawn.radioMode = (uint8_t)trxGetMode();
+	drawn.isVFO = info->isVFO;
+	drawn.zoneIndex = currentZone.NOT_IN_CODEPLUGDATA_indexNumber;
+	drawn.channelIndex = (info->isVFO ? -1 : codeplugGetLastUsedChannelInCurrentZone());
+	drawn.rxFreq = ((currentChannelData != NULL) ? currentChannelData->rxFreq : 0U);
+	drawn.txFreq = ((currentChannelData != NULL) ? currentChannelData->txFreq : 0U);
+	drawn.positionVisible = (st != ST_TX);
+	drawn.positionValid = (drawn.positionVisible && position->valid);
+	drawn.positionSource = (drawn.positionVisible ? position->source : EMCOM_POSITION_NONE);
+	drawn.positionText[0] = 0;
+	drawn.maidenhead[0] = 0;
+	drawn.repeaterDistanceVisible = false;
+	drawn.repeaterDistance[0] = 0;
+	drawn.aprsDistanceVisible = false;
+	drawn.aprsDistance[0] = 0;
+	if (drawn.positionVisible)
+	{
+		if (position->valid)
+		{
+			snprintf(drawn.positionText, sizeof(drawn.positionText), "%s", position->positionText);
+			snprintf(drawn.maidenhead, sizeof(drawn.maidenhead), "%s", position->maidenhead);
+		}
+		if (position->repeaterDistanceVisible)
+		{
+			drawn.repeaterDistanceVisible = true;
+			snprintf(drawn.repeaterDistance, sizeof(drawn.repeaterDistance), "%s", position->repeaterDistance);
+		}
+		if (position->aprsDistanceVisible)
+		{
+			drawn.aprsDistanceVisible = true;
+			snprintf(drawn.aprsDistance, sizeof(drawn.aprsDistance), "%s", position->aprsDistance);
+		}
+		drawn.lastPositionRendered = renderedAt;
+	}
 	drawn.distanceEnabled = settingsIsOptionBitSet(BIT_DISPLAY_CHANNEL_DISTANCE);
-	drawn.lastFull = ticksGetMillis();
+	drawn.lastFull = renderedAt;
 	drawn.blackout = blackoutActive();
 	drawn.valid = true;
 }
@@ -1456,14 +1698,32 @@ static void rememberDrawn(emcomState_t st)
 void emcomRenderMain(const emcomMainInfo_t *info)
 {
 	emcomState_t st = currentState();
-	bool standbyDistanceLayout = standbyDistanceLayoutActive(info);
-	bool expandedLayout = (expandedRxLayoutActive() || standbyDistanceLayout);
+	emcomPanel_t panel;
+	const emcomLayout_t *layout;
+	emcomPosition_t position;
+	emcomPositionDisplay_t positionDisplay;
+	bool showChannelDistance;
+	memset(&position, 0, sizeof(position));
 
 	selectPalette();
 	if (info->isTransmitting)
 	{
 		st = ST_TX;
 	}
+	panel = renderedPanel(info, st);
+	showChannelDistance = channelDistanceDisplayEligible(info, st, panel);
+	layout = layoutForPanel(panel, showChannelDistance);
+	lastRenderedPanel = panel;
+	lastRenderedLayout = layout;
+	if (panel == EMCOM_PANEL_TX)
+	{
+		lastTxLayout = layout;
+	}
+	if (st != ST_TX)
+	{
+		ownPositionInfo(&position);
+	}
+	buildPositionDisplay(&position, showChannelDistance, &positionDisplay);
 
 	colour(pal->bg);
 	displayFillRect(0, 0, DISPLAY_SIZE_X, DISPLAY_SIZE_Y, true);
@@ -1481,7 +1741,7 @@ void emcomRenderMain(const emcomMainInfo_t *info)
 
 	drawZoneRow(info);
 	drawHero(info, st);
-	divider(DIV1_Y);
+	divider(EMCOM_DIV1_Y);
 
 	if (st == ST_TX)
 	{
@@ -1491,45 +1751,46 @@ void emcomRenderMain(const emcomMainInfo_t *info)
 		int elapsed = ((remaining >= 0) ? ((int)(currentChannelData->tot * 15U) - t) : t);
 
 		drawTxPanel(info, elapsed);
-		divider(RX_DIV2_Y);
-		drawTxRows(remaining);
+		divider(layout->lowerDividerY);
+		drawTxRows(layout, remaining);
 	}
-	else if (info->showDetails)
+	else if (panel == EMCOM_PANEL_DETAILS)
 	{
 		drawDetailsPanel();
 	}
-	else if ((trxGetMode() == RADIO_MODE_DIGITAL) && uiDataGlobal.isDisplayingQSOData)
+	else if (panel == EMCOM_PANEL_DMR_RX)
 	{
-		drawCallerPanel();
+		drawCallerPanel(layout);
 	}
-	else if ((st == ST_RX) && (trxGetMode() == RADIO_MODE_ANALOG))
+	else if (panel == EMCOM_PANEL_FM_RX)
 	{
-		drawRxPanel();
+		drawRxPanel(showChannelDistance, &positionDisplay);
 	}
 	else
 	{
 		drawParams();
-		if (standbyDistanceLayout)
+		if (showChannelDistance)
 		{
-			drawDistanceLine(false);
+			drawDistanceLine(&positionDisplay);
 		}
 	}
 
 	if (st != ST_TX)
 	{
-		divider((expandedLayout ? RX_DIV2_Y : DIV2_Y));
-		drawEmcomRows(expandedLayout);
+		divider(layout->lowerDividerY);
+		drawEmcomRows(layout, &positionDisplay);
 	}
 	drawFooter(st);
 
 	displayThemeResetToDefault();
-	rememberDrawn(st);
 	displayRender();
+	rememberDrawn(st, info, &positionDisplay, ticksGetMillis());
 }
 
 bool emcomNeedsFullRedraw(uint32_t now)
 {
 	emcomState_t st = currentState();
+	bool isVFO = (menuSystemGetRootMenuNumber() == UI_VFO_MODE);
 
 	if (drawn.valid == false)
 	{
@@ -1542,10 +1803,13 @@ bool emcomNeedsFullRedraw(uint32_t now)
 		return true;
 	}
 
-	double positionLat, positionLon;
-	bool positionValid = ownPosition(&positionLat, &positionLon);
-	if ((positionValid != drawn.positionValid) ||
-			(positionValid && ((positionLat != drawn.positionLat) || (positionLon != drawn.positionLon))) ||
+	// These are screen-content changes, not position changes, so they remain
+	// immediate and are not subject to the position refresh interval.
+	if ((isVFO != drawn.isVFO) || ((uint8_t)trxGetMode() != drawn.radioMode) ||
+			(currentChannelData == NULL) || (currentChannelData->rxFreq != drawn.rxFreq) ||
+			(currentChannelData->txFreq != drawn.txFreq) ||
+			((isVFO == false) && ((currentZone.NOT_IN_CODEPLUGDATA_indexNumber != drawn.zoneIndex) ||
+					(codeplugGetLastUsedChannelInCurrentZone() != drawn.channelIndex))) ||
 			(settingsIsOptionBitSet(BIT_DISPLAY_CHANNEL_DISTANCE) != drawn.distanceEnabled))
 	{
 		return true;
@@ -1557,6 +1821,34 @@ bool emcomNeedsFullRedraw(uint32_t now)
 		return true;
 	}
 #endif
+
+	// The position rows are not rendered on the TX screen. Avoid polling GPS
+	// coordinates, calculating distances, or formatting strings while hidden.
+	if (drawn.positionVisible)
+	{
+		emcomPosition_t position;
+		ownPositionInfo(&position);
+
+		// Validity and source changes affect the visible position immediately.
+		if ((position.valid != drawn.positionValid) ||
+				(position.valid && (position.source != drawn.positionSource)))
+		{
+			return true;
+		}
+
+		// Display-aware position and distance checks run at most once per second.
+		// The cached values are the values from the last completed full render.
+		if ((now - drawn.lastPositionRendered) >= EMCOM_POSITION_REFRESH_MS)
+		{
+			emcomPositionDisplay_t currentDisplay;
+
+			buildPositionDisplay(&position, drawn.repeaterDistanceVisible, &currentDisplay);
+			if (positionDisplayChanged(&currentDisplay))
+			{
+				return true;
+			}
+		}
+	}
 
 	if (sosOn && ((((now / 600U) & 1U) == 0U) != drawn.sosPhase))
 	{
@@ -1602,8 +1894,10 @@ void emcomDrawEmblem(int16_t cx, int16_t ty, themeItem_t waves, themeItem_t mast
 // APRS beacon on air (PTT beacon / timed beacon): an inverse block over the panel, as the TX status bar
 void emcomDrawTxBanner(const char *str)
 {
+	const emcomLayout_t *layout = ((lastRenderedPanel == EMCOM_PANEL_TX) ? lastRenderedLayout : lastTxLayout);
+
 	selectPalette();
-	fill(0, (DIV1_Y + 1), DISPLAY_SIZE_X, ((RX_DIV2_Y - DIV1_Y) - 1), pal->tx);
+	fill(0, (EMCOM_DIV1_Y + 1), DISPLAY_SIZE_X, ((layout->lowerDividerY - EMCOM_DIV1_Y) - 1), pal->tx);
 	textRaw((int16_t)((DISPLAY_SIZE_X - (int16_t)(strlen(str) * 16)) / 2), TX_TIMER_Y, str, FONT_SIZE_4, pal->txFg, false);
 	displayThemeResetToDefault();
 }
@@ -1673,12 +1967,13 @@ static void alertGlyph(int16_t x, int16_t y, uiAlertKind_t kind, uint32_t rgb)
 // EMCOM main screen: its own row boundaries; other screens: 16 px rows.
 static int16_t alertBand(int16_t h)
 {
-	static const uint8_t mainRows[] = { 12, 17, DIV1_Y, DIV2_Y, (EMCOM_Y2 - 1), (EMCOM_Y3 - 1), (EMCOM_Y3 + 9), FOOTER_Y };
-	static const uint8_t rxRows[] = { 12, 17, DIV1_Y, RX_DIV2_Y, (RX_EMCOM_Y2 - 1), (RX_EMCOM_Y3 - 1), FOOTER_Y };
-	bool expandedLayout = (expandedRxLayoutActive() || standbyDistanceLayoutActive(NULL) ||
-			((currentState() == ST_TX) && (DISPLAY_SIZE_Y >= 128)));
-	const uint8_t *rows = (expandedLayout ? rxRows : mainRows);
-	size_t rowCount = (expandedLayout ? (sizeof(rxRows) / sizeof(rxRows[0])) : (sizeof(mainRows) / sizeof(mainRows[0])));
+	uint8_t rows[] =
+	{
+		12, 17, EMCOM_DIV1_Y, (uint8_t)lastRenderedLayout->lowerDividerY,
+		(uint8_t)(lastRenderedLayout->rowY2 - 1), (uint8_t)(lastRenderedLayout->rowY3 - 1),
+		(uint8_t)(lastRenderedLayout->rowY3 + FONT_SIZE_1_HEIGHT + 1), FOOTER_Y
+	};
+	size_t rowCount = (sizeof(rows) / sizeof(rows[0]));
 	int16_t y = (int16_t)((DISPLAY_SIZE_Y - h) / 2);
 	int16_t top = 0;
 	int16_t bottom = DISPLAY_SIZE_Y;

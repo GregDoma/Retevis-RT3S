@@ -31,8 +31,8 @@ def standby(P):
 
 def rx(P):
     s = R.Screen(P['bg']); R.status_bar(s, P, 'RX'); R.bar(s, P, 25); R.zone_row(s, P); R.hero(s, P); R.divs(s, P)
-    s.text(2, R.PANEL_Y1 - 2, '-63dBm', 3, P['rx']); s.text(R.W - 2, R.PANEL_Y1 - 2, 'S9+10', 3, P['rx'], True)
-    R.kv(s, P, 2, R.PANEL_Y2 + 2, 'RXT', '88.5', P['rx'])
+    s.text(2, R.PANEL_LARGE_Y1, '-63dBm', 3, P['rx']); s.text(R.W - 2, R.PANEL_LARGE_Y1, 'S9+10', 3, P['rx'], True)
+    R.kv(s, P, 2, R.PANEL_Y2, 'RXT', '88.5', P['rx'])
     R.emcom_rows(s, P, unread=2); R.footer(s, P); return s
 
 

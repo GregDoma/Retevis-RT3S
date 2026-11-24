@@ -123,9 +123,18 @@ def inverse_chip(s, P, x, y, t, c, right=False, tc=None):
 
 # --- layout of uiEmcom.c -------------------------------------------------------------
 STATUS_H, METER_Y, ZONE_Y, HERO_Y, NAME_Y, FREQ_Y = 11, 12, 17, 20, 24, 40
-DIV1_Y, PANEL_Y1, PANEL_Y2, PANEL_Y3, DIV2_Y = 50, 54, 64, 74, 75
-RX_DIV2_Y, RX_EMCOM_Y1, RX_EMCOM_Y2, RX_EMCOM_Y3 = 85, 88, 98, 108
-EMCOM_Y1, EMCOM_Y2, EMCOM_Y3, FOOTER_Y = 79, 89, 99, 116
+SMALL_ROW_PITCH = 10
+DIV1_Y, PANEL_Y1, PANEL_Y2, PANEL_Y3 = 50, 54, 64, 74
+PANEL_LARGE_Y1 = 51
+COMPACT_DIV2_Y = 75
+COMPACT_ROW_Y1 = 79
+COMPACT_ROW_Y2, COMPACT_ROW_Y3 = COMPACT_ROW_Y1 + SMALL_ROW_PITCH, COMPACT_ROW_Y1 + (2 * SMALL_ROW_PITCH)
+EXPANDED_DIV2_Y = 83
+EXPANDED_ROW_Y1 = 86
+EXPANDED_ROW_Y2, EXPANDED_ROW_Y3 = EXPANDED_ROW_Y1 + SMALL_ROW_PITCH, EXPANDED_ROW_Y1 + (2 * SMALL_ROW_PITCH)
+DIV2_Y = COMPACT_DIV2_Y
+EMCOM_Y1, EMCOM_Y2, EMCOM_Y3 = COMPACT_ROW_Y1, COMPACT_ROW_Y2, COMPACT_ROW_Y3
+FOOTER_Y = 116
 
 
 def kv(s, P, x, y, k, v, c=None):
@@ -257,17 +266,17 @@ def footer(s, P, left='14:32Z 19NOV', right=None, rc=None, est=None, blk=False):
 
 
 def screen_standby(P=DARK):
-    s = Screen(P['bg']); status_bar(s, P); bar(s, P, 0); zone_row(s, P); hero(s, P); divs(s, P, RX_DIV2_Y)
-    params_fm(s, P); kv(s, P, 2, PANEL_Y3 + 2, 'DIST', '12.3km')
-    emcom_rows(s, P, y1=RX_EMCOM_Y1, y2=RX_EMCOM_Y2, y3=RX_EMCOM_Y3); footer(s, P); return s
+    s = Screen(P['bg']); status_bar(s, P); bar(s, P, 0); zone_row(s, P); hero(s, P); divs(s, P, EXPANDED_DIV2_Y)
+    params_fm(s, P); kv(s, P, 2, PANEL_Y3, 'DIST', '12.3km')
+    emcom_rows(s, P, y1=EXPANDED_ROW_Y1, y2=EXPANDED_ROW_Y2, y3=EXPANDED_ROW_Y3); footer(s, P); return s
 
 
 def screen_rx(P=DARK):
-    s = Screen(P['bg']); status_bar(s, P, 'RX'); bar(s, P, 23); zone_row(s, P); hero(s, P); divs(s, P, RX_DIV2_Y)
-    s.text(2, PANEL_Y1 - 2, '-75dBm', 3, P['rx']); s.text(W - 2, PANEL_Y1 - 2, 'S9+10', 3, P['rx'], True)
-    kv(s, P, 2, PANEL_Y2 + 2, 'RXT', '88.5', P['rx'])
-    kv(s, P, 2, PANEL_Y3 + 2, 'DIST', '12.3km')
-    emcom_rows(s, P, y1=RX_EMCOM_Y1, y2=RX_EMCOM_Y2, y3=RX_EMCOM_Y3); footer(s, P); return s
+    s = Screen(P['bg']); status_bar(s, P, 'RX'); bar(s, P, 23); zone_row(s, P); hero(s, P); divs(s, P, EXPANDED_DIV2_Y)
+    s.text(2, PANEL_LARGE_Y1, '-75dBm', 3, P['rx']); s.text(W - 2, PANEL_LARGE_Y1, 'S9+10', 3, P['rx'], True)
+    kv(s, P, 2, PANEL_Y2, 'RXT', '88.5', P['rx'])
+    kv(s, P, 2, PANEL_Y3, 'DIST', '12.3km')
+    emcom_rows(s, P, y1=EXPANDED_ROW_Y1, y2=EXPANDED_ROW_Y2, y3=EXPANDED_ROW_Y3); footer(s, P); return s
 
 
 def screen_tx(P=DARK):
@@ -278,11 +287,11 @@ def screen_tx(P=DARK):
 
 def screen_dmr(P=DARK):
     s = Screen(P['bg']); status_bar(s, P, 'RX', mode='DMR', tone='TS1', aprs=False); bar(s, P, 19)
-    zone_row(s, P, 'DMR SR7', 'CH 7/16'); hero(s, P, '07', 'SR7L TG260', '439.4250 MHz'); divs(s, P, RX_DIV2_Y)
-    s.text(2, PANEL_Y1 - 2, 'SP5ABC', 3, P['rx']); kv(s, P, W - 2 - 6 * 6, PANEL_Y1, 'TG', '260')
-    s.text(2, PANEL_Y2 + 2, 'Jan Warszawa', f1(P), P['fg'])
-    s.text(2, PANEL_Y3 + 2, 'RAYNET LODZ', f1(P), P['fg'])
-    emcom_rows(s, P, lhv='SP5ABC 0s', y1=RX_EMCOM_Y1, y2=RX_EMCOM_Y2, y3=RX_EMCOM_Y3)
+    zone_row(s, P, 'DMR SR7', 'CH 7/16'); hero(s, P, '07', 'SR7L TG260', '439.4250 MHz'); divs(s, P, EXPANDED_DIV2_Y)
+    s.text(2, PANEL_LARGE_Y1, 'SP5ABC', 3, P['rx']); kv(s, P, W - 2 - 6 * 6, PANEL_Y1, 'TG', '260')
+    s.text(2, PANEL_Y2, 'Jan Warszawa', f1(P), P['fg'])
+    s.text(2, PANEL_Y3, 'RAYNET LODZ', f1(P), P['fg'])
+    emcom_rows(s, P, lhv='SP5ABC 0s', y1=EXPANDED_ROW_Y1, y2=EXPANDED_ROW_Y2, y3=EXPANDED_ROW_Y3)
     footer(s, P, '14:35Z 19NOV'); return s
 
 

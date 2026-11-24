@@ -103,7 +103,7 @@ typedef enum
 bool emcomUiLarge(void);   // contrast style: bold small text, bigger values
 // Text at (x, y) (x: the right edge when alignRight); the contrast style draws FONT_SIZE_1 bold. Returns the width.
 int16_t emcomUiText(int16_t x, int16_t y, const char *str, ucFont_t font, themeItem_t colour, bool alignRight);
-// Small chip around a FONT_SIZE_1 text row at y (9 px high, y - 1 .. y + 7). Returns the width.
+// Small chip around a FONT_SIZE_1 text row at y (10 px high, y - 1 .. y + 8). Returns the width.
 int16_t emcomUiChip(int16_t x, int16_t y, const char *str, themeItem_t colour, emcomChip_t style, bool alignRight);
 int16_t emcomUiKeyValue(int16_t x, int16_t y, const char *key, const char *value, themeItem_t colour); // "KEY value"
 void emcomUiTitle(const char *title, const char *counter); // counter: "3/16", NULL = none
