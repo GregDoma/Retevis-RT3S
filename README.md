@@ -17,7 +17,7 @@ on [OpenGD77](https://www.opengd77.com/).
 | | |
 |---|---|
 | ![Standby](docs/screens/emcom_standby.png) | **EMCOM main screen.** Channel number first, fixed positions, state by colour *and* word (RX green, TX red, SCAN amber, SOS flashing), UTC clock, locator and GPS position, APRS stations and unread messages always in view. Red-only night mode. |
-| ![DMR call](docs/screens/emcom_dmr.png) | **DMR and FM.** Caller callsign, talker alias, talkgroup, Last Heard age and optional station/repeater distance; live RX level in dBm and S units on FM; TX timer with the TOT. |
+| ![DMR call](docs/screens/emcom_dmr.png) | **DMR and FM.** Caller callsign, talker alias, talkgroup and Last Heard age on DMR; live RX level in dBm and S units plus optional repeater distance on FM; TX timer with the TOT. |
 | ![SOS](docs/screens/emcom_sos.png) | **SOS.** `SK1+9` twice: APRS position beacons with the emergency symbol, every minute then every two minutes, flashing banner. Same again to stop. |
 | ![Main menu](docs/screens/menu_main.png) | **Launcher menus.** Main menu, Options and Contacts are icon tiles with their key number: `1`…`9`, `0` open a tile at once, ▲▼ move, the full name is in the bottom bar. Option lists show the setting on the left and its value right aligned. |
 | ![Boot screen](docs/screens/boot_sp7team.png) | **One look across the whole radio.** Menus, lists, option boxes, notifications, soft key bars (GREEN / RED fields), APRS and SSTV screens and the SP7TEAM boot screen share the EMCOM style and colours; *Options → Display → Screen* switches everything back to classic. |
@@ -229,7 +229,7 @@ aligned:
 | Status bar | state field (mode when idle, `RX` green, `TX` red with the whole bar, `SCAN` amber), power, CTCSS/DCS or time slot, APRS beacon, GPS fix, volume, battery |
 | S-meter | 32 segments, S9 and above in amber; mic level while transmitting |
 | Channel | zone and `CH n/m`, channel number (16x32), name, frequency (`TX`, `REV`, `TA` marks); VFO: the frequency in 16x32 |
-| Panel | FM: offset, RX/TX tone, squelch, bandwidth, TOT; DMR: TG/PC, CC, TS, contact. Receiving FM: level in dBm and S units. DMR call: callsign, TG, two-line caller ID and optional station/repeater distance. Transmitting: elapsed time in 16x32 and the power level |
+| Panel | FM: offset, RX/TX tone, squelch, bandwidth, TOT; DMR: TG/PC, CC, TS, contact. Receiving FM: level in dBm and S units plus optional repeater distance. DMR call: callsign, TG and two-line caller ID. Transmitting: elapsed time in 16x32 and the power level |
 | EMCOM rows | APRS stations heard, unread APRS messages, Maidenhead locator, position (GPS, else the fixed location), last heard (DMR station, or the last APRS station with distance) |
 | EMCOM rows (TX) | time-out timer bar with the remaining time (the last 10 s hatched, the countdown in an inverse chip), TX tone / bandwidth or TG / CC / TS and contact, the keys usable while transmitting |
 | Footer | UTC time and date, key / PTT lock, scan, SOS, `TX OFF` when TX inhibit is on |

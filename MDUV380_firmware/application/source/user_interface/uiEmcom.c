@@ -9,8 +9,8 @@
  *   20..47  channel number (16x32) + name (8x16) + frequency, or VFO frequency
  *   50      divider
  *   54..73  panel: parameters, or RX level, DMR caller, TX timer
- *   54..84  expanded DMR RX panel: caller ID and optional distance
- *   75      divider (normal screens); 85 on the expanded DMR RX panel
+ *   54..84  expanded FM / DMR RX panel: caller ID or RX data plus distance
+ *   75      divider (normal screens); 85 on the expanded RX panel
  *   79..106 EMCOM rows: APRS stations / messages / locator, position, last heard
  *   116..127 footer: UTC clock, lock / scan / SOS
  *
@@ -116,10 +116,10 @@ static const emcomPalette_t PALETTE_CONTRAST_NIGHT =
 #define PANEL_Y2        64
 #define PANEL_Y3        74   // DMR RX only: distance to station / repeater
 #define DIV2_Y          75
-#define DMR_DIV2_Y      85
-#define DMR_EMCOM_Y1    88
-#define DMR_EMCOM_Y2    98
-#define DMR_EMCOM_Y3    108
+#define RX_DIV2_Y       85
+#define RX_EMCOM_Y1     88
+#define RX_EMCOM_Y2     98
+#define RX_EMCOM_Y3     108
 #define EMCOM_Y1        79
 #define EMCOM_Y2        89
 #define EMCOM_Y3        99
@@ -386,6 +386,17 @@ static bool dmrCallerLayoutActive(void)
 {
 	return ((trxGetMode() == RADIO_MODE_DIGITAL) && uiDataGlobal.isDisplayingQSOData &&
 			(LinkHead != NULL) && (HRC6000GetReceivedTgOrPcId() != 0) && (DISPLAY_SIZE_Y >= 128));
+}
+
+static bool fmDistanceLayoutActive(void)
+{
+	return ((trxGetMode() == RADIO_MODE_ANALOG) && (currentState() == ST_RX) &&
+			settingsIsOptionBitSet(BIT_DISPLAY_CHANNEL_DISTANCE) && (DISPLAY_SIZE_Y >= 128));
+}
+
+static bool expandedRxLayoutActive(void)
+{
+	return (dmrCallerLayoutActive() || fmDistanceLayoutActive());
 }
 
 static bool gpsHasFix(void)
@@ -882,6 +893,9 @@ static void drawDetailsPanel(void)
 	text((DISPLAY_SIZE_X - 2), PANEL_Y2, t, FONT_SIZE_1, pal->info, true);
 }
 
+static void ageString(uint32_t ms, char *buf, size_t size);
+static bool distanceString(bool preferStation, char *label, size_t labelSize, char *distance, size_t distanceSize);
+
 static void drawRxPanel(void)
 {
 	char buf[16];
@@ -901,10 +915,17 @@ static void drawRxPanel(void)
 	{
 		text(2, (PANEL_Y2 + 2), "CARRIER", FONT_SIZE_1, pal->mut, false);
 	}
-}
 
-static void ageString(uint32_t ms, char *buf, size_t size);
-static bool dmrDistanceString(char *label, size_t labelSize, char *distance, size_t distanceSize);
+	if (fmDistanceLayoutActive())
+	{
+		char label[5];
+		char distance[16];
+		if (distanceString(false, label, sizeof(label), distance, sizeof(distance)))
+		{
+			keyValue(2, (PANEL_Y3 + 2), label, distance, (strcmp(distance, "--") == 0) ? pal->mut : pal->fg);
+		}
+	}
+}
 
 static void drawCallerPanel(void)
 {
@@ -956,7 +977,7 @@ static void drawCallerPanel(void)
 	{
 		char label[4];
 		char distance[16];
-		if (dmrDistanceString(label, sizeof(label), distance, sizeof(distance)))
+		if (distanceString(true, label, sizeof(label), distance, sizeof(distance)))
 		{
 			keyValue(2, (PANEL_Y3 + 2), label, distance, (strcmp(distance, "--") == 0) ? pal->mut : pal->fg);
 		}
@@ -1126,7 +1147,7 @@ static void ageString(uint32_t ms, char *buf, size_t size)
 	}
 }
 
-static bool dmrDistanceString(char *label, size_t labelSize, char *distance, size_t distanceSize)
+static bool distanceString(bool preferStation, char *label, size_t labelSize, char *distance, size_t distanceSize)
 {
 	double ownLat, ownLon;
 	double targetLat = 0.0, targetLon = 0.0;
@@ -1147,7 +1168,7 @@ static bool dmrDistanceString(char *label, size_t labelSize, char *distance, siz
 
 	// A DMR GPS position is more specific than the configured repeater
 	// position, so prefer it whenever the received station supplied one.
-	if ((LinkHead != NULL) && isfinite(LinkHead->locationLat) && isfinite(LinkHead->locationLon) &&
+	if (preferStation && (LinkHead != NULL) && isfinite(LinkHead->locationLat) && isfinite(LinkHead->locationLon) &&
 			(LinkHead->locationLat >= -90.0) && (LinkHead->locationLat <= 90.0) &&
 			(LinkHead->locationLon >= -180.0) && (LinkHead->locationLon <= 180.0))
 	{
@@ -1188,15 +1209,15 @@ static bool dmrDistanceString(char *label, size_t labelSize, char *distance, siz
 	return true;
 }
 
-static void drawEmcomRows(bool dmrCallerLayout)
+static void drawEmcomRows(bool expandedRxLayout)
 {
 	char buf[28];
 	double lat, lon;
 	bool hasPos = ownPosition(&lat, &lon);
 	uint32_t now = ticksGetMillis();
-	int16_t y1 = (dmrCallerLayout ? DMR_EMCOM_Y1 : EMCOM_Y1);
-	int16_t y2 = (dmrCallerLayout ? DMR_EMCOM_Y2 : EMCOM_Y2);
-	int16_t y3 = (dmrCallerLayout ? DMR_EMCOM_Y3 : EMCOM_Y3);
+	int16_t y1 = (expandedRxLayout ? RX_EMCOM_Y1 : EMCOM_Y1);
+	int16_t y2 = (expandedRxLayout ? RX_EMCOM_Y2 : EMCOM_Y2);
+	int16_t y3 = (expandedRxLayout ? RX_EMCOM_Y3 : EMCOM_Y3);
 
 #if defined(I2S_APRS_RX)
 	uint32_t unread = aprsRxMessageUnreadCount();
@@ -1391,7 +1412,7 @@ static void rememberDrawn(emcomState_t st)
 void emcomRenderMain(const emcomMainInfo_t *info)
 {
 	emcomState_t st = currentState();
-	bool dmrCallerLayout = dmrCallerLayoutActive();
+	bool expandedRxLayout = expandedRxLayoutActive();
 
 	selectPalette();
 	if (info->isTransmitting)
@@ -1447,8 +1468,8 @@ void emcomRenderMain(const emcomMainInfo_t *info)
 
 	if (st != ST_TX)
 	{
-		divider((dmrCallerLayout ? DMR_DIV2_Y : DIV2_Y));
-		drawEmcomRows(dmrCallerLayout);
+		divider((expandedRxLayout ? RX_DIV2_Y : DIV2_Y));
+		drawEmcomRows(expandedRxLayout);
 	}
 	drawFooter(st);
 
@@ -1604,9 +1625,9 @@ static void alertGlyph(int16_t x, int16_t y, uiAlertKind_t kind, uint32_t rgb)
 static int16_t alertBand(int16_t h)
 {
 	static const uint8_t mainRows[] = { 12, 17, DIV1_Y, DIV2_Y, (EMCOM_Y2 - 1), (EMCOM_Y3 - 1), (EMCOM_Y3 + 9), FOOTER_Y };
-	static const uint8_t dmrRows[] = { 12, 17, DIV1_Y, DMR_DIV2_Y, (DMR_EMCOM_Y2 - 1), (DMR_EMCOM_Y3 - 1), FOOTER_Y };
-	const uint8_t *rows = (dmrCallerLayoutActive() ? dmrRows : mainRows);
-	size_t rowCount = (dmrCallerLayoutActive() ? (sizeof(dmrRows) / sizeof(dmrRows[0])) : (sizeof(mainRows) / sizeof(mainRows[0])));
+	static const uint8_t rxRows[] = { 12, 17, DIV1_Y, RX_DIV2_Y, (RX_EMCOM_Y2 - 1), (RX_EMCOM_Y3 - 1), FOOTER_Y };
+	const uint8_t *rows = (expandedRxLayoutActive() ? rxRows : mainRows);
+	size_t rowCount = (expandedRxLayoutActive() ? (sizeof(rxRows) / sizeof(rxRows[0])) : (sizeof(mainRows) / sizeof(mainRows[0])));
 	int16_t y = (int16_t)((DISPLAY_SIZE_Y - h) / 2);
 	int16_t top = 0;
 	int16_t bottom = DISPLAY_SIZE_Y;

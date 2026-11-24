@@ -124,7 +124,7 @@ def inverse_chip(s, P, x, y, t, c, right=False, tc=None):
 # --- layout of uiEmcom.c -------------------------------------------------------------
 STATUS_H, METER_Y, ZONE_Y, HERO_Y, NAME_Y, FREQ_Y = 11, 12, 17, 20, 24, 40
 DIV1_Y, PANEL_Y1, PANEL_Y2, PANEL_Y3, DIV2_Y = 50, 54, 64, 74, 75
-DMR_DIV2_Y, DMR_EMCOM_Y1, DMR_EMCOM_Y2, DMR_EMCOM_Y3 = 85, 88, 98, 108
+RX_DIV2_Y, RX_EMCOM_Y1, RX_EMCOM_Y2, RX_EMCOM_Y3 = 85, 88, 98, 108
 EMCOM_Y1, EMCOM_Y2, EMCOM_Y3, FOOTER_Y = 79, 89, 99, 116
 
 
@@ -262,10 +262,11 @@ def screen_standby(P=DARK):
 
 
 def screen_rx(P=DARK):
-    s = Screen(P['bg']); status_bar(s, P, 'RX'); bar(s, P, 23); zone_row(s, P); hero(s, P); divs(s, P)
+    s = Screen(P['bg']); status_bar(s, P, 'RX'); bar(s, P, 23); zone_row(s, P); hero(s, P); divs(s, P, RX_DIV2_Y)
     s.text(2, PANEL_Y1 - 2, '-75dBm', 3, P['rx']); s.text(W - 2, PANEL_Y1 - 2, 'S9+10', 3, P['rx'], True)
     kv(s, P, 2, PANEL_Y2 + 2, 'RXT', '88.5', P['rx'])
-    emcom_rows(s, P); footer(s, P); return s
+    kv(s, P, 2, PANEL_Y3 + 2, 'DIST', '12.3km')
+    emcom_rows(s, P, y1=RX_EMCOM_Y1, y2=RX_EMCOM_Y2, y3=RX_EMCOM_Y3); footer(s, P); return s
 
 
 def screen_tx(P=DARK):
@@ -276,11 +277,11 @@ def screen_tx(P=DARK):
 
 def screen_dmr(P=DARK):
     s = Screen(P['bg']); status_bar(s, P, 'RX', mode='DMR', tone='TS1', aprs=False); bar(s, P, 19)
-    zone_row(s, P, 'DMR SR7', 'CH 7/16'); hero(s, P, '07', 'SR7L TG260', '439.4250 MHz'); divs(s, P, DMR_DIV2_Y)
+    zone_row(s, P, 'DMR SR7', 'CH 7/16'); hero(s, P, '07', 'SR7L TG260', '439.4250 MHz'); divs(s, P, RX_DIV2_Y)
     s.text(2, PANEL_Y1 - 2, 'SP5ABC', 3, P['rx']); kv(s, P, W - 2 - 6 * 6, PANEL_Y1, 'TG', '260')
     s.text(2, PANEL_Y2 + 2, 'Jan Warszawa', f1(P), P['fg'])
     kv(s, P, 2, PANEL_Y3 + 2, 'DIST', '12.3km')
-    emcom_rows(s, P, lhv='SP5ABC 0s', y1=DMR_EMCOM_Y1, y2=DMR_EMCOM_Y2, y3=DMR_EMCOM_Y3)
+    emcom_rows(s, P, lhv='SP5ABC 0s', y1=RX_EMCOM_Y1, y2=RX_EMCOM_Y2, y3=RX_EMCOM_Y3)
     footer(s, P, '14:35Z 19NOV'); return s
 
 
