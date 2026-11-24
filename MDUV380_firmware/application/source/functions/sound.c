@@ -666,6 +666,17 @@ void soundTickMelody(void)
 	taskEXIT_CRITICAL();
 }
 
+static bool soundBeepGenerationIsCurrent(uint32_t generation)
+{
+	bool current;
+
+	taskENTER_CRITICAL();
+	current = ((melodyGeneration == generation) && (melody_play != NULL) && (sine_beep_duration > 0));
+	taskEXIT_CRITICAL();
+
+	return current;
+}
+
 static void soundBeepTaskFunction(void *data)
 {
 	const int WAIT_TIMEOUT_COUNT = 10;
@@ -758,11 +769,7 @@ static void soundBeepTaskFunction(void *data)
 							}
 						}
 					}
-					bool generationCurrent;
-
-					taskENTER_CRITICAL();
-					generationCurrent = ((melodyGeneration == activeGeneration) && (melody_play != NULL) && (sine_beep_duration > 0));
-					taskEXIT_CRITICAL();
+					bool generationCurrent = soundBeepGenerationIsCurrent(activeGeneration);
 
 					// The generation check is deliberately immediately before the
 					// transfer. A cancellation can still race a blocking SPI write,
@@ -770,13 +777,29 @@ static void soundBeepTaskFunction(void *data)
 					// already visible to the task.
 					if (generationCurrent)
 					{
+						int spiStatus;
+
 						waitTimeout = WAIT_TIMEOUT_COUNT;
 
 						interruptsDisableC6000Interrupts();
 
-						while ((SPI0WritePageRegByteArray(0x03, 0x00, task_spi_sound, 0x20) == -1) &&  ((waitTimeout--) > 0))
+						spiStatus = SPI0WritePageRegByteArray(0x03, 0x00, task_spi_sound, 0x20);
+						while ((spiStatus == -1) && (waitTimeout > 0))
 						{
+							if (!soundBeepGenerationIsCurrent(activeGeneration))
+							{
+								break;
+							}
+
+							waitTimeout--;
 							vTaskDelay((1 / portTICK_PERIOD_MS));
+
+							if (!soundBeepGenerationIsCurrent(activeGeneration))
+							{
+								break;
+							}
+
+							spiStatus = SPI0WritePageRegByteArray(0x03, 0x00, task_spi_sound, 0x20);
 						}
 
 						interruptsEnableC6000Interrupts();
