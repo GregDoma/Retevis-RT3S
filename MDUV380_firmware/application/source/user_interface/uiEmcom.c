@@ -692,8 +692,10 @@ void emcomRenderStatusBar(void)
 	int16_t x;
 
 	selectPalette();
-	barCol = (isTx ? pal->tx : pal->bar);
-	fg = (isTx ? pal->txFg : pal->barFg);
+	bool colourStateHeader = ((DAYTIME_CURRENT != NIGHT) && (pal->cues == false));
+	bool colourStateRxHeader = (colourStateHeader && (st == ST_RX));
+	barCol = (isTx ? pal->tx : (colourStateRxHeader ? pal->rx : pal->bar));
+	fg = (isTx ? pal->txFg : (colourStateRxHeader ? pal->bar : pal->barFg));
 
 	fill(0, 0, DISPLAY_SIZE_X, STATUS_H, barCol);
 	fill(0, STATUS_H, DISPLAY_SIZE_X, 1, pal->bg); // the classic header clear uses the theme colour
@@ -712,7 +714,25 @@ void emcomRenderStatusBar(void)
 	// repeated in the footer with the TX and SCAN indicators.
 	const char *mode = (digital ? "DMR" : (trxGetBandwidthIs25kHz() ? "FM" : "FMN"));
 	const char *chip = ((st == ST_TX) ? "TX" : ((st == ST_SCAN) ? "SCAN" : mode));
-	uint32_t chipCol = ((st == ST_TX) ? pal->txFg : ((st == ST_SCAN) ? pal->scan : pal->barFg));
+	uint32_t chipCol;
+	uint32_t chipTextCol;
+	bool colourStateChip = colourStateHeader;
+
+	if (colourStateChip && (st == ST_TX))
+	{
+		chipCol = pal->tx;
+		chipTextCol = pal->txFg;
+	}
+	else if (colourStateChip && (st == ST_RX))
+	{
+		chipCol = pal->rx;
+		chipTextCol = pal->bar;
+	}
+	else
+	{
+		chipCol = ((st == ST_TX) ? pal->txFg : ((st == ST_SCAN) ? pal->scan : pal->barFg));
+		chipTextCol = (isTx ? pal->tx : pal->bar);
+	}
 	int16_t chipW = (int16_t)((strlen(chip) * 6) + 4);
 
 	if (pal->cues && (st == ST_STBY))
@@ -725,7 +745,7 @@ void emcomRenderStatusBar(void)
 	else
 	{
 		fill(1, 1, chipW, 9, chipCol);
-		text(3, 2, chip, FONT_SIZE_1_BOLD, (isTx ? pal->tx : pal->bar), false);
+		text(3, 2, chip, FONT_SIZE_1_BOLD, chipTextCol, false);
 	}
 	x = chipW + 4;
 
@@ -753,7 +773,7 @@ void emcomRenderStatusBar(void)
 	if (currentChannelData->aprsConfigIndex != 0)
 	{
 		bool beaconing = ((aprsBeaconingGetMode() != APRS_BEACONING_MODE_OFF) && (aprsBeaconingIsSuspended() == false));
-		textRaw(x, 2, "a", (beaconing ? FONT_SIZE_1_BOLD : FONT_SIZE_1), (isTx ? fg : (beaconing ? pal->rx : pal->mut)), false);
+		textRaw(x, 2, "a", (beaconing ? FONT_SIZE_1_BOLD : FONT_SIZE_1), (isTx ? fg : (beaconing ? (colourStateRxHeader ? fg : pal->rx) : pal->mut)), false);
 	}
 
 	// Right side: battery icon + %, volume, GPS
@@ -806,7 +826,7 @@ void emcomRenderStatusBar(void)
 	{
 		bool fix = gpsHasFix();
 		// mono / contrast: no fix also in the thin font
-		textRaw(r, 2, "GPS", ((fix || (pal->cues == false)) ? FONT_SIZE_1_BOLD : FONT_SIZE_1), (fix ? (isTx ? fg : pal->rx) : pal->mut), true);
+		textRaw(r, 2, "GPS", ((fix || (pal->cues == false)) ? FONT_SIZE_1_BOLD : FONT_SIZE_1), (fix ? (isTx ? fg : (colourStateRxHeader ? fg : pal->rx)) : pal->mut), true);
 	}
 #endif
 

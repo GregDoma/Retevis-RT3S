@@ -97,7 +97,7 @@ class Screen:
 DARK = dict(bg=0x0B0E0C, fg=0xF2F5F0, mut=0x86928A, line=0x28302B, bar=0x18201B, barFg=0xE9EEE7,
             rx=0x3BD16F, tx=0xFF3B30, scan=0xFFB000, info=0x5AC8FA, seg=0x202823, txFg=0xFFFFFF)
 NIGHT = dict(bg=0x000000, fg=0xD22A2A, mut=0x7A1414, line=0x3A0808, bar=0x120202, barFg=0xD22A2A,
-             rx=0xE23A3A, tx=0xFF4A4A, scan=0xA51C1C, info=0xC02626, seg=0x250505, txFg=0xFFFFFF)
+             rx=0xE23A3A, tx=0xFF4A4A, scan=0xA51C1C, info=0xC02626, seg=0x250505, txFg=0xFFFFFF, night=True)
 MONO = dict(bg=0x000000, fg=0xFFFFFF, mut=0x9A9A9A, line=0x4A4A4A, bar=0x1E1E1E, barFg=0xF0F0F0,
             rx=0xFFFFFF, tx=0xFFFFFF, scan=0xB4B4B4, info=0xD8D8D8, seg=0x343434, txFg=0x000000, cues=True)
 MONO_NIGHT = dict(NIGHT, txFg=0x000000, cues=True)
@@ -105,7 +105,7 @@ CONTRAST = dict(bg=0x000000, fg=0xFFFFFF, mut=0xFFFF00, line=0x808080, bar=0x000
                 rx=0xFFFFFF, tx=0xFFFF00, scan=0xFFFF00, info=0xFFFFFF, seg=0x404040, txFg=0x000000, cues=True, large=True)
 CONTRAST_NIGHT = dict(bg=0x000000, fg=0xFFA000, mut=0xFF4020, line=0x802000, bar=0x000000, barFg=0xFFA000,
                       rx=0xFFA000, tx=0xFFA000, scan=0xFF4020, info=0xFFA000, seg=0x401000, txFg=0x000000,
-                      cues=True, large=True)
+                      cues=True, large=True, night=True)
 
 
 def f1(P):
@@ -163,21 +163,29 @@ def status_bar(s, P, state='STBY', mode='FMN', pwr='5W', tone='CTR', aprs=True, 
                low=False, fix=True):
     is_tx = state == 'TX'
     cues = P.get('cues', False)
-    fg = P['txFg'] if is_tx else P['barFg']
-    s.fill(0, 0, W, STATUS_H, P['tx'] if is_tx else P['bar'])
+    colour_state_header = (not P.get('night', False)) and (not cues)
+    colour_state_rx_header = colour_state_header and state == 'RX'
+    fg = P['txFg'] if is_tx else (P['bar'] if colour_state_rx_header else P['barFg'])
+    s.fill(0, 0, W, STATUS_H, P['tx'] if is_tx else (P['rx'] if colour_state_rx_header else P['bar']))
     if sos_phase is not None:
         s.fill(0, 0, W, STATUS_H, P['tx'] if sos_phase else P['bar'])
         s.text((W - 13 * 6) // 2, 2, 'EMERGENCY SOS', '1b', P['txFg'] if sos_phase else P['tx'])
         return
     chip = {'TX': 'TX', 'SCAN': 'SCAN'}.get(state, mode)
+    chip_text = P['tx'] if is_tx else P['bar']
     chip_c = {'TX': P['txFg'], 'SCAN': P['scan']}.get(state, P['barFg'])
+    colour_state_chip = colour_state_header
+    if colour_state_chip and state == 'TX':
+        chip_c, chip_text = P['tx'], P['txFg']
+    elif colour_state_chip and state == 'RX':
+        chip_c, chip_text = P['rx'], P['bar']
     cw = len(chip) * 6 + 4
     if cues and state == 'STBY':
         s.rect(1, 1, cw, 9, chip_c)
         s.text(3, 2, chip, '1b', chip_c)
     else:
         s.fill(1, 1, cw, 9, chip_c)
-        s.text(3, 2, chip, '1b', P['tx'] if is_tx else P['bar'])
+        s.text(3, 2, chip, '1b', chip_text)
     x = cw + 4
     if state not in ('STBY', 'RX'):
         x += s.text(x, 2, mode, f1(P), fg) + 4
@@ -185,7 +193,7 @@ def status_bar(s, P, state='STBY', mode='FMN', pwr='5W', tone='CTR', aprs=True, 
     if tone:
         x += s.text(x, 2, tone, f1(P), fg) + 4
     if aprs:
-        s.text(x, 2, 'a', '1b', fg if is_tx else P['rx'])
+        s.text(x, 2, 'a', '1b', fg if (is_tx or colour_state_rx_header) else P['rx'])
     r = W - 2
     bc = P['tx'] if (low and not cues) else fg
     s.rect(r - 13, 2, 12, 7, bc); s.fill(r - 1, 4, 1, 3, bc); s.fill(r - 12, 3, (batt * 10 + 50) // 100, 5, bc)
@@ -204,7 +212,7 @@ def status_bar(s, P, state='STBY', mode='FMN', pwr='5W', tone='CTR', aprs=True, 
     r -= 12
     if gps:
         if fix:
-            s.text(r, 2, 'GPS', '1b', fg if is_tx else P['rx'], True)
+            s.text(r, 2, 'GPS', '1b', fg if (is_tx or colour_state_rx_header) else P['rx'], True)
         else:
             s.text(r, 2, 'GPS', 1 if cues else '1b', P['mut'], True)
 
