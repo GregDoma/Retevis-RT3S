@@ -109,7 +109,6 @@ bool soundRefillData(uint32_t bufNum);
 bool soundReceiveData(void);
 void soundReceiveRefillData(uint32_t bufNum);
 bool soundMelodyIsPlaying(void);
-void soundResetDMRRxAGCGain(void);
 void soundStartDMA(void);
 
 //bit field to track audio amp usage
