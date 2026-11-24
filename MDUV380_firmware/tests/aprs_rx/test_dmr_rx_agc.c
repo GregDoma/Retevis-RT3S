@@ -161,6 +161,54 @@ static void testGainConvergence(void)
 	}
 }
 
+static void testConsecutiveGainContinuity(void)
+{
+	dmrRxAgcState_t state;
+	float previousApplied;
+
+	// Each completed buffer commits its actual ending gain. The next buffer's
+	// first interpolated sample must start from that committed value, not unity.
+	dmrRxAgcSetStationLevel(&state, 300U);
+	previousApplied = state.applied;
+	for (int i = 0; i < 8; i++)
+	{
+		float from = state.applied;
+		float gain = dmrRxAgcProcessPeak(&state, 4U, 300U);
+		float gainStep = (gain > from) ? ((gain - from) / 80.0f) : 0.0f;
+
+		assertNear(from, previousApplied, 0.0001f);
+		assertNear(dmrRxAgcInterpolatedGain(from, gain, gainStep, 0U),
+				(gainStep > 0.0f) ? (from + gainStep) : gain, 0.0001f);
+		dmrRxAgcSetAppliedGain(&state, gain);
+		assertNear(state.applied, gain, 0.0001f);
+		previousApplied = gain;
+	}
+	assert(state.applied > 1.0f);
+	assert(state.applied < 10.0f);
+
+	// A loud transient immediately limits the buffer and commits that limited
+	// gain. Recovery starts from the limited result on the following buffer.
+	{
+		float limitedFrom = state.applied;
+		float limitedGain = dmrRxAgcProcessPeak(&state, 4U, 32768U);
+		float recoveryFrom;
+		float recoveryGain;
+		float recoveryStep;
+
+		assert(limitedGain < limitedFrom);
+		dmrRxAgcSetAppliedGain(&state, limitedGain);
+		assertNear(state.applied, limitedGain, 0.0001f);
+
+		recoveryFrom = state.applied;
+		recoveryGain = dmrRxAgcProcessPeak(&state, 4U, 300U);
+		recoveryStep = (recoveryGain > recoveryFrom) ? ((recoveryGain - recoveryFrom) / 80.0f) : 0.0f;
+		assertNear(recoveryFrom, limitedGain, 0.0001f);
+		assertNear(dmrRxAgcInterpolatedGain(recoveryFrom, recoveryGain, recoveryStep, 0U),
+				(recoveryStep > 0.0f) ? (recoveryFrom + recoveryStep) : recoveryGain, 0.0001f);
+		dmrRxAgcSetAppliedGain(&state, recoveryGain);
+	}
+}
+
 static void testStationIsolation(void)
 {
 	dmrRxAgcOwner_t owner = { 0 };
@@ -200,11 +248,13 @@ static void testStationIsolation(void)
 	// Fallback processing is isolated: uncertain ownership cannot change the
 	// persistent station state or its median history.
 	dmrRxAgcSetStationLevel(&learned, 6000U);
+	learned.applied = 0.42f;
 	learned.history[0] = 6000U;
 	dmrRxAgcStateCopy(&fallback, &learned);
-	dmrRxAgcProcessPeak(&fallback, 4U, 30000U);
+	dmrRxAgcSetAppliedGain(&fallback, dmrRxAgcProcessPeak(&fallback, 4U, 30000U));
 	assert(learned.peakAverage == 6000.0f);
 	assert(learned.gain == 1.0f);
+	assert(learned.applied == 0.42f);
 	assert(learned.history[0] == 6000U);
 }
 
@@ -308,6 +358,7 @@ int main(void)
 	testPeakLimiter();
 	testMedianFiltering();
 	testGainConvergence();
+	testConsecutiveGainContinuity();
 	testStationIsolation();
 	testUnderrunRecovery();
 	testQuietSpeechAndNoise();
