@@ -297,11 +297,13 @@ def footer(s, P, left='14:32Z 19NOV', right=None, rc=None, est=None, blk=False):
 
 def screen_standby(P=DARK, distance=True, distance_text='12.3km'):
     # The standby/FM receive panel always reserves the DIST row. When the
-    # setting or location does not provide a value, the firmware shows '--'.
+    # setting is off the reserved row is blank; an unavailable value is shown
+    # only when distance display is enabled.
     rows = (EXPANDED_ROW_Y1, EXPANDED_ROW_Y2, EXPANDED_ROW_Y3)
     s = Screen(P['bg']); status_bar(s, P); bar(s, P, 0); zone_row(s, P); hero(s, P); divs(s, P, EXPANDED_DIV2_Y)
     params_fm(s, P)
-    kv(s, P, 2, PANEL_Y3, 'DIST', distance_text if distance else '--', P['mut'] if not distance or distance_text == '--' else P['fg'])
+    if distance:
+        kv(s, P, 2, PANEL_Y3, 'DIST', distance_text, P['mut'] if distance_text == '--' else P['fg'])
     emcom_rows(s, P, y1=rows[0], y2=rows[1], y3=rows[2]); footer(s, P); return s
 
 
@@ -310,7 +312,8 @@ def screen_rx(P=DARK, distance=True, distance_text='12.3km'):
     s = Screen(P['bg']); status_bar(s, P, 'RX'); bar(s, P, 23); zone_row(s, P); hero(s, P); divs(s, P, EXPANDED_DIV2_Y)
     s.text(2, PANEL_LARGE_Y1, '-75dBm', 3, P['rx']); s.text(W - 2, PANEL_LARGE_Y1, 'S9+10', 3, P['rx'], True)
     kv(s, P, 2, PANEL_Y2, 'RXT', '88.5', P['rx'])
-    kv(s, P, 2, PANEL_Y3, 'DIST', distance_text if distance else '--', P['mut'] if not distance or distance_text == '--' else P['fg'])
+    if distance:
+        kv(s, P, 2, PANEL_Y3, 'DIST', distance_text, P['mut'] if distance_text == '--' else P['fg'])
     emcom_rows(s, P, y1=rows[0], y2=rows[1], y3=rows[2]); footer(s, P, right='RX', rc=P['rx']); return s
 
 
@@ -337,7 +340,8 @@ def screen_dmr_standby(P=DARK, distance=True):
     divs(s, P, EXPANDED_DIV2_Y)
     kv(s, P, 2, PANEL_Y1, 'TG', '260'); kv(s, P, 66, PANEL_Y1, 'CC', '1'); kv(s, P, 120, PANEL_Y1, 'TS', '1')
     s.text(2, PANEL_Y2, 'SR7L TG260', f1(P), P['fg'])
-    kv(s, P, 2, PANEL_Y3, 'DIST', '12.3km' if distance else '--', P['fg'] if distance else P['mut'])
+    if distance:
+        kv(s, P, 2, PANEL_Y3, 'DIST', '12.3km', P['fg'])
     emcom_rows(s, P, y1=EXPANDED_ROW_Y1, y2=EXPANDED_ROW_Y2, y3=EXPANDED_ROW_Y3)
     footer(s, P); return s
 
