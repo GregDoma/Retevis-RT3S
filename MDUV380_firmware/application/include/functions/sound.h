@@ -32,6 +32,7 @@
 #include <FreeRTOS.h>
 #include <task.h>
 #include "main.h"
+#include "functions/dmrRxAgc.h"
 #include "interfaces/wdog.h"
 
 extern Task_t beepTask;
@@ -66,15 +67,12 @@ extern volatile int16_t *melody_play;
 extern volatile int16_t melody_idx;
 extern volatile int micAudioSamplesTotal;
 extern int soundBeepVolumeDivider;
-extern volatile float dmrRxAGCrxPeakAverage;
 
 #define WAV_BUFFER_SIZE                          160
 #define WAV_BUFFER_COUNT                          30 // 5 DMR frames, was 24
 #define WAV_BUFFER_AMBE_PREBUFFERING_COUNT        12 // 2 DMR frames, 6 buffers each
 #define HOTSPOT_BUFFER_SIZE                      50U
 #define HOTSPOT_BUFFER_COUNT                     48U
-
-#define DMR_RX_AGC_DEFAULT_PEAK_SAMPLES			250.0f
 
 extern union sharedDataBuffer
 {
@@ -110,6 +108,8 @@ bool soundReceiveData(void);
 void soundReceiveRefillData(uint32_t bufNum);
 bool soundMelodyIsPlaying(void);
 void soundStartDMA(void);
+void soundDMRRxAGCSetStationLevel(uint16_t rememberedPeak);
+void soundDMRRxAGCSettingsChanged(void);
 
 //bit field to track audio amp usage
 #define AUDIO_AMP_CHANNEL_NONE  0U

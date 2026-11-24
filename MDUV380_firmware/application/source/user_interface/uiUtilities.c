@@ -38,6 +38,7 @@
 #include "hardware/SPI_Flash.h"
 #include "functions/trx.h"
 #include "functions/rxPowerSaving.h"
+#include "functions/sound.h"
 #if defined(PLATFORM_MD9600) || defined(PLATFORM_MD380) || defined(PLATFORM_MDUV380) || defined(PLATFORM_RT84_DM1701) || defined(PLATFORM_MD2017)
 #include "interfaces/batteryAndPowerManagement.h"
 #include "hardware/radioHardwareInterface.h"
@@ -863,7 +864,6 @@ bool lastHeardListUpdate(uint8_t *dmrDataBuffer, bool forceOnHotspot)
 
 						item->time = ticksGetMillis();
 						lastTG = talkGroupOrPcId;
-						dmrRxAGCrxPeakAverage = (float)item->rxAGCGain;
 
 						if (item == LinkHead)
 						{
@@ -893,6 +893,7 @@ bool lastHeardListUpdate(uint8_t *dmrDataBuffer, bool forceOnHotspot)
 
 							item->prev = NULL;// change the items prev to NULL now we are at teh top of the list
 							LinkHead = item;// Change the global for the head of the link to the item that is to be at the top of the list.
+							soundDMRRxAGCSetStationLevel(item->rxAGCGain);
 							if (item->talkGroupOrPcId != 0)
 							{
 								uiDataGlobal.displayQSOState = QSO_DISPLAY_CALLER_DATA;// flag that the display needs to update
@@ -928,8 +929,8 @@ bool lastHeardListUpdate(uint8_t *dmrDataBuffer, bool forceOnHotspot)
 						item->time = ticksGetMillis();
 						item->receivedTS = (dmrMonitorCapturedTS != -1) ? dmrMonitorCapturedTS : trxGetDMRTimeSlot();
 						item->dmrMode = currentRadioDevice->trxDMRModeRx;
-						dmrRxAGCrxPeakAverage = DMR_RX_AGC_DEFAULT_PEAK_SAMPLES;
-						item->rxAGCGain = (uint16_t)dmrRxAGCrxPeakAverage;
+						item->rxAGCGain = 0U;
+						soundDMRRxAGCSetStationLevel(item->rxAGCGain);
 						lastTG = talkGroupOrPcId;
 
 						memset(item->contact, 0, sizeof(item->contact)); // Clear contact's datas

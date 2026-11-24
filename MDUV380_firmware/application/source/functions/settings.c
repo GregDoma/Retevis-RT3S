@@ -143,6 +143,17 @@ bool settingsLoadSettings(bool reset)
 		return true;
 	}
 
+	// The new DMR receive AGC keeps the persisted numeric meaning of the
+	// supported 0..8 settings, but its target curve is not equivalent to the
+	// older gain algorithm, so a numeric conversion would be misleading. Old
+	// platform builds could store 9..16; clamp those values to the highest new
+	// setting and let the user recalibrate if needed.
+	if (nonVolatileSettings.dmrRxAGC > DMR_RX_AGC_SETTING_COUNT)
+	{
+		nonVolatileSettings.dmrRxAGC = DMR_RX_AGC_SETTING_COUNT;
+		settingsDirty = true;
+	}
+
 	// Force Hotspot mode to off for existing RD-5R users.
 #if defined(PLATFORM_RD5R)
 	nonVolatileSettings.hotspotType = HOTSPOT_TYPE_OFF;

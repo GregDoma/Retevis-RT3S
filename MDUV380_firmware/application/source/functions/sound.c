@@ -36,6 +36,7 @@
 #include "interfaces/interrupts.h"
 #include "interfaces/i2s.h"
 #include "functions/blackout.h"
+#include "user_interface/uiGlobals.h"
 
 
 
@@ -144,46 +145,12 @@ static const uint32_t DELAYED_BEEP_DURATION_MS = 0;
 static bool isInDelayedStart = false;
 static uint32_t delayedStartCounter = 0;
 
-// DMR receive AGC (TA8BMO, replacing the original averaging one).
-//
-// What it did wrong, and what each part below is for:
-//  - Every over started from a fixed level of 250, so with the menu at 0dB the
-//    gain began at 8x: the first second of each over came out far too loud. Now
-//    a station not heard yet starts unknown (0) and its first words set the level.
-//  - The average also went back to 250 on every buffer underrun, which the
-//    decoder has mid-over too, so the blast repeated part way through. An
-//    underrun now changes nothing but the click filter below.
-//  - Sample times gain went straight into int16_t, so anything over 32767
-//    wrapped round to the opposite sign - the hard crackle. Now it cannot clip:
-//    each buffer's peak is known before it is played, so its gain is held under
-//    a ceiling, and the result is clamped as well.
-//  - The gain was recomputed every 16th buffer, in steps. Now it moves every
-//    buffer: down at once, up slowly, ramped across the buffer.
-//  - Switching the AGC off left the last gain applied (the "off" routine was
-//    empty), and voice prompts played at whatever gain it had.
-//    Off, prompts now get exactly 1.
-//  - The menu shows 3dB steps but the gain moved in 6dB ones (1, 2, 4 ... 128).
-//    The targets below are the menu's figures.
-//
-// The level follows the median of the last three buffer peaks, so one click
-// cannot pull the gain down for the speech after it; until three have come in
-// it takes the largest, so an over cannot start loud.
-volatile float dmrRxAGCrxPeakAverage = DMR_RX_AGC_DEFAULT_PEAK_SAMPLES; // the level: 0 = not known yet
-#define DMR_RX_AGC_GATE      200      // peaks below this are pauses or noise and leave the level alone
-#define DMR_RX_AGC_TALK      500      // peaks above this are speech, worth remembering for the station
-#define DMR_RX_AGC_FLOOR     1500.0f  // a first buffer is often a soft syllable start, not the level
-#define DMR_RX_AGC_RELEASE   0.02f    // per 10ms buffer: the level falls over about half a second
-#define DMR_RX_AGC_RISE      0.1f     // per buffer: the gain rises over about 100ms
-#define DMR_RX_AGC_GAIN_MAX  10.0f    // +20dB - beyond that it is amplifying the background
-#define DMR_RX_AGC_GAIN_MIN  0.125f
-#define DMR_RX_AGC_LIMIT     30000.0f // a little under full scale
-// Peak targets for the menu's -9 to +12dB, in 3dB steps; 0dB is 6000.
-static const float DMR_RX_AGC_TARGET[8] = { 2129.0f, 3007.0f, 4248.0f, 6000.0f, 8475.0f, 11972.0f, 16910.0f, 23886.0f };
-static float    dmrRxAgcGain = 1.0f;    // the smoothed gain
-static float    dmrRxAgcApplied = 1.0f; // what the last buffer actually got
-static uint16_t dmrRxAgcHistory[3] = { 0, 0, 0 };
-
-static float dmrRxAgcBufferGain(uint32_t peak);
+static volatile dmrRxAgcState_t dmrRxAgcState =
+{
+	DMR_RX_AGC_DEFAULT_PEAK_SAMPLES, 1.0f, 1.0f, { 0U, 0U, 0U }
+};
+static volatile LinkItem_t *dmrRxAgcStation;
+static volatile uint32_t melodyGeneration;
 
 uint8_t audioAmpGetStatus(void)
 {
@@ -260,6 +227,7 @@ void soundSetMelody(const int16_t *melody)
 		taskENTER_CRITICAL();
 		if ((voicePromptsIsPlaying() == false) || (melody == NULL))
 		{
+			melodyGeneration++;
 			sine_beep_freq = 0;
 			sine_beep_duration = 0;
 			melody_play = (int16_t *)melody;
@@ -299,6 +267,7 @@ void soundInitBeepTask(void)
 	sine_beep_freq = 0;
 	sine_beep_duration = 0;
 	taskEXIT_CRITICAL();
+	soundDMRRxAGCSettingsChanged();
 
 	xTaskCreate(soundBeepTaskFunction,           /* pointer to the task */
 			"beepTask",                          /* task name for kernel awareness debugging */
@@ -318,6 +287,10 @@ void soundInit(void)
 	wavbuffer_read_idx = 0;
 	wavbuffer_write_idx = 0;
 	wavbuffer_count = 0;
+	if (dmrRxAgcStation == NULL)
+	{
+		dmrRxAgcStation = LinkHead;
+	}
 }
 
 void soundTerminateSound(void)
@@ -373,110 +346,35 @@ bool soundFillData(void)
 	return true;
 }
 
-// The gain for one 10ms buffer whose largest sample is peak (see the notes at
-// dmrRxAGCrxPeakAverage). Called from the I2S interrupt.
-static float dmrRxAgcBufferGain(uint32_t peak)
+static void soundDMRRxAGCSetHardwareGain(int8_t gain)
 {
-	float target;
-	float g;
-	int setting = nonVolatileSettings.dmrRxAGC;
+#if defined(PLATFORM_MD9600) || defined(PLATFORM_GD77) || defined(PLATFORM_GD77S) || defined(PLATFORM_DM1801) || defined(PLATFORM_DM1801A) || defined(PLATFORM_RD5R)
+	HRC6000SetDmrRxGain(gain);
+#else
+	HRC6000SetDmrAGCGain(gain);
+#endif
+}
 
-	if (setting == 0)
-	{
-		dmrRxAgcGain = 1.0f; // so switching it back on starts from unity
-		return 1.0f;
-	}
+void soundDMRRxAGCSetStationLevel(uint16_t rememberedPeak)
+{
+	// The UI moves LinkHead before calling this function. Keep the pointer used
+	// by the ISR alongside the reset so learned peaks cannot be written into a
+	// station that has just moved out of the active position.
+	taskENTER_CRITICAL();
+	dmrRxAgcSetStationLevel(&dmrRxAgcState, rememberedPeak);
+	dmrRxAgcStation = LinkHead;
+	taskEXIT_CRITICAL();
+}
 
-	// Prompts  are played at their own level, and must not move
-	// the station's level either.
-	if (voicePromptsIsPlaying())
-	{
-		return 1.0f;
-	}
+void soundDMRRxAGCSettingsChanged(void)
+{
+	taskENTER_CRITICAL();
+	dmrRxAgcSettingsChanged(&dmrRxAgcState);
+	taskEXIT_CRITICAL();
 
-	if (setting > 8)
-	{
-		setting = 8;
-	}
-	target = DMR_RX_AGC_TARGET[setting - 1];
-
-	if (peak > DMR_RX_AGC_GATE)
-	{
-		uint32_t a, b, c;
-		float lv;
-
-		dmrRxAgcHistory[0] = dmrRxAgcHistory[1];
-		dmrRxAgcHistory[1] = dmrRxAgcHistory[2];
-		dmrRxAgcHistory[2] = (uint16_t)((peak > 0xFFFFU) ? 0xFFFFU : peak);
-		a = dmrRxAgcHistory[0];
-		b = dmrRxAgcHistory[1];
-		c = dmrRxAgcHistory[2];
-
-		if (a == 0)
-		{
-			lv = (float)((b > c) ? b : c); // fewer than three yet: the largest
-		}
-		else
-		{
-			lv = (float)((a > b) ? ((b > c) ? b : ((a > c) ? c : a)) : ((a > c) ? a : ((b > c) ? c : b))); // median
-		}
-
-		if (dmrRxAGCrxPeakAverage <= 0.0f)
-		{
-			dmrRxAGCrxPeakAverage = ((lv > DMR_RX_AGC_FLOOR) ? lv : DMR_RX_AGC_FLOOR);
-		}
-		else if (lv > dmrRxAGCrxPeakAverage)
-		{
-			dmrRxAGCrxPeakAverage = lv;
-		}
-		else
-		{
-			dmrRxAGCrxPeakAverage += ((lv - dmrRxAGCrxPeakAverage) * DMR_RX_AGC_RELEASE);
-		}
-
-		if ((peak > DMR_RX_AGC_TALK) && (LinkHead != NULL))
-		{
-			LinkHead->rxAGCGain = (uint16_t) dmrRxAGCrxPeakAverage;
-		}
-	}
-
-	if (dmrRxAGCrxPeakAverage > 0.0f)
-	{
-		float want = (target / dmrRxAGCrxPeakAverage);
-
-		if (want > DMR_RX_AGC_GAIN_MAX)
-		{
-			want = DMR_RX_AGC_GAIN_MAX;
-		}
-		else if (want < DMR_RX_AGC_GAIN_MIN)
-		{
-			want = DMR_RX_AGC_GAIN_MIN;
-		}
-
-		dmrRxAgcGain = ((want < dmrRxAgcGain) ? want : (dmrRxAgcGain + ((want - dmrRxAgcGain) * DMR_RX_AGC_RISE)));
-	}
-
-	// This buffer alone is held under a ceiling a little over the target, so a
-	// click or the first syllable of a loud station is capped without pulling
-	// down the speech that follows it.
-	g = dmrRxAgcGain;
-	if (peak > 0)
-	{
-		float ceiling = (target * 1.25f);
-		float cap;
-
-		if (ceiling > DMR_RX_AGC_LIMIT)
-		{
-			ceiling = DMR_RX_AGC_LIMIT;
-		}
-		cap = (ceiling / (float) peak);
-		if (g > cap)
-		{
-			g = cap;
-		}
-	}
-
-	return g;
+	// The HRC6000 gain is a platform-specific fallback. Always put it at the
+	// neutral point when the software AGC is enabled, disabled, or restored.
+	soundDMRRxAGCSetHardwareGain(0);
 }
 
 bool soundRefillData(uint32_t bufNum)
@@ -485,51 +383,68 @@ bool soundRefillData(uint32_t bufNum)
 	{
 		for(int j = 0; j < 2; j++)
 		{
-			int16_t s[WAV_BUFFER_SIZE / 2];
+			uint8_t setting = nonVolatileSettings.dmrRxAGC;
 			uint32_t peak = 0;
-			float g;
-			float from;
 
-			// A local copy: the global swapper is used in other contexts too.
-			for (int i = 0; i < (WAV_BUFFER_SIZE / 2); i++)
+			if ((setting == 0U) || voicePromptsIsPlaying())
 			{
-				byteSwap16_t sw;
-				uint32_t samp;
-
-				sw.bytes8[0] = audioAndHotspotDataBuffer.wavbuffer[wavbuffer_read_idx][2 * i];
-				sw.bytes8[1] = audioAndHotspotDataBuffer.wavbuffer[wavbuffer_read_idx][(2 * i) + 1];
-				s[i] = sw.byte16;
-
-				samp = (uint32_t) abs(s[i]);
-				if (samp > peak)
+				// Bypass is a bit-for-bit PCM copy. In particular, do not use
+				// abs(INT16_MIN), gain interpolation, or saturation here.
+				for (int i = 0; i < (WAV_BUFFER_SIZE / 2); i++)
 				{
-					peak = samp;
+					byteSwap16_t sw;
+
+					sw.bytes8[0] = audioAndHotspotDataBuffer.wavbuffer[wavbuffer_read_idx][2 * i];
+					sw.bytes8[1] = audioAndHotspotDataBuffer.wavbuffer[wavbuffer_read_idx][(2 * i) + 1];
+					i2s_Tx_Buffer[bufNum][j][2 * i] = (uint16_t)sw.byte16;
 				}
+				dmrRxAgcSetBypass(&dmrRxAgcState);
 			}
-
-			g = dmrRxAgcBufferGain(peak);
-			from = dmrRxAgcApplied;
-
-			for (int i = 0; i < (WAV_BUFFER_SIZE / 2); i++)
+			else
 			{
-				// Ramped when the gain rises, so it never steps up; straight
-				// to the new value when it falls, so a peak is never late.
-				float gi = ((g > from) ? (from + ((g - from) * ((float)(i + 1) / (float)(WAV_BUFFER_SIZE / 2)))) : g);
-				float v = ((float) s[i] * gi);
-
-				if (v > 32767.0f)
+				// First pass finds the peak without spending stack on another
+				// 80-sample temporary buffer. The source remains owned by this
+				// refill until wavbuffer_read_idx advances below.
+				for (int i = 0; i < (WAV_BUFFER_SIZE / 2); i++)
 				{
-					v = 32767.0f;
-				}
-				else if (v < -32767.0f)
-				{
-					v = -32767.0f;
+					byteSwap16_t sw;
+					uint32_t sampleAbs;
+
+					sw.bytes8[0] = audioAndHotspotDataBuffer.wavbuffer[wavbuffer_read_idx][2 * i];
+					sw.bytes8[1] = audioAndHotspotDataBuffer.wavbuffer[wavbuffer_read_idx][(2 * i) + 1];
+					sampleAbs = (sw.byte16 < 0) ? (uint32_t)(-(int32_t)sw.byte16) : (uint32_t)sw.byte16;
+					if (sampleAbs > peak)
+					{
+						peak = sampleAbs;
+					}
 				}
 
-				i2s_Tx_Buffer[bufNum][j][2 * i] = (uint16_t)(int16_t) v; // Only fill the Left Channel. Right Channel is not used by the HRC6000
+				float gain = dmrRxAgcProcessPeak(&dmrRxAgcState, setting, peak);
+				float from = dmrRxAgcState.applied;
+				float gainStep = ((gain > from) ? ((gain - from) / (float)(WAV_BUFFER_SIZE / 2)) : 0.0f);
+
+				// Learned peaks belong only to the station captured by the
+				// station-state API, never to a station moved out of LinkHead.
+				if ((peak > 500U) && (LinkHead != NULL) && (dmrRxAgcStation == LinkHead))
+				{
+					LinkHead->rxAGCGain = (uint16_t)dmrRxAgcState.peakAverage;
+				}
+
+				for (int i = 0; i < (WAV_BUFFER_SIZE / 2); i++)
+				{
+					byteSwap16_t sw;
+					float sampleGain = gain;
+
+					sw.bytes8[0] = audioAndHotspotDataBuffer.wavbuffer[wavbuffer_read_idx][2 * i];
+					sw.bytes8[1] = audioAndHotspotDataBuffer.wavbuffer[wavbuffer_read_idx][(2 * i) + 1];
+					if (gainStep > 0.0f)
+					{
+						sampleGain = from + (gainStep * (float)(i + 1));
+					}
+					i2s_Tx_Buffer[bufNum][j][2 * i] = (uint16_t)dmrRxAgcScaleSample(sw.byte16, sampleGain);
+				}
+				dmrRxAgcState.applied = gain;
 			}
-
-			dmrRxAgcApplied = g;
 
 			wavbuffer_read_idx = ((wavbuffer_read_idx + 1) % WAV_BUFFER_COUNT);
 			wavbuffer_count--;
@@ -543,9 +458,9 @@ bool soundRefillData(uint32_t bufNum)
 		// The level is kept: this happens mid-over as well as at the end, and a
 		// new caller's level is set by uiUtilities. Only the click filter starts
 		// over, since the next buffers may belong to someone else.
-		dmrRxAgcHistory[0] = 0;
-		dmrRxAgcHistory[1] = 0;
-		dmrRxAgcHistory[2] = 0;
+		dmrRxAgcState.history[0] = 0U;
+		dmrRxAgcState.history[1] = 0U;
+		dmrRxAgcState.history[2] = 0U;
 	}
 
 	return false;
@@ -706,15 +621,33 @@ static void soundBeepTaskFunction(void *data)
 	uint8_t tmp_val;
 	int beep_idx = 0;
 	bool beep = false;
+	uint32_t beepGeneration = 0;
 	uint8_t task_spi_sound[32];
 	int waitTimeout;
 
 	while (1U)
 	{
+		bool durationActive;
+		uint32_t activeGeneration;
+
 			beepTask.AliveCount = TASK_FLAGGED_ALIVE;
 
-			if (sine_beep_duration > 0)
+			// Take a coherent snapshot. The SPI operations below may block and
+			// must not run inside this critical section.
+			taskENTER_CRITICAL();
+			durationActive = ((melody_play != NULL) && (sine_beep_duration > 0));
+			activeGeneration = melodyGeneration;
+			taskEXIT_CRITICAL();
+
+			if (durationActive)
 			{
+				if (activeGeneration != beepGeneration)
+				{
+					beep = false;
+					beep_idx = 0;
+					beepGeneration = activeGeneration;
+				}
+
 				if (rxPowerSavingIsRxOn() == false)
 				{
 					rxPowerSavingSetState(ECOPHASE_POWERSAVE_INACTIVE);
@@ -780,12 +713,14 @@ static void soundBeepTaskFunction(void *data)
 					interruptsEnableC6000Interrupts();
 				}
 
-				// Guarded: another task may have zeroed this while we were busy
-				// with the SPI transfers above, and it must never go negative.
-				if (sine_beep_duration > 0)
+				// Only the melody whose frame we rendered may be decremented.
+				// soundSetMelody() can replace it while the SPI transfer is busy.
+				taskENTER_CRITICAL();
+				if ((melodyGeneration == activeGeneration) && (melody_play != NULL) && (sine_beep_duration > 0))
 				{
 					sine_beep_duration--;
 				}
+				taskEXIT_CRITICAL();
 			}
 			else
 			{
