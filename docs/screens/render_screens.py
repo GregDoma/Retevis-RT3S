@@ -123,7 +123,8 @@ def inverse_chip(s, P, x, y, t, c, right=False, tc=None):
 
 # --- layout of uiEmcom.c -------------------------------------------------------------
 STATUS_H, METER_Y, ZONE_Y, HERO_Y, NAME_Y, FREQ_Y = 11, 12, 17, 20, 24, 40
-DIV1_Y, PANEL_Y1, PANEL_Y2, DIV2_Y = 50, 54, 64, 75
+DIV1_Y, PANEL_Y1, PANEL_Y2, PANEL_Y3, DIV2_Y = 50, 54, 64, 74, 75
+DMR_DIV2_Y, DMR_EMCOM_Y1, DMR_EMCOM_Y2, DMR_EMCOM_Y3 = 85, 88, 98, 108
 EMCOM_Y1, EMCOM_Y2, EMCOM_Y3, FOOTER_Y = 79, 89, 99, 116
 
 
@@ -216,8 +217,8 @@ def hero(s, P, num='03', name='RAYNET-1', freq='145.5000 MHz', tx=False):
     s.text(w + 6, FREQ_Y, freq, 1, c)
 
 
-def divs(s, P):
-    s.fill(0, DIV1_Y, W, 1, P['line']); s.fill(0, DIV2_Y, W, 1, P['line'])
+def divs(s, P, div2=DIV2_Y):
+    s.fill(0, DIV1_Y, W, 1, P['line']); s.fill(0, div2, W, 1, P['line'])
 
 
 def params_fm(s, P):
@@ -225,16 +226,17 @@ def params_fm(s, P):
     kv(s, P, 2, PANEL_Y2, 'BW', '12.5k'); kv(s, P, 66, PANEL_Y2, 'TXT', '88.5'); kv(s, P, 120, PANEL_Y2, 'TOT', '3m')
 
 
-def emcom_rows(s, P, unread=0, lh='LH', lhv='SP7ABC-9 4.2km 2m'):
-    kv(s, P, 2, EMCOM_Y1, 'APRS', '14 stn')
+def emcom_rows(s, P, unread=0, lh='LH', lhv='SP7ABC-9 4.2km 2m', y1=EMCOM_Y1, y2=EMCOM_Y2, y3=EMCOM_Y3, show_lh=True):
+    kv(s, P, 2, y1, 'APRS', '14 stn')
     if unread:
         t = f'MSG {unread}'
-        s.fill(72, EMCOM_Y1 - 1, len(t) * 6 + 4, 10, P['info']); s.text(74, EMCOM_Y1, t, '1b', P['bg'])
+        s.fill(72, y1 - 1, len(t) * 6 + 4, 10, P['info']); s.text(74, y1, t, '1b', P['bg'])
     else:
-        kv(s, P, 72, EMCOM_Y1, 'MSG', '0', P['mut'])
-    s.text(W - 2, EMCOM_Y1, 'JO91RS', f1(P), P['rx'], True)
-    kv(s, P, 2, EMCOM_Y2, 'POS', '51.7592N 19.4560E')
-    kv(s, P, 2, EMCOM_Y3, lh, lhv)
+        kv(s, P, 72, y1, 'MSG', '0', P['mut'])
+    s.text(W - 2, y1, 'JO91RS', f1(P), P['rx'], True)
+    kv(s, P, 2, y2, 'POS', '51.7592N 19.4560E')
+    if show_lh:
+        kv(s, P, 2, y3, lh, lhv)
 
 
 def footer(s, P, left='14:32Z 19NOV', right=None, rc=None, est=None, blk=False):
@@ -274,10 +276,12 @@ def screen_tx(P=DARK):
 
 def screen_dmr(P=DARK):
     s = Screen(P['bg']); status_bar(s, P, 'RX', mode='DMR', tone='TS1', aprs=False); bar(s, P, 19)
-    zone_row(s, P, 'DMR SR7', 'CH 7/16'); hero(s, P, '07', 'SR7L TG260', '439.4250 MHz'); divs(s, P)
+    zone_row(s, P, 'DMR SR7', 'CH 7/16'); hero(s, P, '07', 'SR7L TG260', '439.4250 MHz'); divs(s, P, DMR_DIV2_Y)
     s.text(2, PANEL_Y1 - 2, 'SP5ABC', 3, P['rx']); kv(s, P, W - 2 - 6 * 6, PANEL_Y1, 'TG', '260')
     s.text(2, PANEL_Y2 + 2, 'Jan Warszawa', f1(P), P['fg'])
-    emcom_rows(s, P, lhv='SP5ABC 0s'); footer(s, P, '14:35Z 19NOV'); return s
+    kv(s, P, 2, PANEL_Y3 + 2, 'DIST', '12.3km')
+    emcom_rows(s, P, lhv='SP5ABC 0s', y1=DMR_EMCOM_Y1, y2=DMR_EMCOM_Y2, y3=DMR_EMCOM_Y3)
+    footer(s, P, '14:35Z 19NOV'); return s
 
 
 def screen_vfo(P=DARK):

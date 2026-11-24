@@ -9,7 +9,8 @@
  *   20..47  channel number (16x32) + name (8x16) + frequency, or VFO frequency
  *   50      divider
  *   54..73  panel: parameters, or RX level, DMR caller, TX timer
- *   75      divider
+ *   54..84  expanded DMR RX panel: caller ID and optional distance
+ *   75      divider (normal screens); 85 on the expanded DMR RX panel
  *   79..106 EMCOM rows: APRS stations / messages / locator, position, last heard
  *   116..127 footer: UTC clock, lock / scan / SOS
  *
@@ -113,7 +114,12 @@ static const emcomPalette_t PALETTE_CONTRAST_NIGHT =
 #define DIV1_Y          50
 #define PANEL_Y1        54
 #define PANEL_Y2        64
+#define PANEL_Y3        74   // DMR RX only: distance to station / repeater
 #define DIV2_Y          75
+#define DMR_DIV2_Y      85
+#define DMR_EMCOM_Y1    88
+#define DMR_EMCOM_Y2    98
+#define DMR_EMCOM_Y3    108
 #define EMCOM_Y1        79
 #define EMCOM_Y2        89
 #define EMCOM_Y3        99
@@ -145,6 +151,10 @@ static struct
 	bool     gpsFix;
 	bool     sosPhase;
 	int16_t  rxDbm;
+	bool     positionValid;
+	double   positionLat;
+	double   positionLon;
+	bool     distanceEnabled;
 	uint32_t lastFull;
 	bool     valid;
 	bool     blackout;
@@ -370,6 +380,12 @@ static bool ownPosition(double *lat, double *lon)
 	}
 	return false;
 #endif
+}
+
+static bool dmrCallerLayoutActive(void)
+{
+	return ((trxGetMode() == RADIO_MODE_DIGITAL) && uiDataGlobal.isDisplayingQSOData &&
+			(LinkHead != NULL) && (HRC6000GetReceivedTgOrPcId() != 0) && (DISPLAY_SIZE_Y >= 128));
 }
 
 static bool gpsHasFix(void)
@@ -887,6 +903,9 @@ static void drawRxPanel(void)
 	}
 }
 
+static void ageString(uint32_t ms, char *buf, size_t size);
+static bool dmrDistanceString(char *label, size_t labelSize, char *distance, size_t distanceSize);
+
 static void drawCallerPanel(void)
 {
 	char buf[40];
@@ -932,6 +951,16 @@ static void drawCallerPanel(void)
 	snprintf(buf, sizeof(buf), "%s", rest);
 	buf[26] = 0;
 	text(2, (PANEL_Y2 + 2), buf, FONT_SIZE_1, pal->fg, false);
+
+	if (dmrCallerLayoutActive())
+	{
+		char label[4];
+		char distance[16];
+		if (dmrDistanceString(label, sizeof(label), distance, sizeof(distance)))
+		{
+			keyValue(2, (PANEL_Y3 + 2), label, distance, (strcmp(distance, "--") == 0) ? pal->mut : pal->fg);
+		}
+	}
 }
 
 // Warnings (TOT last seconds, warning cards): amber, at night the brighter TX red (the night amber is too dim for
@@ -1097,12 +1126,77 @@ static void ageString(uint32_t ms, char *buf, size_t size)
 	}
 }
 
-static void drawEmcomRows(void)
+static bool dmrDistanceString(char *label, size_t labelSize, char *distance, size_t distanceSize)
+{
+	double ownLat, ownLon;
+	double targetLat = 0.0, targetLon = 0.0;
+	bool targetIsValid = false;
+
+	if (settingsIsOptionBitSet(BIT_DISPLAY_CHANNEL_DISTANCE) == false)
+	{
+		return false;
+	}
+
+	snprintf(label, labelSize, "DST");
+	snprintf(distance, distanceSize, "--");
+
+	if (ownPosition(&ownLat, &ownLon) == false)
+	{
+		return true;
+	}
+
+	// A DMR GPS position is more specific than the configured repeater
+	// position, so prefer it whenever the received station supplied one.
+	if ((LinkHead != NULL) && isfinite(LinkHead->locationLat) && isfinite(LinkHead->locationLon) &&
+			(LinkHead->locationLat >= -90.0) && (LinkHead->locationLat <= 90.0) &&
+			(LinkHead->locationLon >= -180.0) && (LinkHead->locationLon <= 180.0))
+	{
+		targetLat = LinkHead->locationLat;
+		targetLon = LinkHead->locationLon;
+		snprintf(label, labelSize, "STN");
+		targetIsValid = true;
+	}
+	else if (codeplugChannelLocationIsValid(currentChannelData))
+	{
+		uint32_t lat = ((currentChannelData->locationLat2 << 16) | (currentChannelData->locationLat1 << 8) | currentChannelData->locationLat0);
+		uint32_t lon = ((currentChannelData->locationLon2 << 16) | (currentChannelData->locationLon1 << 8) | currentChannelData->locationLon0);
+
+		targetLat = latLonFixed24ToDouble(lat);
+		targetLon = latLonFixed24ToDouble(lon);
+		snprintf(label, labelSize, "DIST");
+		targetIsValid = true;
+	}
+
+	if (targetIsValid)
+	{
+		uint32_t meters = (uint32_t)(distanceBetweenTwoCoords(ownLat, ownLon, targetLat, targetLon, false) + 0.5);
+
+		if (meters < 1000U)
+		{
+			snprintf(distance, distanceSize, "%um", (unsigned)meters);
+		}
+		else if (meters < 100000U)
+		{
+			snprintf(distance, distanceSize, "%u.%ukm", (unsigned)(meters / 1000U), (unsigned)((meters % 1000U) / 100U));
+		}
+		else
+		{
+			snprintf(distance, distanceSize, "%ukm", (unsigned)((meters + 500U) / 1000U));
+		}
+	}
+
+	return true;
+}
+
+static void drawEmcomRows(bool dmrCallerLayout)
 {
 	char buf[28];
 	double lat, lon;
 	bool hasPos = ownPosition(&lat, &lon);
 	uint32_t now = ticksGetMillis();
+	int16_t y1 = (dmrCallerLayout ? DMR_EMCOM_Y1 : EMCOM_Y1);
+	int16_t y2 = (dmrCallerLayout ? DMR_EMCOM_Y2 : EMCOM_Y2);
+	int16_t y3 = (dmrCallerLayout ? DMR_EMCOM_Y3 : EMCOM_Y3);
 
 #if defined(I2S_APRS_RX)
 	uint32_t unread = aprsRxMessageUnreadCount();
@@ -1110,22 +1204,22 @@ static void drawEmcomRows(void)
 	if (aprsRxGetBackground())
 	{
 		snprintf(buf, sizeof(buf), "%u stn", (unsigned)aprsRxStationCount());
-		keyValue(2, EMCOM_Y1, "APRS", buf, pal->fg);
+		keyValue(2, y1, "APRS", buf, pal->fg);
 	}
 	else
 	{
-		keyValue(2, EMCOM_Y1, "APRS", "off", pal->mut);
+		keyValue(2, y1, "APRS", "off", pal->mut);
 	}
 
 	if (unread)
 	{
 		snprintf(buf, sizeof(buf), "MSG %u", (unsigned)unread);
-		fill(72, (EMCOM_Y1 - 1), (int16_t)((strlen(buf) * 6) + 4), 10, pal->info);
-		text(74, EMCOM_Y1, buf, FONT_SIZE_1_BOLD, pal->bg, false);
+		fill(72, (y1 - 1), (int16_t)((strlen(buf) * 6) + 4), 10, pal->info);
+		text(74, y1, buf, FONT_SIZE_1_BOLD, pal->bg, false);
 	}
 	else
 	{
-		keyValue(72, EMCOM_Y1, "MSG", "0", pal->mut);
+		keyValue(72, y1, "MSG", "0", pal->mut);
 	}
 #endif
 
@@ -1136,14 +1230,14 @@ static void drawEmcomRows(void)
 		memset(loc, 0, sizeof(loc));
 		coordsToMaidenhead((uint8_t *)loc, lat, lon);
 		loc[6] = 0;
-		text((DISPLAY_SIZE_X - 2), EMCOM_Y1, loc, FONT_SIZE_1, (gpsHasFix() ? pal->rx : pal->fg), true);
+		text((DISPLAY_SIZE_X - 2), y1, loc, FONT_SIZE_1, (gpsHasFix() ? pal->rx : pal->fg), true);
 
 		formatPosition(lat, lon, buf, sizeof(buf));
-		keyValue(2, EMCOM_Y2, "POS", buf, pal->fg);
+		keyValue(2, y2, "POS", buf, pal->fg);
 	}
 	else
 	{
-		keyValue(2, EMCOM_Y2, "POS", "no fix / location", pal->mut);
+		keyValue(2, y2, "POS", "no fix / location", pal->mut);
 	}
 
 	// Last heard: DMR station, else the last APRS station
@@ -1156,7 +1250,7 @@ static void drawEmcomRows(void)
 		call[12] = 0;
 		ageString((now - LinkHead->time), age, sizeof(age));
 		snprintf(buf, sizeof(buf), "%s %s", call, age);
-		keyValue(2, EMCOM_Y3, "LH", buf, pal->fg);
+		keyValue(2, y3, "LH", buf, pal->fg);
 	}
 #if defined(I2S_APRS_RX)
 	else if (aprsRxStationCount() > 0)
@@ -1175,7 +1269,7 @@ static void drawEmcomRows(void)
 		{
 			snprintf(buf, sizeof(buf), "%s %s", st->name, age);
 		}
-		keyValue(2, EMCOM_Y3, "LH", buf, pal->fg);
+		keyValue(2, y3, "LH", buf, pal->fg);
 	}
 #endif
 }
@@ -1287,6 +1381,8 @@ static void rememberDrawn(emcomState_t st)
 	drawn.gpsFix = gpsHasFix();
 	drawn.sosPhase = (((ticksGetMillis() / 600U) & 1U) == 0U);
 	drawn.rxDbm = (int16_t)trxGetRSSIdBm(RADIO_DEVICE_PRIMARY);
+	drawn.positionValid = ownPosition(&drawn.positionLat, &drawn.positionLon);
+	drawn.distanceEnabled = settingsIsOptionBitSet(BIT_DISPLAY_CHANNEL_DISTANCE);
 	drawn.lastFull = ticksGetMillis();
 	drawn.blackout = blackoutActive();
 	drawn.valid = true;
@@ -1295,6 +1391,7 @@ static void rememberDrawn(emcomState_t st)
 void emcomRenderMain(const emcomMainInfo_t *info)
 {
 	emcomState_t st = currentState();
+	bool dmrCallerLayout = dmrCallerLayoutActive();
 
 	selectPalette();
 	if (info->isTransmitting)
@@ -1350,8 +1447,8 @@ void emcomRenderMain(const emcomMainInfo_t *info)
 
 	if (st != ST_TX)
 	{
-		divider(DIV2_Y);
-		drawEmcomRows();
+		divider((dmrCallerLayout ? DMR_DIV2_Y : DIV2_Y));
+		drawEmcomRows(dmrCallerLayout);
 	}
 	drawFooter(st);
 
@@ -1371,6 +1468,15 @@ bool emcomNeedsFullRedraw(uint32_t now)
 
 	if (((uint8_t)st != drawn.state) || (volumeLevel() != drawn.volume) ||
 			((uiDataGlobal.dateTimeSecs / 60U) != drawn.minute) || (gpsHasFix() != drawn.gpsFix) || (blackoutActive() != drawn.blackout))
+	{
+		return true;
+	}
+
+	double positionLat, positionLon;
+	bool positionValid = ownPosition(&positionLat, &positionLon);
+	if ((positionValid != drawn.positionValid) ||
+			(positionValid && ((positionLat != drawn.positionLat) || (positionLon != drawn.positionLon))) ||
+			(settingsIsOptionBitSet(BIT_DISPLAY_CHANNEL_DISTANCE) != drawn.distanceEnabled))
 	{
 		return true;
 	}
@@ -1498,21 +1604,24 @@ static void alertGlyph(int16_t x, int16_t y, uiAlertKind_t kind, uint32_t rgb)
 static int16_t alertBand(int16_t h)
 {
 	static const uint8_t mainRows[] = { 12, 17, DIV1_Y, DIV2_Y, (EMCOM_Y2 - 1), (EMCOM_Y3 - 1), (EMCOM_Y3 + 9), FOOTER_Y };
+	static const uint8_t dmrRows[] = { 12, 17, DIV1_Y, DMR_DIV2_Y, (DMR_EMCOM_Y2 - 1), (DMR_EMCOM_Y3 - 1), FOOTER_Y };
+	const uint8_t *rows = (dmrCallerLayoutActive() ? dmrRows : mainRows);
+	size_t rowCount = (dmrCallerLayoutActive() ? (sizeof(dmrRows) / sizeof(dmrRows[0])) : (sizeof(mainRows) / sizeof(mainRows[0])));
 	int16_t y = (int16_t)((DISPLAY_SIZE_Y - h) / 2);
 	int16_t top = 0;
 	int16_t bottom = DISPLAY_SIZE_Y;
 
 	if (emcomScreenActive())
 	{
-		for (size_t i = 0; i < (sizeof(mainRows) / sizeof(mainRows[0])); i++)
+		for (size_t i = 0; i < rowCount; i++)
 		{
-			if (mainRows[i] <= (y - 2))
+			if (rows[i] <= (y - 2))
 			{
-				top = mainRows[i];
+				top = rows[i];
 			}
-			else if ((mainRows[i] >= (y + h + 2)) && (bottom == DISPLAY_SIZE_Y))
+			else if ((rows[i] >= (y + h + 2)) && (bottom == DISPLAY_SIZE_Y))
 			{
-				bottom = mainRows[i];
+				bottom = rows[i];
 			}
 		}
 	}
