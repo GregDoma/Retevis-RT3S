@@ -40,6 +40,7 @@
 
 
 #define MIC_AVERAGE_COUNTER_RELOAD     10
+#define AUDIO_AMP_STATE_MUTED         (1 << 3)
 
 static void soundBeepTaskFunction(void *data);
 
@@ -122,10 +123,11 @@ const int16_t MELODY_RX_BEEP_BEGIN_BEEP[] = { 1397, 60, -1, -1 };
 const int16_t MELODY_RX_BEEP_END_BEEP[] = { 698, 60, -1, -1 };
 const int16_t MELODY_RX_BEEP_CALLER_BEGIN_BEEP[] = { 660, 30, 1200, 30, -1, -1 };
 const int16_t MELODY_RX_BEEP_CALLER_END_BEEP[] = { 880, 30, 660, 30, -1, -1 };
-const int16_t MELODY_1750[] = {1750, 10000, -1, -1};
-const int16_t MELODY_DTMF[] = {1209, 10000, -1, -1};
-const int16_t MELODY_SK2_BEEP[] = { 392, 120, 784, 120, -1, -1 };
-const int16_t MELODY_NSK2_BEEP[] = {784, 120, 392, 120 , -1, -1 };
+const int16_t MELODY_1750[] = { 1750, 10000, -1, -1 };
+const int16_t MELODY_DTMF[] = { 1209, 10000, -1, -1 };
+//const int16_t MELODY_SK2_BEEP[] = { 392, 120, 784, 120, -1, -1 };
+//const int16_t MELODY_NSK2_BEEP[] = { 784, 120, 392, 120 , -1, -1 };
+const int16_t MELODY_BEEP_LOW_SHORT[] = { 400, 60, -1, -1 };
 
 // To calculate the pitch use a spreadsheet etc   =ROUND(98*POWER(2, (NOTE_NUMBER/12)),0)
 static const int16_t freqs[64] = {0,104,110,117,123,131,139,147,156,165,175,185,196,208,220,233,247,262,277,294,311,330,349,370,392,415,440,466,494,523,554,587,622,659,698,740,784,831,880,932,988,1047,1109,1175,1245,1319,1397,1480,1568,1661,1760,1865,1976,2093,2217,2349,2489,2637,2794,2960,3136,3322,3520,3729};
@@ -133,7 +135,7 @@ static const int16_t freqs[64] = {0,104,110,117,123,131,139,147,156,165,175,185,
 volatile int16_t *melody_play = NULL;
 volatile int16_t melody_idx = 0;
 int soundBeepVolumeDivider;
-static volatile uint8_t audioAmpStatusMask = 0;
+static volatile uint8_t audioAmpStatusBitfield = AUDIO_AMP_CHANNEL_NONE;
 #if defined (MD9600_VERSION_2) || defined (MD9600_VERSION_1)
 static const uint32_t DELAYED_BEEP_DURATION_MS = 75;
 #else
@@ -183,34 +185,56 @@ static uint16_t dmrRxAgcHistory[3] = { 0, 0, 0 };
 
 static float dmrRxAgcBufferGain(uint32_t peak);
 
-uint8_t getAudioAmpStatus(void)
+uint8_t audioAmpGetStatus(void)
 {
-	return audioAmpStatusMask;
+	return (audioAmpStatusBitfield & ~AUDIO_AMP_STATE_MUTED);
 }
 
-void enableAudioAmp(uint8_t mode)
+void audioAmpEnable(audioAmpChannel_t audioChannel)
 {
-	bool wasEnabled = (audioAmpStatusMask != 0x0);
+	bool wasEnabled = ((audioAmpStatusBitfield & ~AUDIO_AMP_STATE_MUTED) != 0x0);
 
-	audioAmpStatusMask |= mode;
+	audioAmpStatusBitfield |= audioChannel;
 
-	if (!wasEnabled)
+	if ((wasEnabled == false) && ((audioAmpStatusBitfield & AUDIO_AMP_STATE_MUTED) == 0))
 	{
 		radioAudioAmp(true);
 	}
 }
 
-void disableAudioAmp(uint8_t mode)
+void audioAmpDisable(audioAmpChannel_t audioChannel)
 {
-	if (audioAmpStatusMask != 0x0)
+	if ((audioAmpStatusBitfield & ~AUDIO_AMP_STATE_MUTED) != 0x0)
 	{
-		audioAmpStatusMask &= ~mode;
+		audioAmpStatusBitfield &= ~audioChannel;
 
-		if (audioAmpStatusMask == 0)
+		if ((audioAmpStatusBitfield & ~AUDIO_AMP_STATE_MUTED) == 0)
 		{
 			radioAudioAmp(false);
 		}
 	}
+}
+
+void audioAmpMute(bool mute)
+{
+	if (mute)
+	{
+		audioAmpStatusBitfield |= AUDIO_AMP_STATE_MUTED;
+	}
+	else
+	{
+		audioAmpStatusBitfield &= ~AUDIO_AMP_STATE_MUTED;
+	}
+
+	if ((audioAmpStatusBitfield & ~AUDIO_AMP_STATE_MUTED) != 0x0)
+	{
+		radioAudioAmp(!mute);
+	}
+}
+
+bool audioAmpIsMuted(void)
+{
+	return ((audioAmpStatusBitfield & AUDIO_AMP_STATE_MUTED) != 0);
 }
 
 void soundSetMelody(const int16_t *melody)
@@ -220,6 +244,12 @@ void soundSetMelody(const int16_t *melody)
 	if ((melody == MELODY_ERROR_BEEP) || (melody == MELODY_ACK_BEEP))
 	{
 		voicePromptsTerminate();
+	}
+
+	// Fork: blackout, no local beeps (the 1750 Hz burst and DTMF are transmitted)
+	if (blackoutActive() && (melody != NULL) && (melody != MELODY_1750) && (melody != MELODY_DTMF))
+	{
+		return;
 	}
 
 	if ((melody == NULL) ||
@@ -607,13 +637,13 @@ void soundStopMelody(void)
 		 *  On the GD-77. A click also seems to be induced at the end of the beep when the mux is changed back to the RF chip (AT1846)
 		 *  So this fix seems to slightly improve the GD-77 beep on FM
 		 */
-		if (getAudioAmpStatus() & AUDIO_AMP_MODE_RF)
+		if (audioAmpGetStatus() & AUDIO_AMP_CHANNEL_RF)
 		{
 			HRC6000MuteFmAudio(false);					// Unmute the FM audio
 		}
 	}
 
-	disableAudioAmp(AUDIO_AMP_MODE_BEEP);
+	audioAmpDisable(AUDIO_AMP_CHANNEL_BEEP);
 	soundSetMelody(NULL);
 }
 
@@ -643,7 +673,7 @@ void soundTickMelody(void)
 				if ((melody_idx == 0) && (!isInDelayedStart))
 				{
 					HRC6000MuteFmAudio(true);			          //disables the FM audio
-					enableAudioAmp(AUDIO_AMP_MODE_BEEP);
+					audioAmpEnable(AUDIO_AMP_CHANNEL_BEEP);
 					isInDelayedStart = true;
 					delayedStartCounter = DELAYED_BEEP_DURATION_MS;
 				}
