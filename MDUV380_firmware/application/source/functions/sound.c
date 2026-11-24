@@ -359,6 +359,10 @@ void soundRetrieveBuffer(void)
 // Subsequent data fills are done using soundRefillData()
 bool soundFillData(void)
 {
+	#if defined(I2S_APRS_RX)
+	i2sAprsRxStop(); // sound / DMR audio takes the I2S over
+	#endif
+
 	for(int i = 0; i < 2; i++)
 	{
 		soundRefillData(i);
@@ -570,6 +574,9 @@ bool soundReceiveData(void)
 	{
 		return false;
 	}
+	#if defined(I2S_APRS_RX)
+	i2sAprsRxStop(); // sound / DMR audio takes the I2S over
+	#endif
     isSending = false;
     isReceiving = true;
 	soundStartDMA();
