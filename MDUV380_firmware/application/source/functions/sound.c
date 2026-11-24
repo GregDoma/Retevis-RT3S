@@ -471,34 +471,12 @@ bool soundRefillData(uint32_t bufNum)
 					dmrRxAgcStateInit(&processingState);
 				}
 
-				// First pass finds the peak without spending stack on another
-				// 80-sample temporary buffer. The source remains owned by this
-				// refill until wavbuffer_read_idx advances below.
-				for (int i = 0; i < (WAV_BUFFER_SIZE / 2); i++)
-				{
-					uint32_t sampleAbs;
-					int16_t sample = dmrRxAgcReadPcmSample(audioAndHotspotDataBuffer.wavbuffer[wavbuffer_read_idx], i);
-
-					sampleAbs = (sample < 0) ? (uint32_t)(-(int32_t)sample) : (uint32_t)sample;
-					if (sampleAbs > peak)
-					{
-						peak = sampleAbs;
-					}
-				}
-
-				float gain = dmrRxAgcProcessPeak(&processingState, setting, peak);
-				float from = processingState.applied;
-				float gainStep = ((gain > from) ? ((gain - from) / (float)(WAV_BUFFER_SIZE / 2)) : 0.0f);
-
-				for (int i = 0; i < (WAV_BUFFER_SIZE / 2); i++)
-				{
-					float sampleGain = gain;
-					int16_t sample = dmrRxAgcReadPcmSample(audioAndHotspotDataBuffer.wavbuffer[wavbuffer_read_idx], i);
-
-					sampleGain = dmrRxAgcInterpolatedGain(from, gain, gainStep, i);
-					i2s_Tx_Buffer[bufNum][j][2 * i] = (uint16_t)dmrRxAgcScaleSample(sample, sampleGain);
-				}
-				dmrRxAgcSetAppliedGain(&processingState, gain);
+				// The input remains owned by this refill until wavbuffer_read_idx
+				// advances below. The shared operation keeps host coverage aligned
+				// with production peak, scaling, and gain-finalization behavior.
+				peak = dmrRxAgcProcessPcmBuffer(&processingState, setting,
+						audioAndHotspotDataBuffer.wavbuffer[wavbuffer_read_idx],
+						i2s_Tx_Buffer[bufNum][j], (WAV_BUFFER_SIZE / 2));
 				if (transitionBuffer)
 				{
 					dmrRxAgcStateCopy(&dmrRxAgcTransitionState, &processingState);

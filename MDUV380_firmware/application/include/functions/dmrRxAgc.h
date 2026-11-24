@@ -101,6 +101,51 @@ static inline int16_t dmrRxAgcScaleSample(int16_t sample, float gain)
 	return (int16_t)value;
 }
 
+// Process one PCM buffer through the same AGC lifecycle used by soundRefillData:
+// measure its peak, calculate the limited gain, scale samples with a smooth
+// upward ramp, and retain the ending gain for the next buffer. Keeping this
+// inline lets host tests exercise the production operation without adding a
+// call boundary to the real-time audio path.
+static inline uint32_t dmrRxAgcProcessPcmBuffer(volatile dmrRxAgcState_t *state, uint8_t setting,
+		const volatile uint8_t *pcm, volatile uint16_t *output, uint32_t sampleCount)
+{
+	uint32_t peak = 0U;
+	float gain;
+	float from;
+	float gainStep;
+
+	if (sampleCount == 0U)
+	{
+		return 0U;
+	}
+
+	for (uint32_t i = 0U; i < sampleCount; i++)
+	{
+		int16_t sample = dmrRxAgcReadPcmSample(pcm, i);
+		uint32_t sampleAbs = (sample < 0) ? (uint32_t)(-(int32_t)sample) : (uint32_t)sample;
+
+		if (sampleAbs > peak)
+		{
+			peak = sampleAbs;
+		}
+	}
+
+	gain = dmrRxAgcProcessPeak(state, setting, peak);
+	from = state->applied;
+	gainStep = (gain > from) ? ((gain - from) / (float)sampleCount) : 0.0f;
+
+	for (uint32_t i = 0U; i < sampleCount; i++)
+	{
+		float sampleGain = dmrRxAgcInterpolatedGain(from, gain, gainStep, i);
+		int16_t sample = dmrRxAgcReadPcmSample(pcm, i);
+
+		output[2U * i] = (uint16_t)dmrRxAgcScaleSample(sample, sampleGain);
+	}
+
+	dmrRxAgcSetAppliedGain(state, gain);
+	return peak;
+}
+
 void dmrRxAgcOwnerInvalidate(volatile dmrRxAgcOwner_t *owner);
 void dmrRxAgcOwnerPublish(volatile dmrRxAgcOwner_t *owner, const void *entry, uint32_t stationId, uint32_t stationToken);
 bool dmrRxAgcOwnerSnapshot(const volatile dmrRxAgcOwner_t *owner, dmrRxAgcOwnerSnapshot_t *snapshot);

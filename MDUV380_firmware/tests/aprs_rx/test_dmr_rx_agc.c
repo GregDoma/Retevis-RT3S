@@ -4,9 +4,22 @@
 
 #include "functions/dmrRxAgc.h"
 
+#define TEST_PCM_SAMPLE_COUNT 80U
+
 static void assertNear(float actual, float expected, float tolerance)
 {
 	assert(fabsf(actual - expected) <= tolerance);
+}
+
+static void fillPcmBuffer(uint8_t *pcm, int16_t sample)
+{
+	uint16_t bits = (uint16_t)sample;
+
+	for (uint32_t i = 0U; i < TEST_PCM_SAMPLE_COUNT; i++)
+	{
+		pcm[2U * i] = (uint8_t)(bits & 0xffU);
+		pcm[(2U * i) + 1U] = (uint8_t)(bits >> 8);
+	}
 }
 
 static void testPeakLimiter(void)
@@ -164,48 +177,65 @@ static void testGainConvergence(void)
 static void testConsecutiveGainContinuity(void)
 {
 	dmrRxAgcState_t state;
-	float previousApplied;
+	uint8_t pcm[2U * TEST_PCM_SAMPLE_COUNT];
+	uint16_t output[2U * TEST_PCM_SAMPLE_COUNT];
 
-	// Each completed buffer commits its actual ending gain. The next buffer's
-	// first interpolated sample must start from that committed value, not unity.
+	// Exercise the same complete PCM operation as soundRefillData. Each next
+	// buffer's first output must use the prior buffer's committed ending gain.
+	fillPcmBuffer(pcm, 300);
 	dmrRxAgcSetStationLevel(&state, 300U);
-	previousApplied = state.applied;
 	for (int i = 0; i < 8; i++)
 	{
+		dmrRxAgcState_t expectedState;
 		float from = state.applied;
-		float gain = dmrRxAgcProcessPeak(&state, 4U, 300U);
-		float gainStep = (gain > from) ? ((gain - from) / 80.0f) : 0.0f;
+		float gain;
+		float gainStep;
+		uint16_t expectedFirstSample;
 
-		assertNear(from, previousApplied, 0.0001f);
-		assertNear(dmrRxAgcInterpolatedGain(from, gain, gainStep, 0U),
-				(gainStep > 0.0f) ? (from + gainStep) : gain, 0.0001f);
-		dmrRxAgcSetAppliedGain(&state, gain);
+		dmrRxAgcStateCopy(&expectedState, &state);
+		gain = dmrRxAgcProcessPeak(&expectedState, 4U, 300U);
+		gainStep = (gain > from) ? ((gain - from) / (float)TEST_PCM_SAMPLE_COUNT) : 0.0f;
+		expectedFirstSample = (uint16_t)dmrRxAgcScaleSample(300,
+				dmrRxAgcInterpolatedGain(from, gain, gainStep, 0U));
+
+		assert(dmrRxAgcProcessPcmBuffer(&state, 4U, pcm, output, TEST_PCM_SAMPLE_COUNT) == 300U);
+		assert(output[0] == expectedFirstSample);
 		assertNear(state.applied, gain, 0.0001f);
-		previousApplied = gain;
 	}
 	assert(state.applied > 1.0f);
 	assert(state.applied < 10.0f);
 
-	// A loud transient immediately limits the buffer and commits that limited
-	// gain. Recovery starts from the limited result on the following buffer.
+	// A loud buffer commits the actual peak-limited gain; recovery's first
+	// sample then ramps from that limited value, not the larger smoothed gain.
 	{
-		float limitedFrom = state.applied;
-		float limitedGain = dmrRxAgcProcessPeak(&state, 4U, 32768U);
-		float recoveryFrom;
-		float recoveryGain;
-		float recoveryStep;
+		dmrRxAgcState_t expectedState;
+		float from = state.applied;
+		float limitedGain;
+		uint16_t expectedFirstSample;
 
-		assert(limitedGain < limitedFrom);
-		dmrRxAgcSetAppliedGain(&state, limitedGain);
+		fillPcmBuffer(pcm, INT16_MIN);
+		dmrRxAgcStateCopy(&expectedState, &state);
+		limitedGain = dmrRxAgcProcessPeak(&expectedState, 4U, 32768U);
+		assert(limitedGain < from);
+		expectedFirstSample = (uint16_t)dmrRxAgcScaleSample(INT16_MIN, limitedGain);
+
+		assert(dmrRxAgcProcessPcmBuffer(&state, 4U, pcm, output, TEST_PCM_SAMPLE_COUNT) == 32768U);
+		assert(output[0] == expectedFirstSample);
 		assertNear(state.applied, limitedGain, 0.0001f);
 
-		recoveryFrom = state.applied;
-		recoveryGain = dmrRxAgcProcessPeak(&state, 4U, 300U);
-		recoveryStep = (recoveryGain > recoveryFrom) ? ((recoveryGain - recoveryFrom) / 80.0f) : 0.0f;
-		assertNear(recoveryFrom, limitedGain, 0.0001f);
-		assertNear(dmrRxAgcInterpolatedGain(recoveryFrom, recoveryGain, recoveryStep, 0U),
-				(recoveryStep > 0.0f) ? (recoveryFrom + recoveryStep) : recoveryGain, 0.0001f);
-		dmrRxAgcSetAppliedGain(&state, recoveryGain);
+		from = state.applied;
+		fillPcmBuffer(pcm, 300);
+		dmrRxAgcStateCopy(&expectedState, &state);
+		{
+			float recoveryGain = dmrRxAgcProcessPeak(&expectedState, 4U, 300U);
+			float recoveryStep = (recoveryGain > from) ? ((recoveryGain - from) / (float)TEST_PCM_SAMPLE_COUNT) : 0.0f;
+
+			expectedFirstSample = (uint16_t)dmrRxAgcScaleSample(300,
+					dmrRxAgcInterpolatedGain(from, recoveryGain, recoveryStep, 0U));
+			assert(dmrRxAgcProcessPcmBuffer(&state, 4U, pcm, output, TEST_PCM_SAMPLE_COUNT) == 300U);
+			assert(output[0] == expectedFirstSample);
+			assertNear(state.applied, recoveryGain, 0.0001f);
+		}
 	}
 }
 
@@ -216,6 +246,8 @@ static void testStationIsolation(void)
 	dmrRxAgcOwnerSnapshot_t second;
 	dmrRxAgcState_t learned;
 	dmrRxAgcState_t fallback;
+	uint8_t pcm[2U * TEST_PCM_SAMPLE_COUNT];
+	uint16_t output[2U * TEST_PCM_SAMPLE_COUNT];
 	int stationA = 0;
 	int stationB = 0;
 
@@ -244,18 +276,39 @@ static void testStationIsolation(void)
 	owner.sequence = 0U;
 	dmrRxAgcOwnerInvalidate(&owner);
 	assert(!dmrRxAgcOwnerSnapshot(&owner, &second));
+	assert(!dmrRxAgcOwnerStillCurrent(&owner, &second));
 
-	// Fallback processing is isolated: uncertain ownership cannot change the
-	// persistent station state or its median history.
+	// An invalid/stale owner processes into an isolated state. Running the same
+	// production PCM operation must not alter the persistent learned station.
 	dmrRxAgcSetStationLevel(&learned, 6000U);
 	learned.applied = 0.42f;
 	learned.history[0] = 6000U;
 	dmrRxAgcStateCopy(&fallback, &learned);
-	dmrRxAgcSetAppliedGain(&fallback, dmrRxAgcProcessPeak(&fallback, 4U, 30000U));
+	fillPcmBuffer(pcm, 30000);
+	assert(dmrRxAgcProcessPcmBuffer(&fallback, 4U, pcm, output, TEST_PCM_SAMPLE_COUNT) == 30000U);
 	assert(learned.peakAverage == 6000.0f);
 	assert(learned.gain == 1.0f);
 	assert(learned.applied == 0.42f);
 	assert(learned.history[0] == 6000U);
+
+	// Processing a transition buffer against the transition state leaves the
+	// active station's learned state untouched.
+	{
+		dmrRxAgcState_t transition;
+		dmrRxAgcState_t activeBefore;
+
+		dmrRxAgcSetStationLevel(&transition, 3000U);
+		dmrRxAgcStateCopy(&activeBefore, &learned);
+		fillPcmBuffer(pcm, 5000);
+		assert(dmrRxAgcProcessPcmBuffer(&transition, 4U, pcm, output, TEST_PCM_SAMPLE_COUNT) == 5000U);
+		assert(transition.applied > 1.0f);
+		assert(learned.peakAverage == activeBefore.peakAverage);
+		assert(learned.gain == activeBefore.gain);
+		assert(learned.applied == activeBefore.applied);
+		assert(learned.history[0] == activeBefore.history[0]);
+		assert(learned.history[1] == activeBefore.history[1]);
+		assert(learned.history[2] == activeBefore.history[2]);
+	}
 }
 
 static void testUnderrunRecovery(void)
