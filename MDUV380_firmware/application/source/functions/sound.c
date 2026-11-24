@@ -149,7 +149,7 @@ static volatile dmrRxAgcState_t dmrRxAgcState =
 {
 	DMR_RX_AGC_DEFAULT_PEAK_SAMPLES, 1.0f, 1.0f, { 0U, 0U, 0U }
 };
-static volatile LinkItem_t *dmrRxAgcStation;
+static volatile dmrRxAgcOwner_t dmrRxAgcOwner;
 static volatile uint32_t melodyGeneration;
 
 uint8_t audioAmpGetStatus(void)
@@ -287,10 +287,6 @@ void soundInit(void)
 	wavbuffer_read_idx = 0;
 	wavbuffer_write_idx = 0;
 	wavbuffer_count = 0;
-	if (dmrRxAgcStation == NULL)
-	{
-		dmrRxAgcStation = LinkHead;
-	}
 }
 
 void soundTerminateSound(void)
@@ -355,14 +351,24 @@ static void soundDMRRxAGCSetHardwareGain(int8_t gain)
 #endif
 }
 
-void soundDMRRxAGCSetStationLevel(uint16_t rememberedPeak)
+void soundDMRRxAGCSetStationLevel(const void *station, uint32_t stationId, uint32_t stationToken, uint16_t rememberedPeak)
 {
-	// The UI moves LinkHead before calling this function. Keep the pointer used
-	// by the ISR alongside the reset so learned peaks cannot be written into a
-	// station that has just moved out of the active position.
+	// The caller supplies the intended entry and identity explicitly. The owner
+	// is invalidated before state reset and published only after both are ready.
+	// I2S DMA runs at NVIC priority 6, below FreeRTOS's priority-5 mask, so this
+	// short critical section prevents the ISR from seeing a partial publication.
 	taskENTER_CRITICAL();
+	dmrRxAgcOwnerInvalidate(&dmrRxAgcOwner);
 	dmrRxAgcSetStationLevel(&dmrRxAgcState, rememberedPeak);
-	dmrRxAgcStation = LinkHead;
+	dmrRxAgcOwnerPublish(&dmrRxAgcOwner, station, stationId, stationToken);
+	taskEXIT_CRITICAL();
+}
+
+void soundDMRRxAGCInvalidateStation(void)
+{
+	taskENTER_CRITICAL();
+	dmrRxAgcOwnerInvalidate(&dmrRxAgcOwner);
+	dmrRxAgcSetStationLevel(&dmrRxAgcState, 0U);
 	taskEXIT_CRITICAL();
 }
 
@@ -396,58 +402,63 @@ bool soundRefillData(uint32_t bufNum)
 				// abs(INT16_MIN), gain interpolation, or saturation here.
 				for (int i = 0; i < (WAV_BUFFER_SIZE / 2); i++)
 				{
-					byteSwap16_t sw;
-
-					sw.bytes8[0] = audioAndHotspotDataBuffer.wavbuffer[wavbuffer_read_idx][2 * i];
-					sw.bytes8[1] = audioAndHotspotDataBuffer.wavbuffer[wavbuffer_read_idx][(2 * i) + 1];
-					i2s_Tx_Buffer[bufNum][j][2 * i] = (uint16_t)sw.byte16;
+					i2s_Tx_Buffer[bufNum][j][2 * i] = (uint16_t)dmrRxAgcReadPcmSample(audioAndHotspotDataBuffer.wavbuffer[wavbuffer_read_idx], i);
 				}
 				dmrRxAgcSetBypass(&dmrRxAgcState);
 			}
 			else
 			{
+				dmrRxAgcState_t processingState;
+				dmrRxAgcOwnerSnapshot_t ownerSnapshot;
+				bool ownerValid = dmrRxAgcOwnerSnapshot(&dmrRxAgcOwner, &ownerSnapshot);
+
+				// Only a coherent owner may update the persistent AGC state. A
+				// transition or list reset uses an isolated state so its bounded
+				// limiter output remains audible without learning across stations.
+				if (ownerValid)
+				{
+					dmrRxAgcStateCopy(&processingState, &dmrRxAgcState);
+				}
+				else
+				{
+					dmrRxAgcStateInit(&processingState);
+				}
+
 				// First pass finds the peak without spending stack on another
 				// 80-sample temporary buffer. The source remains owned by this
 				// refill until wavbuffer_read_idx advances below.
 				for (int i = 0; i < (WAV_BUFFER_SIZE / 2); i++)
 				{
-					byteSwap16_t sw;
 					uint32_t sampleAbs;
+					int16_t sample = dmrRxAgcReadPcmSample(audioAndHotspotDataBuffer.wavbuffer[wavbuffer_read_idx], i);
 
-					sw.bytes8[0] = audioAndHotspotDataBuffer.wavbuffer[wavbuffer_read_idx][2 * i];
-					sw.bytes8[1] = audioAndHotspotDataBuffer.wavbuffer[wavbuffer_read_idx][(2 * i) + 1];
-					sampleAbs = (sw.byte16 < 0) ? (uint32_t)(-(int32_t)sw.byte16) : (uint32_t)sw.byte16;
+					sampleAbs = (sample < 0) ? (uint32_t)(-(int32_t)sample) : (uint32_t)sample;
 					if (sampleAbs > peak)
 					{
 						peak = sampleAbs;
 					}
 				}
 
-				float gain = dmrRxAgcProcessPeak(&dmrRxAgcState, setting, peak);
-				float from = dmrRxAgcState.applied;
+				float gain = dmrRxAgcProcessPeak(&processingState, setting, peak);
+				float from = processingState.applied;
 				float gainStep = ((gain > from) ? ((gain - from) / (float)(WAV_BUFFER_SIZE / 2)) : 0.0f);
-
-				// Learned peaks belong only to the station captured by the
-				// station-state API, never to a station moved out of LinkHead.
-				if ((peak > 500U) && (LinkHead != NULL) && (dmrRxAgcStation == LinkHead))
-				{
-					LinkHead->rxAGCGain = (uint16_t)dmrRxAgcState.peakAverage;
-				}
 
 				for (int i = 0; i < (WAV_BUFFER_SIZE / 2); i++)
 				{
-					byteSwap16_t sw;
 					float sampleGain = gain;
+					int16_t sample = dmrRxAgcReadPcmSample(audioAndHotspotDataBuffer.wavbuffer[wavbuffer_read_idx], i);
 
-					sw.bytes8[0] = audioAndHotspotDataBuffer.wavbuffer[wavbuffer_read_idx][2 * i];
-					sw.bytes8[1] = audioAndHotspotDataBuffer.wavbuffer[wavbuffer_read_idx][(2 * i) + 1];
-					if (gainStep > 0.0f)
-					{
-						sampleGain = from + (gainStep * (float)(i + 1));
-					}
-					i2s_Tx_Buffer[bufNum][j][2 * i] = (uint16_t)dmrRxAgcScaleSample(sw.byte16, sampleGain);
+					sampleGain = dmrRxAgcInterpolatedGain(from, gain, gainStep, i);
+					i2s_Tx_Buffer[bufNum][j][2 * i] = (uint16_t)dmrRxAgcScaleSample(sample, sampleGain);
 				}
-				dmrRxAgcState.applied = gain;
+				if (ownerValid && dmrRxAgcOwnerStillCurrent(&dmrRxAgcOwner, &ownerSnapshot))
+				{
+					dmrRxAgcStateCopy(&dmrRxAgcState, &processingState);
+					if ((peak > 500U) && (ownerSnapshot.entry != NULL))
+					{
+						((LinkItem_t *)ownerSnapshot.entry)->rxAGCGain = (uint16_t)processingState.peakAverage;
+					}
+				}
 			}
 
 			wavbuffer_read_idx = ((wavbuffer_read_idx + 1) % WAV_BUFFER_COUNT);
@@ -462,9 +473,7 @@ bool soundRefillData(uint32_t bufNum)
 		// The level is kept: this happens mid-over as well as at the end, and a
 		// new caller's level is set by uiUtilities. Only the click filter starts
 		// over, since the next buffers may belong to someone else.
-		dmrRxAgcState.history[0] = 0U;
-		dmrRxAgcState.history[1] = 0U;
-		dmrRxAgcState.history[2] = 0U;
+		dmrRxAgcClearHistory(&dmrRxAgcState);
 	}
 
 	return false;

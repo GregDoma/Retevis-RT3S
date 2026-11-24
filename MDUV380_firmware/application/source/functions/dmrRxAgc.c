@@ -11,6 +11,8 @@
 
 #include "functions/dmrRxAgc.h"
 
+#include <stddef.h>
+
 #define DMR_RX_AGC_GATE      200U
 #define DMR_RX_AGC_TALK      500U
 #define DMR_RX_AGC_FLOOR     1500.0f
@@ -25,6 +27,31 @@ static const float dmrRxAgcTarget[DMR_RX_AGC_SETTING_COUNT] =
 	2129.0f, 3007.0f, 4248.0f, 6000.0f,
 	8475.0f, 11972.0f, 16910.0f, 23886.0f
 };
+
+static bool dmrRxAgcOwnerRead(const volatile dmrRxAgcOwner_t *owner, dmrRxAgcOwnerSnapshot_t *snapshot)
+{
+	uint32_t sequenceBefore = owner->sequence;
+	uint32_t sequenceAfter;
+	bool valid;
+
+	if ((sequenceBefore & 1U) != 0U)
+	{
+		return false;
+	}
+
+	snapshot->entry = owner->entry;
+	snapshot->stationId = owner->stationId;
+	snapshot->stationToken = owner->stationToken;
+	valid = owner->valid;
+	sequenceAfter = owner->sequence;
+
+	if ((sequenceBefore != sequenceAfter) || ((sequenceAfter & 1U) != 0U))
+	{
+		return false;
+	}
+
+	return valid;
+}
 
 static uint16_t clampPeak(uint32_t peak)
 {
@@ -56,14 +83,29 @@ void dmrRxAgcStateInit(volatile dmrRxAgcState_t *state)
 	state->history[2] = 0U;
 }
 
+void dmrRxAgcStateCopy(volatile dmrRxAgcState_t *destination, const volatile dmrRxAgcState_t *source)
+{
+	destination->peakAverage = source->peakAverage;
+	destination->gain = source->gain;
+	destination->applied = source->applied;
+	destination->history[0] = source->history[0];
+	destination->history[1] = source->history[1];
+	destination->history[2] = source->history[2];
+}
+
+void dmrRxAgcClearHistory(volatile dmrRxAgcState_t *state)
+{
+	state->history[0] = 0U;
+	state->history[1] = 0U;
+	state->history[2] = 0U;
+}
+
 void dmrRxAgcSetStationLevel(volatile dmrRxAgcState_t *state, uint16_t rememberedPeak)
 {
 	state->peakAverage = (float)rememberedPeak;
 	state->gain = 1.0f;
 	state->applied = 1.0f;
-	state->history[0] = 0U;
-	state->history[1] = 0U;
-	state->history[2] = 0U;
+	dmrRxAgcClearHistory(state);
 }
 
 void dmrRxAgcSettingsChanged(volatile dmrRxAgcState_t *state)
@@ -72,9 +114,7 @@ void dmrRxAgcSettingsChanged(volatile dmrRxAgcState_t *state)
 	// an old output gain across a menu/startup setting transition.
 	state->gain = 1.0f;
 	state->applied = 1.0f;
-	state->history[0] = 0U;
-	state->history[1] = 0U;
-	state->history[2] = 0U;
+	dmrRxAgcClearHistory(state);
 }
 
 void dmrRxAgcSetBypass(volatile dmrRxAgcState_t *state)
@@ -82,6 +122,20 @@ void dmrRxAgcSetBypass(volatile dmrRxAgcState_t *state)
 	// Learned station state and smoothed gain remain untouched. The next DMR
 	// buffer starts its interpolation from unity after a prompt or AGC bypass.
 	state->applied = 1.0f;
+}
+
+float dmrRxAgcTargetForSetting(uint8_t setting)
+{
+	if (setting < 1U)
+	{
+		setting = 1U;
+	}
+	else if (setting > DMR_RX_AGC_SETTING_COUNT)
+	{
+		setting = DMR_RX_AGC_SETTING_COUNT;
+	}
+
+	return dmrRxAgcTarget[setting - 1U];
 }
 
 float dmrRxAgcProcessPeak(volatile dmrRxAgcState_t *state, uint8_t setting, uint32_t peak)
@@ -99,7 +153,7 @@ float dmrRxAgcProcessPeak(volatile dmrRxAgcState_t *state, uint8_t setting, uint
 		setting = DMR_RX_AGC_SETTING_COUNT;
 	}
 
-	target = dmrRxAgcTarget[setting - 1U];
+	target = dmrRxAgcTargetForSetting(setting);
 
 	if (peak > DMR_RX_AGC_GATE)
 	{
@@ -168,18 +222,41 @@ float dmrRxAgcProcessPeak(volatile dmrRxAgcState_t *state, uint8_t setting, uint
 	return gain;
 }
 
-int16_t dmrRxAgcScaleSample(int16_t sample, float gain)
+void dmrRxAgcOwnerInvalidate(volatile dmrRxAgcOwner_t *owner)
 {
-	float value = (float)sample * gain;
+	owner->sequence++;
+	owner->valid = false;
+	owner->entry = NULL;
+	owner->stationId = 0U;
+	owner->stationToken = 0U;
+	owner->sequence++;
+}
 
-	if (value > 32767.0f)
+void dmrRxAgcOwnerPublish(volatile dmrRxAgcOwner_t *owner, const void *entry, uint32_t stationId, uint32_t stationToken)
+{
+	owner->sequence++;
+	owner->entry = entry;
+	owner->stationId = stationId;
+	owner->stationToken = stationToken;
+	owner->valid = (entry != NULL) && (stationId != 0U) && (stationToken != 0U);
+	owner->sequence++;
+}
+
+bool dmrRxAgcOwnerSnapshot(const volatile dmrRxAgcOwner_t *owner, dmrRxAgcOwnerSnapshot_t *snapshot)
+{
+	return dmrRxAgcOwnerRead(owner, snapshot);
+}
+
+bool dmrRxAgcOwnerStillCurrent(const volatile dmrRxAgcOwner_t *owner, const dmrRxAgcOwnerSnapshot_t *snapshot)
+{
+	dmrRxAgcOwnerSnapshot_t current;
+
+	if (!dmrRxAgcOwnerRead(owner, &current))
 	{
-		return INT16_MAX;
-	}
-	if (value < -32768.0f)
-	{
-		return INT16_MIN;
+		return false;
 	}
 
-	return (int16_t)value;
+	return (current.entry == snapshot->entry) &&
+			(current.stationId == snapshot->stationId) &&
+			(current.stationToken == snapshot->stationToken);
 }

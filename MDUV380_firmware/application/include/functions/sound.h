@@ -108,7 +108,8 @@ bool soundReceiveData(void);
 void soundReceiveRefillData(uint32_t bufNum);
 bool soundMelodyIsPlaying(void);
 void soundStartDMA(void);
-void soundDMRRxAGCSetStationLevel(uint16_t rememberedPeak);
+void soundDMRRxAGCSetStationLevel(const void *station, uint32_t stationId, uint32_t stationToken, uint16_t rememberedPeak);
+void soundDMRRxAGCInvalidateStation(void);
 void soundDMRRxAGCSettingsChanged(void);
 
 //bit field to track audio amp usage

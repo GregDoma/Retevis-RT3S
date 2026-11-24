@@ -22,10 +22,27 @@
 #ifndef OPENGD77_DMR_RX_AGC_H
 #define OPENGD77_DMR_RX_AGC_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #define DMR_RX_AGC_SETTING_COUNT 8U
 #define DMR_RX_AGC_DEFAULT_PEAK_SAMPLES 0.0f
+
+typedef struct
+{
+	const void *entry;
+	uint32_t stationId;
+	uint32_t stationToken;
+} dmrRxAgcOwnerSnapshot_t;
+
+typedef struct
+{
+	const void *entry;
+	uint32_t stationId;
+	uint32_t stationToken;
+	uint32_t sequence;
+	bool valid;
+} dmrRxAgcOwner_t;
 
 typedef struct
 {
@@ -36,10 +53,46 @@ typedef struct
 } dmrRxAgcState_t;
 
 void dmrRxAgcStateInit(volatile dmrRxAgcState_t *state);
+void dmrRxAgcStateCopy(volatile dmrRxAgcState_t *destination, const volatile dmrRxAgcState_t *source);
+void dmrRxAgcClearHistory(volatile dmrRxAgcState_t *state);
 void dmrRxAgcSetStationLevel(volatile dmrRxAgcState_t *state, uint16_t rememberedPeak);
 void dmrRxAgcSettingsChanged(volatile dmrRxAgcState_t *state);
 void dmrRxAgcSetBypass(volatile dmrRxAgcState_t *state);
 float dmrRxAgcProcessPeak(volatile dmrRxAgcState_t *state, uint8_t setting, uint32_t peak);
-int16_t dmrRxAgcScaleSample(int16_t sample, float gain);
+float dmrRxAgcTargetForSetting(uint8_t setting);
+
+static inline int16_t dmrRxAgcReadPcmSample(const volatile uint8_t *buffer, uint32_t sampleIndex)
+{
+	uint16_t bits = (uint16_t)buffer[2U * sampleIndex] |
+			((uint16_t)buffer[(2U * sampleIndex) + 1U] << 8);
+
+	return (int16_t)bits;
+}
+
+static inline float dmrRxAgcInterpolatedGain(float from, float gain, float gainStep, uint32_t sampleIndex)
+{
+	return (gainStep > 0.0f) ? (from + (gainStep * (float)(sampleIndex + 1U))) : gain;
+}
+
+static inline int16_t dmrRxAgcScaleSample(int16_t sample, float gain)
+{
+	float value = (float)sample * gain;
+
+	if (value > 32767.0f)
+	{
+		return INT16_MAX;
+	}
+	if (value < -32768.0f)
+	{
+		return INT16_MIN;
+	}
+
+	return (int16_t)value;
+}
+
+void dmrRxAgcOwnerInvalidate(volatile dmrRxAgcOwner_t *owner);
+void dmrRxAgcOwnerPublish(volatile dmrRxAgcOwner_t *owner, const void *entry, uint32_t stationId, uint32_t stationToken);
+bool dmrRxAgcOwnerSnapshot(const volatile dmrRxAgcOwner_t *owner, dmrRxAgcOwnerSnapshot_t *snapshot);
+bool dmrRxAgcOwnerStillCurrent(const volatile dmrRxAgcOwner_t *owner, const dmrRxAgcOwnerSnapshot_t *snapshot);
 
 #endif /* OPENGD77_DMR_RX_AGC_H */
