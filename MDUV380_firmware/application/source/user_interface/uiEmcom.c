@@ -663,6 +663,20 @@ static int volumeLevel(void)
 #endif
 }
 
+static bool volumeIndicatorVisible(void)
+{
+#if defined(HAS_SOFT_VOLUME)
+	return settingsIsOptionBitSet(BIT_VISUAL_VOLUME);
+#else
+	return true;
+#endif
+}
+
+static int visibleVolumeLevel(void)
+{
+	return (volumeIndicatorVisible() ? volumeLevel() : -1);
+}
+
 // --- status bar -------------------------------------------------------------------------
 static void toneString(uint16_t tone, char *buf, size_t size)
 {
@@ -827,24 +841,28 @@ void emcomRenderStatusBar(bool forceBatteryDisplay)
 		}
 	}
 
-	int vol = volumeLevel();
-	if (vol < 0)
+	if (volumeIndicatorVisible())
 	{
-		colour(fg);
-		displayDrawLine((r - 7), 3, (r - 2), 8, false);
-		displayDrawLine((r - 7), 8, (r - 2), 3, false);
-	}
-	else
-	{
-		for (int b = 0; b < 4; b++)
-		{
-			int16_t h = (int16_t)(2 * (b + 1));
-			int16_t bx = (int16_t)((r - 8) + (b * 2));
+		int vol = volumeLevel();
 
-			fill(bx, (b < vol) ? (9 - h) : 8, 1, ((b < vol) ? h : 1), fg);
+		if (vol < 0)
+		{
+			colour(fg);
+			displayDrawLine((r - 7), 3, (r - 2), 8, false);
+			displayDrawLine((r - 7), 8, (r - 2), 3, false);
 		}
+		else
+		{
+			for (int b = 0; b < 4; b++)
+			{
+				int16_t h = (int16_t)(2 * (b + 1));
+				int16_t bx = (int16_t)((r - 8) + (b * 2));
+
+				fill(bx, (b < vol) ? (9 - h) : 8, 1, ((b < vol) ? h : 1), fg);
+			}
+		}
+		r -= 12;
 	}
-	r -= 12;
 
 #if defined(HAS_GPS)
 	if (SETTINGS_GPS_MODE_GET(nonVolatileSettings) >= GPS_MODE_ON)
@@ -1756,7 +1774,7 @@ static void rememberDrawn(emcomState_t st, const emcomMainInfo_t *info, emcomPan
 		const emcomPositionDisplay_t *position, uint32_t renderedAt)
 {
 	drawn.state = (uint8_t)st;
-	drawn.volume = (int8_t)volumeLevel();
+	drawn.volume = (int8_t)visibleVolumeLevel();
 	drawn.minute = (uiDataGlobal.dateTimeSecs / 60U);
 #if defined(I2S_APRS_RX)
 	drawn.unread = aprsRxMessageUnreadCount();
@@ -1911,7 +1929,7 @@ bool emcomNeedsFullRedraw(uint32_t now)
 		return true;
 	}
 
-	if (((uint8_t)st != drawn.state) || (panel != drawn.panel) || (volumeLevel() != drawn.volume) ||
+	if (((uint8_t)st != drawn.state) || (panel != drawn.panel) || (visibleVolumeLevel() != drawn.volume) ||
 			((uiDataGlobal.dateTimeSecs / 60U) != drawn.minute) || (gpsHasFix() != drawn.gpsFix) || (blackoutActive() != drawn.blackout))
 	{
 		return true;

@@ -160,7 +160,7 @@ def kv(s, P, x, y, k, v, c=None):
 
 
 def status_bar(s, P, state='STBY', mode='FMN', pwr='5W', tone='CTR', aprs=True, gps=True, vol=3, batt=78, sos_phase=None,
-               low=False, fix=True, time_header=False, battery_voltage=False, force_battery=False):
+               low=False, fix=True, time_header=False, battery_voltage=False, force_battery=False, show_volume=True):
     is_tx = state == 'TX'
     cues = P.get('cues', False)
     colour_state_header = (not P.get('night', False)) and (not cues)
@@ -207,14 +207,15 @@ def status_bar(s, P, state='STBY', mode='FMN', pwr='5W', tone='CTR', aprs=True, 
         else:
             battery_text = '12.3V' if battery_voltage else f'{batt}%'
             r -= s.text(r, 2, battery_text, f1(P), bc, True) + 4
-    for b in range(4):
-        h = 2 * (b + 1)
-        bx = r - 8 + b * 2
-        if b < vol:
-            s.fill(bx, 9 - h, 1, h, fg)
-        else:
-            s.fill(bx, 8, 1, 1, fg)
-    r -= 12
+    if show_volume:
+        for b in range(4):
+            h = 2 * (b + 1)
+            bx = r - 8 + b * 2
+            if b < vol:
+                s.fill(bx, 9 - h, 1, h, fg)
+            else:
+                s.fill(bx, 8, 1, 1, fg)
+        r -= 12
     if gps:
         if fix:
             s.text(r, 2, 'GPS', '1b', fg if (is_tx or colour_state_rx_header) else P['rx'], True)

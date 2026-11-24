@@ -237,7 +237,8 @@ aligned:
 The existing *Options → Display* header settings also apply to the EMCOM status
 bar: **Time in header** replaces the battery readout (unless a low-battery
 warning or forced battery display is active), and **Battery** selects percentage
-or voltage. The footer clock remains available in either case. When **UTC** is
+or voltage. **Visual volume** controls the EMCOM header volume indicator and the
+volume notification. The footer clock remains available in either case. When **UTC** is
 set to **No**, the footer shows local time first and Zulu time second using
 the trailing `Z` marker on the Zulu time; with **UTC = Yes**, it shows Zulu
 time only.
