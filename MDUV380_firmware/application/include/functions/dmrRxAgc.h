@@ -1,6 +1,8 @@
 /*
  * Copyright (C) 2025 Roger Clark, VK3KYY / G4KYF
  *
+ * DMR receive AGC tuning profile adapted from TA8BMO's OpenGD77 work.
+ *
  * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions
  * are met:
  *

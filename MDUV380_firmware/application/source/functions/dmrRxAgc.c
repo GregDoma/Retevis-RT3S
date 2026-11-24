@@ -4,6 +4,11 @@
  * See dmrRxAgc.h for the redistribution terms.
  */
 
+// The AGC target curve, thresholds, median window, release/rise response, and
+// limiter tuning are adapted from TA8BMO's OpenGD77 implementation. Station
+// lifecycle, exact bypass behavior, synchronization, and host-test extraction
+// are maintained separately in this fork.
+
 #include "functions/dmrRxAgc.h"
 
 #define DMR_RX_AGC_GATE      200U
