@@ -278,9 +278,11 @@ def emcom_rows(s, P, unread=0, lh='LH', lhv='SP7ABC-9 4.2km 2m', y1=COMPACT_ROW_
         kv(s, P, 2, y3, lh, lhv)
 
 
-def footer(s, P, left='14:32Z 19NOV', right=None, rc=None, est=None, blk=False):
+def footer(s, P, left='14:32Z 19NOV', right=None, rc=None, est=None, blk=False, local_zulu=False):
     # uiEmcom.c drawFooter(): the right item (SOS, SCAN, TX OFF, locks, TX), else the battery
     # time left; the BLK chip (blackout) left of it
+    if local_zulu:
+        left = '06:32/14:32Z 19NOV'
     s.fill(0, FOOTER_Y, W, H - FOOTER_Y, P['bar'])
     s.text(2, FOOTER_Y + 2, left, f1(P), P['barFg'])
     r = W - 2

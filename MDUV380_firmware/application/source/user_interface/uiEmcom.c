@@ -1650,16 +1650,29 @@ static void drawFooter(emcomState_t st)
 
 	if (uiDataGlobal.dateTimeSecs > 86400U)
 	{
-		struct tm t;
+		struct tm utc;
+		struct tm local;
 		time_t_custom secs = uiDataGlobal.dateTimeSecs;
 		static const char *months[] = { "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC" };
 
-		gmtime_r_Custom(&secs, &t);
-		snprintf(buf, sizeof(buf), "%02d:%02dZ %02d%s", t.tm_hour, t.tm_min, t.tm_mday, months[CLAMP(t.tm_mon, 0, 11)]);
+		gmtime_r_Custom(&secs, &utc);
+		if ((nonVolatileSettings.timezone & 0x80) != 0)
+		{
+			int32_t offset = (((nonVolatileSettings.timezone & 0x7F) - 64) * (15 * 60));
+			time_t_custom localSecs = (time_t_custom)((int64_t)secs + offset);
+
+			gmtime_r_Custom(&localSecs, &local);
+			snprintf(buf, sizeof(buf), "%02d:%02d/%02d:%02dZ %02d%s", local.tm_hour, local.tm_min,
+					utc.tm_hour, utc.tm_min, local.tm_mday, months[CLAMP(local.tm_mon, 0, 11)]);
+		}
+		else
+		{
+			snprintf(buf, sizeof(buf), "%02d:%02dZ %02d%s", utc.tm_hour, utc.tm_min, utc.tm_mday, months[CLAMP(utc.tm_mon, 0, 11)]);
+		}
 	}
 	else
 	{
-		snprintf(buf, sizeof(buf), "--:--Z");
+		snprintf(buf, sizeof(buf), ((nonVolatileSettings.timezone & 0x80) != 0) ? "--:--/--:--Z" : "--:--Z");
 	}
 
 	if (st == ST_SCAN)
