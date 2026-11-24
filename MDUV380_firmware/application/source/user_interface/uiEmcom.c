@@ -2,8 +2,8 @@
  * Fork: "EMCOM" main screen style, by Marcin SP7TQ. See uiEmcom.h.
  *
  * Layout (160 x 128, y in pixels):
- *   0..10   status bar: state chip (mode / RX / TX / SCAN), power, tone or
- *           time slot, APRS, GPS, volume, battery; SOS banner
+ *   0..10   status bar: mode / TX / SCAN chip, power, tone or time slot,
+ *           APRS, GPS, volume, battery; SOS banner
  *   12..14  S-meter / mic level, 32 segments
  *   17      zone (or VFO) | CH n/m
  *   20..47  channel number (16x32) + name (8x16) + frequency, or VFO frequency
@@ -11,7 +11,7 @@
  *   54..74  panel: parameters, or RX level, DMR caller, TX timer
  *   75 / 83 compact / expanded lower divider
  *   79,89,99 compact rows; 86,96,106 expanded rows: APRS, position, last heard
- *   116..127 footer: UTC clock, lock / scan / SOS
+ *   116..127 footer: UTC clock, RX / TX / scan / lock / SOS
  *
  * Use of this source code or binary releases for commercial purposes is
  * strictly forbidden (see license.txt).
@@ -119,10 +119,11 @@ static const emcomPalette_t PALETTE_CONTRAST_NIGHT =
 #define EMCOM_PANEL_Y3         (EMCOM_PANEL_Y2 + EMCOM_SMALL_ROW_PITCH)
 #define EMCOM_CHIP_TOP_OFFSET (-1)
 #define EMCOM_CHIP_HEIGHT      10
+#define EMCOM_LARGE_GLYPH_BOTTOM 12
 
 // FONT_SIZE_3 is an 8x16 cell whose normal glyphs occupy rows +2..+12. Start
-// it at 51 so the first small row at 54 does not overlap its final pixels.
-#define EMCOM_PANEL_LARGE_Y1   51
+// it at the divider so its final pixels clear the first small row at 64.
+#define EMCOM_PANEL_LARGE_Y1   EMCOM_DIV1_Y
 
 // The inverse chip occupies y-1..y+8. Keeping the third panel row at 74
 // therefore leaves row 82 clear before the expanded divider at 83.
@@ -172,6 +173,8 @@ static const emcomLayout_t EMCOM_LAYOUT_EXPANDED =
 
 _Static_assert((EMCOM_PANEL_Y2 - EMCOM_PANEL_Y1) == EMCOM_SMALL_ROW_PITCH, "EMCOM panel pitch");
 _Static_assert((EMCOM_PANEL_Y3 - EMCOM_PANEL_Y2) == EMCOM_SMALL_ROW_PITCH, "EMCOM panel pitch");
+_Static_assert((EMCOM_PANEL_LARGE_Y1 + EMCOM_LARGE_GLYPH_BOTTOM + 1) <= EMCOM_PANEL_Y2,
+		"EMCOM large panel glyph clearance");
 _Static_assert(EMCOM_EXPANDED_DIV2_Y >= (EMCOM_PANEL_Y3 + EMCOM_CHIP_TOP_OFFSET + EMCOM_CHIP_HEIGHT),
 		"EMCOM expanded panel clearance");
 _Static_assert((EMCOM_COMPACT_ROW_Y3 + FONT_SIZE_1_HEIGHT + 1) <= FOOTER_Y, "EMCOM compact rows fit");
@@ -539,11 +542,13 @@ static bool dmrCallerPanelActive(void)
 
 // Distance is a channel-mode feature. Keep this decision tied to the panel
 // selected for this render so VFO reception and higher-priority panels cannot
-// accidentally inherit the distance layout.
-static bool channelDistanceDisplayEligible(const emcomMainInfo_t *info, emcomState_t st, emcomPanel_t panel)
+// accidentally inherit the distance layout. The row remains present on the
+// channel standby/FM RX layouts even when the setting is off; in that case the
+// value is shown as '--' so rows below it do not move.
+static bool channelDistanceRowVisible(const emcomMainInfo_t *info, emcomState_t st, emcomPanel_t panel)
 {
 	if ((info == NULL) || info->isVFO || (menuSystemGetRootMenuNumber() != UI_CHANNEL_MODE) ||
-			(settingsIsOptionBitSet(BIT_DISPLAY_CHANNEL_DISTANCE) == false) || (DISPLAY_SIZE_Y < 128))
+			(DISPLAY_SIZE_Y < 128))
 	{
 		return false;
 	}
@@ -555,6 +560,12 @@ static bool channelDistanceDisplayEligible(const emcomMainInfo_t *info, emcomSta
 
 	return ((panel == EMCOM_PANEL_PARAMS) && (st == ST_STBY) && (info->showDetails == false) &&
 			(info->gotoChannel == 0) && (info->freqEntry == NULL));
+}
+
+static bool channelDistanceDisplayEligible(const emcomMainInfo_t *info, emcomState_t st, emcomPanel_t panel)
+{
+	return (channelDistanceRowVisible(info, st, panel) &&
+			settingsIsOptionBitSet(BIT_DISPLAY_CHANNEL_DISTANCE));
 }
 
 static emcomPanel_t renderedPanel(const emcomMainInfo_t *info, emcomState_t st)
@@ -584,9 +595,9 @@ static emcomPanel_t renderedPanel(const emcomMainInfo_t *info, emcomState_t st)
 	return EMCOM_PANEL_PARAMS;
 }
 
-static const emcomLayout_t *layoutForPanel(emcomPanel_t panel, bool channelDistanceEligible)
+static const emcomLayout_t *layoutForPanel(emcomPanel_t panel, bool distanceRowVisible)
 {
-	bool expanded = channelDistanceEligible;
+	bool expanded = distanceRowVisible;
 
 	if (DISPLAY_SIZE_Y >= 128)
 	{
@@ -667,15 +678,16 @@ void emcomRenderStatusBar(void)
 		return;
 	}
 
-	// State chip: the mode when idle, else the state
+	// State chip: the mode when idle or receiving, else the state. RX is
+	// repeated in the footer with the TX and SCAN indicators.
 	const char *mode = (digital ? "DMR" : (trxGetBandwidthIs25kHz() ? "FM" : "FMN"));
-	const char *chip = ((st == ST_RX) ? "RX" : ((st == ST_TX) ? "TX" : ((st == ST_SCAN) ? "SCAN" : mode)));
-	uint32_t chipCol = ((st == ST_RX) ? pal->rx : ((st == ST_TX) ? pal->txFg : ((st == ST_SCAN) ? pal->scan : pal->barFg)));
+	const char *chip = ((st == ST_TX) ? "TX" : ((st == ST_SCAN) ? "SCAN" : mode));
+	uint32_t chipCol = ((st == ST_TX) ? pal->txFg : ((st == ST_SCAN) ? pal->scan : pal->barFg));
 	int16_t chipW = (int16_t)((strlen(chip) * 6) + 4);
 
 	if (pal->cues && (st == ST_STBY))
 	{
-		// mono / contrast: idle = outlined chip, RX / SCAN = solid chip, TX = inverse status bar
+		// mono / contrast: idle = outlined mode chip, SCAN = solid chip, TX = inverse status bar
 		colour(chipCol);
 		displayDrawRect(1, 1, chipW, 9, false);
 		text(3, 2, chip, FONT_SIZE_1_BOLD, chipCol, false);
@@ -687,7 +699,7 @@ void emcomRenderStatusBar(void)
 	}
 	x = chipW + 4;
 
-	if (st != ST_STBY)
+	if ((st != ST_STBY) && (st != ST_RX))
 	{
 		x += text(x, 2, mode, FONT_SIZE_1, fg, false) + 4;
 	}
@@ -1208,7 +1220,7 @@ static void drawDistanceLine(const emcomPositionDisplay_t *position)
 			(strcmp(position->repeaterDistance, "--") == 0) ? pal->mut : pal->fg);
 }
 
-static void drawRxPanel(bool showChannelDistance, const emcomPositionDisplay_t *position)
+static void drawRxPanel(bool showDistanceRow, const emcomPositionDisplay_t *position)
 {
 	char buf[16];
 	int dBm = trxGetRSSIdBm(RADIO_DEVICE_PRIMARY);
@@ -1228,7 +1240,7 @@ static void drawRxPanel(bool showChannelDistance, const emcomPositionDisplay_t *
 		text(2, EMCOM_PANEL_Y2, "CARRIER", FONT_SIZE_1, pal->mut, false);
 	}
 
-	if (showChannelDistance)
+	if (showDistanceRow)
 	{
 		drawDistanceLine(position);
 	}
@@ -1614,6 +1626,11 @@ static void drawFooter(emcomState_t st)
 		rightCol = pal->tx;
 		alert = true;
 	}
+	else if (st == ST_RX)
+	{
+		right = "RX";
+		rightCol = pal->rx;
+	}
 
 	int16_t r = (DISPLAY_SIZE_X - 2); // right edge of the next item
 
@@ -1702,6 +1719,7 @@ void emcomRenderMain(const emcomMainInfo_t *info)
 	const emcomLayout_t *layout;
 	emcomPosition_t position;
 	emcomPositionDisplay_t positionDisplay;
+	bool showDistanceRow;
 	bool showChannelDistance;
 	memset(&position, 0, sizeof(position));
 
@@ -1711,8 +1729,9 @@ void emcomRenderMain(const emcomMainInfo_t *info)
 		st = ST_TX;
 	}
 	panel = renderedPanel(info, st);
+	showDistanceRow = channelDistanceRowVisible(info, st, panel);
 	showChannelDistance = channelDistanceDisplayEligible(info, st, panel);
-	layout = layoutForPanel(panel, showChannelDistance);
+	layout = layoutForPanel(panel, showDistanceRow);
 	lastRenderedPanel = panel;
 	lastRenderedLayout = layout;
 	if (panel == EMCOM_PANEL_TX)
@@ -1764,12 +1783,12 @@ void emcomRenderMain(const emcomMainInfo_t *info)
 	}
 	else if (panel == EMCOM_PANEL_FM_RX)
 	{
-		drawRxPanel(showChannelDistance, &positionDisplay);
+		drawRxPanel(showDistanceRow, &positionDisplay);
 	}
 	else
 	{
 		drawParams();
-		if (showChannelDistance)
+		if (showDistanceRow)
 		{
 			drawDistanceLine(&positionDisplay);
 		}

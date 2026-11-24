@@ -233,6 +233,11 @@ def standby(P):
     return A.standby(P)
 
 
+def standby_compact(P):
+    # VFO RX remains a compact layout and is the compact notification underlay.
+    return R.screen_vfo(P)
+
+
 def standby_expanded(P):
     return R.screen_standby(P, distance=True)
 
@@ -389,20 +394,20 @@ def main():
     tx_panels, alert_panels, aprs_panels, notification_panels = [], [], [], []
     for name, P in STYLES + (('mono night', R.MONO_NIGHT), ('contrast night', R.CONTRAST_NIGHT)):
         if name.endswith(' night'):
-            alert_panels += [alert(P, 'warning', 'APRS msg: no ACK', under=standby(P)), level(P, 'Squelch', '45%', 45, standby(P)),
+            alert_panels += [alert(P, 'warning', 'APRS msg: no ACK', under=standby(P), rows=EXPANDED_ROWS), level(P, 'Squelch', '45%', 45, standby(P), rows=EXPANDED_ROWS),
                              alert(P, 'error', 'Out of band', title='TX blocked', full=True),
-                             alert(P, 'info', 'SP7ABC-9:Punkt 2 gotowy, QRV 145.500', under=standby(P)), tx_screen(P, elapsed=172)]
+                             alert(P, 'info', 'SP7ABC-9:Punkt 2 gotowy, QRV 145.500', under=standby(P), rows=EXPANDED_ROWS), tx_screen(P, elapsed=172)]
             continue
         tx_panels += [tx_screen(P), tx_screen(P, elapsed=172), tx_screen(P, elapsed=754, total=None, digital=True)]
         alert_panels += [
             alert(P, 'question', 'Private call\nAccept call?\nSP5ABC Jan', keys='GRN YES     RED NO', full=True),
-            alert(P, 'warning', 'APRS msg: no ACK', under=standby(P)),
+            alert(P, 'warning', 'APRS msg: no ACK', under=standby(P), rows=EXPANDED_ROWS),
             alert(P, 'error', 'Out of band', title='TX blocked', full=True),
-            level(P, 'Squelch', '45%', 45, standby(P)),
-            alert(P, 'info', 'SP7ABC-9:Punkt 2 gotowy, QRV 145.500', under=standby(P)),
+            level(P, 'Squelch', '45%', 45, standby(P), rows=EXPANDED_ROWS),
+            alert(P, 'info', 'SP7ABC-9:Punkt 2 gotowy, QRV 145.500', under=standby(P), rows=EXPANDED_ROWS),
         ]
         notification_panels += [
-            alert(P, 'warning', 'APRS msg: no ACK', under=standby(P), rows=MAIN_ROWS),
+            alert(P, 'warning', 'APRS msg: no ACK', under=standby_compact(P), rows=MAIN_ROWS),
             alert(P, 'warning', 'APRS msg: no ACK', under=standby_expanded(P), rows=EXPANDED_ROWS),
         ]
     for name, _ in STYLES:

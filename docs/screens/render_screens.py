@@ -126,7 +126,8 @@ STATUS_H, METER_Y, ZONE_Y, HERO_Y, NAME_Y, FREQ_Y = 11, 12, 17, 20, 24, 40
 SMALL_ROW_PITCH = 10
 DIV1_Y, PANEL_Y1, PANEL_Y2, PANEL_Y3 = 50, 54, 64, 74
 CHIP_TOP_OFFSET, CHIP_HEIGHT = -1, 10
-PANEL_LARGE_Y1 = 51
+PANEL_LARGE_Y1 = DIV1_Y
+FONT_SIZE_3_GLYPH_BOTTOM = 12
 COMPACT_DIV2_Y = 75
 COMPACT_ROW_Y1 = 79
 COMPACT_ROW_Y2, COMPACT_ROW_Y3 = COMPACT_ROW_Y1 + SMALL_ROW_PITCH, COMPACT_ROW_Y1 + (2 * SMALL_ROW_PITCH)
@@ -142,6 +143,7 @@ def assert_layout_boundaries():
     """Keep the mock renderer's geometry aligned with uiEmcom.c."""
     assert PANEL_Y2 - PANEL_Y1 == SMALL_ROW_PITCH
     assert PANEL_Y3 - PANEL_Y2 == SMALL_ROW_PITCH
+    assert PANEL_LARGE_Y1 + FONT_SIZE_3_GLYPH_BOTTOM + 1 <= PANEL_Y2
     assert PANEL_Y3 + CHIP_TOP_OFFSET + CHIP_HEIGHT <= EXPANDED_DIV2_Y
     assert PANEL_LARGE_Y1 + FONT_SIZE_3_HEIGHT <= COMPACT_DIV2_Y
     assert COMPACT_ROW_Y3 + FONT_SIZE_1_HEIGHT + 1 <= FOOTER_Y
@@ -167,8 +169,8 @@ def status_bar(s, P, state='STBY', mode='FMN', pwr='5W', tone='CTR', aprs=True, 
         s.fill(0, 0, W, STATUS_H, P['tx'] if sos_phase else P['bar'])
         s.text((W - 13 * 6) // 2, 2, 'EMERGENCY SOS', '1b', P['txFg'] if sos_phase else P['tx'])
         return
-    chip = {'RX': 'RX', 'TX': 'TX', 'SCAN': 'SCAN'}.get(state, mode)
-    chip_c = {'RX': P['rx'], 'TX': P['txFg'], 'SCAN': P['scan']}.get(state, P['barFg'])
+    chip = {'TX': 'TX', 'SCAN': 'SCAN'}.get(state, mode)
+    chip_c = {'TX': P['txFg'], 'SCAN': P['scan']}.get(state, P['barFg'])
     cw = len(chip) * 6 + 4
     if cues and state == 'STBY':
         s.rect(1, 1, cw, 9, chip_c)
@@ -177,7 +179,7 @@ def status_bar(s, P, state='STBY', mode='FMN', pwr='5W', tone='CTR', aprs=True, 
         s.fill(1, 1, cw, 9, chip_c)
         s.text(3, 2, chip, '1b', P['tx'] if is_tx else P['bar'])
     x = cw + 4
-    if state != 'STBY':
+    if state not in ('STBY', 'RX'):
         x += s.text(x, 2, mode, f1(P), fg) + 4
     x += s.text(x, 2, pwr, f1(P), fg) + 4
     if tone:
@@ -281,24 +283,22 @@ def footer(s, P, left='14:32Z 19NOV', right=None, rc=None, est=None, blk=False):
 
 
 def screen_standby(P=DARK, distance=True, distance_text='12.3km'):
-    expanded = distance
-    rows = (EXPANDED_ROW_Y1, EXPANDED_ROW_Y2, EXPANDED_ROW_Y3) if expanded else (COMPACT_ROW_Y1, COMPACT_ROW_Y2, COMPACT_ROW_Y3)
-    s = Screen(P['bg']); status_bar(s, P); bar(s, P, 0); zone_row(s, P); hero(s, P); divs(s, P, EXPANDED_DIV2_Y if expanded else COMPACT_DIV2_Y)
+    # The standby/FM receive panel always reserves the DIST row. When the
+    # setting or location does not provide a value, the firmware shows '--'.
+    rows = (EXPANDED_ROW_Y1, EXPANDED_ROW_Y2, EXPANDED_ROW_Y3)
+    s = Screen(P['bg']); status_bar(s, P); bar(s, P, 0); zone_row(s, P); hero(s, P); divs(s, P, EXPANDED_DIV2_Y)
     params_fm(s, P)
-    if distance:
-        kv(s, P, 2, PANEL_Y3, 'DIST', distance_text, P['mut'] if distance_text == '--' else P['fg'])
+    kv(s, P, 2, PANEL_Y3, 'DIST', distance_text if distance else '--', P['mut'] if not distance or distance_text == '--' else P['fg'])
     emcom_rows(s, P, y1=rows[0], y2=rows[1], y3=rows[2]); footer(s, P); return s
 
 
 def screen_rx(P=DARK, distance=True, distance_text='12.3km'):
-    expanded = distance
-    rows = (EXPANDED_ROW_Y1, EXPANDED_ROW_Y2, EXPANDED_ROW_Y3) if expanded else (COMPACT_ROW_Y1, COMPACT_ROW_Y2, COMPACT_ROW_Y3)
-    s = Screen(P['bg']); status_bar(s, P, 'RX'); bar(s, P, 23); zone_row(s, P); hero(s, P); divs(s, P, EXPANDED_DIV2_Y if expanded else COMPACT_DIV2_Y)
+    rows = (EXPANDED_ROW_Y1, EXPANDED_ROW_Y2, EXPANDED_ROW_Y3)
+    s = Screen(P['bg']); status_bar(s, P, 'RX'); bar(s, P, 23); zone_row(s, P); hero(s, P); divs(s, P, EXPANDED_DIV2_Y)
     s.text(2, PANEL_LARGE_Y1, '-75dBm', 3, P['rx']); s.text(W - 2, PANEL_LARGE_Y1, 'S9+10', 3, P['rx'], True)
     kv(s, P, 2, PANEL_Y2, 'RXT', '88.5', P['rx'])
-    if distance:
-        kv(s, P, 2, PANEL_Y3, 'DIST', distance_text, P['mut'] if distance_text == '--' else P['fg'])
-    emcom_rows(s, P, y1=rows[0], y2=rows[1], y3=rows[2]); footer(s, P); return s
+    kv(s, P, 2, PANEL_Y3, 'DIST', distance_text if distance else '--', P['mut'] if not distance or distance_text == '--' else P['fg'])
+    emcom_rows(s, P, y1=rows[0], y2=rows[1], y3=rows[2]); footer(s, P, right='RX', rc=P['rx']); return s
 
 
 def screen_tx(P=DARK):
@@ -314,7 +314,7 @@ def screen_dmr(P=DARK):
     s.text(2, PANEL_Y2, 'Jan Warszawa', f1(P), P['fg'])
     s.text(2, PANEL_Y3, 'RAYNET LODZ', f1(P), P['fg'])
     emcom_rows(s, P, lhv='SP5ABC 0s', y1=EXPANDED_ROW_Y1, y2=EXPANDED_ROW_Y2, y3=EXPANDED_ROW_Y3)
-    footer(s, P, '14:35Z 19NOV'); return s
+    footer(s, P, '14:35Z 19NOV', right='RX', rc=P['rx']); return s
 
 
 def screen_dmr_short(P=DARK):
@@ -324,7 +324,7 @@ def screen_dmr_short(P=DARK):
     s.text(2, PANEL_LARGE_Y1, 'SP5ABC', 3, P['rx']); kv(s, P, W - 2 - 6 * 6, PANEL_Y1, 'TG', '260')
     s.text(2, PANEL_Y2, 'Jan', f1(P), P['fg'])
     emcom_rows(s, P, lhv='SP5ABC 0s', y1=EXPANDED_ROW_Y1, y2=EXPANDED_ROW_Y2, y3=EXPANDED_ROW_Y3)
-    footer(s, P, '14:35Z 19NOV'); return s
+    footer(s, P, '14:35Z 19NOV', right='RX', rc=P['rx']); return s
 
 
 def screen_details(P=DARK):
@@ -332,17 +332,17 @@ def screen_details(P=DARK):
     s.fill(0, PANEL_Y1 - 1, 2, (PANEL_Y2 + 9) - (PANEL_Y1 - 1), P['info'])
     kv(s, P, 6, PANEL_Y1, 'RX', '145.5000'); s.text(W - 2, PANEL_Y1, '88.5', f1(P), P['info'], True)
     kv(s, P, 6, PANEL_Y2, 'TX', '144.9000'); s.text(W - 2, PANEL_Y2, '88.5', f1(P), P['info'], True)
-    emcom_rows(s, P); footer(s, P); return s
+    emcom_rows(s, P); footer(s, P, right='RX', rc=P['rx']); return s
 
 
 def screen_vfo(P=DARK):
     # FM VFO RX: the RX panel remains compact and has no repeater distance row.
-    s = Screen(P['bg']); status_bar(s, P, tone=''); bar(s, P, 0)
+    s = Screen(P['bg']); status_bar(s, P, 'RX', tone=''); bar(s, P, 0)
     s.text(2, ZONE_Y, 'VFO A', f1(P), P['mut']); s.text(W - 2, ZONE_Y, 'TX -0.600', f1(P), P['mut'], True)
     s.text(1, HERO_Y, '145.5000', 4, P['fg']); s.text(W - 2, FREQ_Y, 'MHz', f1(P), P['mut'], True); divs(s, P)
     s.text(2, PANEL_LARGE_Y1, '-75dBm', 3, P['rx']); s.text(W - 2, PANEL_LARGE_Y1, 'S9+10', 3, P['rx'], True)
     s.text(2, PANEL_Y2, 'CARRIER', f1(P), P['mut'])
-    emcom_rows(s, P, unread=1); footer(s, P, '14:40Z 19NOV'); return s
+    emcom_rows(s, P, unread=1); footer(s, P, '14:40Z 19NOV', right='RX', rc=P['rx']); return s
 
 
 def screen_sos(P=DARK):
