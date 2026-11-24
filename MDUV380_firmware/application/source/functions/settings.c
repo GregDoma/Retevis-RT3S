@@ -143,11 +143,11 @@ bool settingsLoadSettings(bool reset)
 		return true;
 	}
 
-	// The new DMR receive AGC keeps the persisted numeric meaning of the
-	// supported 0..8 settings, but its target curve is not equivalent to the
-	// older gain algorithm, so a numeric conversion would be misleading. Old
-	// platform builds could store 9..16; clamp those values to the highest new
-	// setting and let the user recalibrate if needed.
+	// AGC Off remains stored as 0. Enabled settings retain their persisted
+	// numeric values 1..8, but now select the new -9 dB through +12 dB target
+	// curve, so their old gain behavior is not numerically equivalent. Legacy
+	// platform builds could store 9..16; clamp those values to 8 and let the
+	// user recalibrate the preferred setting after upgrading.
 	if (nonVolatileSettings.dmrRxAGC > DMR_RX_AGC_SETTING_COUNT)
 	{
 		nonVolatileSettings.dmrRxAGC = DMR_RX_AGC_SETTING_COUNT;
