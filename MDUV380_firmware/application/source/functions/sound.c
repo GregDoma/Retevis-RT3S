@@ -50,7 +50,6 @@ typedef union byteSwap16
 	int16_t byte16;
 	uint8_t bytes8[2];
 } byteSwap16_t;
-byteSwap16_t swapper;
 
 Task_t beepTask;
 
@@ -517,14 +516,16 @@ void soundReceiveRefillData(uint32_t bufNum)
 	{
 		for(int j = 0; j < 2; j++)
 		{
+			byteSwap16_t sample;
+
 			for (int i = 0; i < (WAV_BUFFER_SIZE / 2); i++)
 			{
-				swapper.byte16 = i2s_Rx_Buffer[bufNum][j][i * 2];             // only use the Left Channel of the Mic Audio. Right Channel contains a duplicate.
-				audioAndHotspotDataBuffer.wavbuffer[wavbuffer_write_idx][(2 * i) + 1] = swapper.bytes8[1];
-				audioAndHotspotDataBuffer.wavbuffer[wavbuffer_write_idx][2 * i] = swapper.bytes8[0];
-				if (abs(swapper.byte16) > runningMaxValue)
+				sample.byte16 = i2s_Rx_Buffer[bufNum][j][i * 2];             // only use the Left Channel of the Mic Audio. Right Channel contains a duplicate.
+				audioAndHotspotDataBuffer.wavbuffer[wavbuffer_write_idx][(2 * i) + 1] = sample.bytes8[1];
+				audioAndHotspotDataBuffer.wavbuffer[wavbuffer_write_idx][2 * i] = sample.bytes8[0];
+				if (abs(sample.byte16) > runningMaxValue)
 				{
-					runningMaxValue = abs(swapper.byte16);
+					runningMaxValue = abs(sample.byte16);
 				}
 			}
 
@@ -642,6 +643,8 @@ static void soundBeepTaskFunction(void *data)
 	{
 		bool durationActive;
 		uint32_t activeGeneration;
+		int16_t activeFrequency;
+		int activeVolumeDivider;
 
 			beepTask.AliveCount = TASK_FLAGGED_ALIVE;
 
@@ -650,6 +653,8 @@ static void soundBeepTaskFunction(void *data)
 			taskENTER_CRITICAL();
 			durationActive = ((melody_play != NULL) && (sine_beep_duration > 0));
 			activeGeneration = melodyGeneration;
+			activeFrequency = sine_beep_freq;
+			activeVolumeDivider = soundBeepVolumeDivider;
 			taskEXIT_CRITICAL();
 
 			if (durationActive)
@@ -699,13 +704,15 @@ static void soundBeepTaskFunction(void *data)
 				{
 					for (int i = 0; i < 16; i++)
 					{
-						swapper.byte16 = ((int)sine_beep16[beep_idx]) >> soundBeepVolumeDivider;
-						task_spi_sound[(2 * i) + 1] = swapper.bytes8[0];// low byte
-						task_spi_sound[2 * i] = swapper.bytes8[1];// high byte
+						byteSwap16_t beepSample;
 
-						if (sine_beep_freq != 0)
+						beepSample.byte16 = ((int)sine_beep16[beep_idx]) >> activeVolumeDivider;
+						task_spi_sound[(2 * i) + 1] = beepSample.bytes8[0];// low byte
+						task_spi_sound[2 * i] = beepSample.bytes8[1];// high byte
+
+						if (activeFrequency != 0)
 						{
-							beep_idx = beep_idx + (int)(sine_beep_freq / 3.915f);
+							beep_idx = beep_idx + (int)(activeFrequency / 3.915f);
 
 							// Stay in sine_beep16[] boundaries.
 							while (beep_idx >= 0x0800)
@@ -714,16 +721,29 @@ static void soundBeepTaskFunction(void *data)
 							}
 						}
 					}
-					waitTimeout = WAIT_TIMEOUT_COUNT;
+					bool generationCurrent;
 
-					interruptsDisableC6000Interrupts();
+					taskENTER_CRITICAL();
+					generationCurrent = ((melodyGeneration == activeGeneration) && (melody_play != NULL) && (sine_beep_duration > 0));
+					taskEXIT_CRITICAL();
 
-					while ((SPI0WritePageRegByteArray(0x03, 0x00, task_spi_sound, 0x20) == -1) &&  ((waitTimeout--) > 0))
+					// The generation check is deliberately immediately before the
+					// transfer. A cancellation can still race a blocking SPI write,
+					// but stale frames are not submitted when the replacement is
+					// already visible to the task.
+					if (generationCurrent)
 					{
-						vTaskDelay((1 / portTICK_PERIOD_MS));
-					}
+						waitTimeout = WAIT_TIMEOUT_COUNT;
 
-					interruptsEnableC6000Interrupts();
+						interruptsDisableC6000Interrupts();
+
+						while ((SPI0WritePageRegByteArray(0x03, 0x00, task_spi_sound, 0x20) == -1) &&  ((waitTimeout--) > 0))
+						{
+							vTaskDelay((1 / portTICK_PERIOD_MS));
+						}
+
+						interruptsEnableC6000Interrupts();
+					}
 				}
 
 				// Only the melody whose frame we rendered may be decremented.
