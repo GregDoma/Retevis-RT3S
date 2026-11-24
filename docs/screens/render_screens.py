@@ -281,7 +281,7 @@ def screen_dmr(P=DARK):
     zone_row(s, P, 'DMR SR7', 'CH 7/16'); hero(s, P, '07', 'SR7L TG260', '439.4250 MHz'); divs(s, P, RX_DIV2_Y)
     s.text(2, PANEL_Y1 - 2, 'SP5ABC', 3, P['rx']); kv(s, P, W - 2 - 6 * 6, PANEL_Y1, 'TG', '260')
     s.text(2, PANEL_Y2 + 2, 'Jan Warszawa', f1(P), P['fg'])
-    kv(s, P, 2, PANEL_Y3 + 2, 'DIST', '12.3km')
+    s.text(2, PANEL_Y3 + 2, 'RAYNET LODZ', f1(P), P['fg'])
     emcom_rows(s, P, lhv='SP5ABC 0s', y1=RX_EMCOM_Y1, y2=RX_EMCOM_Y2, y3=RX_EMCOM_Y3)
     footer(s, P, '14:35Z 19NOV'); return s
 

@@ -977,7 +977,8 @@ static void drawCallerPanel(void)
 		keyValue((DISPLAY_SIZE_X - 2 - w), PANEL_Y1, "TG", buf, pal->fg);
 	}
 
-	// rest of the contact / TA text (name, place) on the second line
+	// Rest of the contact / TA text (name, place) uses the two small lines
+	// below the callsign. Keep words together where possible.
 	const char *rest = src;
 	while (*rest && (*rest != ' '))
 	{
@@ -987,13 +988,43 @@ static void drawCallerPanel(void)
 	{
 		rest++;
 	}
-	snprintf(buf, sizeof(buf), "%s", rest);
-	buf[26] = 0;
-	text(2, (PANEL_Y2 + 2), buf, FONT_SIZE_1, pal->fg, false);
 
-	if (dmrCallerLayoutActive())
+	char callerLine1[27];
+	char callerLine2[27];
+	size_t restLen = strlen(rest);
+	size_t line1Len = MIN(restLen, (sizeof(callerLine1) - 1));
+
+	if (restLen > line1Len)
 	{
-		drawDistanceLine(true);
+		size_t split = line1Len;
+		while ((split > 0) && (rest[split] != ' '))
+		{
+			split--;
+		}
+		if (split >= 8)
+		{
+			line1Len = split;
+		}
+	}
+
+	memcpy(callerLine1, rest, line1Len);
+	callerLine1[line1Len] = 0;
+	while ((line1Len > 0) && (callerLine1[line1Len - 1] == ' '))
+	{
+		callerLine1[--line1Len] = 0;
+	}
+
+	const char *line2 = rest + line1Len;
+	while (*line2 == ' ')
+	{
+		line2++;
+	}
+	snprintf(callerLine2, sizeof(callerLine2), "%s", line2);
+	callerLine2[sizeof(callerLine2) - 1] = 0;
+	text(2, (PANEL_Y2 + 2), callerLine1, FONT_SIZE_1, pal->fg, false);
+	if (dmrCallerLayoutActive() && (callerLine2[0] != 0))
+	{
+		text(2, (PANEL_Y3 + 2), callerLine2, FONT_SIZE_1, pal->fg, false);
 	}
 }
 
