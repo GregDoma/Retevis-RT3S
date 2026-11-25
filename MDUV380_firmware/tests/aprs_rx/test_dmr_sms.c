@@ -320,6 +320,28 @@ static void testShortData(void)
 	CHECK(rx.ackReady && rx.ack[9] == 0x08, "short data, response requested: ACK status 0");
 	CHECK(decode(text, &meta) > 0 && strcmp(text, "CQ ae") == 0 && meta.format == DMR_SMS_FMT_SHORT, "short data: text '%s'", text);
 
+	// BrandMeister service reply (262994 'RPT', seen on the air): Defined Short Data, response
+	// requested, UTF-16BE, in CONFIRMED rate 3/4 blocks (16 payload bytes after DBSN + CRC-9)
+	{
+		static const char msg[] = "Static: TG 260, TG 2601 Dynamic: TG 9 Timeslot 2 ok";
+		uint8_t be16[2 * sizeof(msg)];
+		uint8_t big[200];
+		int n = 0;
+
+		for (const char *c = msg; *c; c++)
+		{
+			be16[n++] = 0; be16[n++] = (uint8_t)*c;
+		}
+		int blen = makePdu(big, be16, n, 16, &poc);
+		dmrSmsRxInit(&rx);
+		header(h, 0x0D, 0, 1, OUR_ID, 262994, 1, 0, (uint8_t)(0x14 << 2), (uint8_t)(poc * 8));
+		h[0] &= 0xCF; h[1] = (uint8_t)(0xA0 | ((blen / 16) & 0x0F)); dmrSmsHdrCrc(h, &h[10]);
+		dmrSmsRxFeed(&rx, DMR_SMS_DT_DATA_HEADER, h, OUR_ID);
+		CHECK(feedBlocks(big, blen, 1, 1, -1) == 1, "BM short data, confirmed rate 3/4: completes");
+		CHECK(rx.ackReady, "BM short data: ACK prepared");
+		CHECK(decode(text, &meta) > 0 && strcmp(text, msg) == 0, "BM short data: text '%s'", text);
+	}
+
 	// Raw Short Data: 8 bit text
 	static const uint8_t raw[] = "Hello net";
 	len = makePdu(pdu, raw, 9, 12, &poc);

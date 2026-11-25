@@ -289,8 +289,34 @@ bool dmrSmsRxFeed(dmrSmsRx_t *rx, int dataType, const uint8_t *p, uint32_t ourId
 	// block: a stock private SMS in the DMR format is a single rate 3/4 block)
 	int total = (rx->count * blkLen);
 	uint32_t mask = 0xFFFFFFFFU; // blocks of the accepted PDU taken from this copy
+	bool stripped = false;       // pdu[] already holds the PDU (confirmed layout of short data)
 
-	if (candCrcOk(rx, total, mask, blkLen) == false)
+	// Short data with a response requested: BrandMeister sends it in confirmed blocks (DBSN +
+	// CRC-9 in the first 2 bytes of each rate 3/4 block, seen on the air from 262994), other
+	// senders in unconfirmed ones. The header does not say, so the packet CRC32 decides. pdu[]
+	// is free for the check while no copy of a failed packet is kept in it.
+	if (rx->defined && rx->respReq && (rx->altCount == 0U) && (rx->ready == 0U) && (candCrcOk(rx, total, mask, blkLen) == false))
+	{
+		int sl = (blkLen - BLK_CONFIRMED_OFF);
+		int t2 = (rx->count * sl);
+
+		if (t2 >= 8)
+		{
+			for (int b = 0; b < rx->count; b++)
+			{
+				memcpy(&rx->pdu[b * sl], &rx->acc[(b * blkLen) + BLK_CONFIRMED_OFF], (size_t)sl);
+			}
+			uint32_t want = (((uint32_t)rx->pdu[t2 - 4] << 24) | ((uint32_t)rx->pdu[t2 - 3] << 16) | ((uint32_t)rx->pdu[t2 - 2] << 8) | rx->pdu[t2 - 1]);
+
+			if (dmrSmsCrc32(rx->pdu, t2) == want)
+			{
+				stripped = true;
+				total = t2;
+			}
+		}
+	}
+
+	if ((stripped == false) && (candCrcOk(rx, total, mask, blkLen) == false))
 	{
 		// The chip's CRC flag on a rate 3/4 block does not cover its CRC-9, so a damaged block can
 		// get here. If the last copy of this packet was kept and differs in a few blocks, one of
@@ -339,9 +365,12 @@ bool dmrSmsRxFeed(dmrSmsRx_t *rx, int dataType, const uint8_t *p, uint32_t ourId
 		return false;
 	}
 
-	for (int i = 0; i < total; i++)
+	if (stripped == false)
 	{
-		rx->pdu[i] = candByte(rx, i, mask, blkLen);
+		for (int i = 0; i < total; i++)
+		{
+			rx->pdu[i] = candByte(rx, i, mask, blkLen);
+		}
 	}
 	rx->altCount = 0U;
 	rx->info.len = (uint16_t)total;
