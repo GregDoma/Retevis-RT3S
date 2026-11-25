@@ -1674,12 +1674,20 @@ static void drawFooter(emcomState_t st)
 		gmtime_r_Custom(&secs, &utc);
 		if ((nonVolatileSettings.timezone & 0x80) != 0)
 		{
+			// Options > Display > Clock: Local, or Local + Zulu
 			int32_t offset = (((nonVolatileSettings.timezone & 0x7F) - 64) * (15 * 60));
 			time_t_custom localSecs = (time_t_custom)((int64_t)secs + offset);
 
 			gmtime_r_Custom(&localSecs, &local);
-			snprintf(buf, sizeof(buf), "%02d:%02d/%02d:%02dZ %02d%s", local.tm_hour, local.tm_min,
-					utc.tm_hour, utc.tm_min, local.tm_mday, months[CLAMP(local.tm_mon, 0, 11)]);
+			if (settingsIsOptionBitSet(BIT_CLOCK_LOCAL_AND_ZULU))
+			{
+				snprintf(buf, sizeof(buf), "%02d:%02d/%02d:%02dZ %02d%s", local.tm_hour, local.tm_min,
+						utc.tm_hour, utc.tm_min, local.tm_mday, months[CLAMP(local.tm_mon, 0, 11)]);
+			}
+			else
+			{
+				snprintf(buf, sizeof(buf), "%02d:%02d %02d%s", local.tm_hour, local.tm_min, local.tm_mday, months[CLAMP(local.tm_mon, 0, 11)]);
+			}
 		}
 		else
 		{
@@ -1688,7 +1696,7 @@ static void drawFooter(emcomState_t st)
 	}
 	else
 	{
-		snprintf(buf, sizeof(buf), ((nonVolatileSettings.timezone & 0x80) != 0) ? "--:--/--:--Z" : "--:--Z");
+		snprintf(buf, sizeof(buf), (((nonVolatileSettings.timezone & 0x80) == 0) ? "--:--Z" : (settingsIsOptionBitSet(BIT_CLOCK_LOCAL_AND_ZULU) ? "--:--/--:--Z" : "--:--")));
 	}
 
 	if (st == ST_SCAN)

@@ -236,6 +236,7 @@ void moveCursorLeftInString(char *str, int *pos, bool delete);
 void moveCursorRightInString(char *str, int *pos, int max, bool insert);
 
 void menuRadioInfosInit(void);
+void menuRadioInfosOpenPage(int page); // Fork: the page shown by the next menuSystemPushNewMenu(MENU_RADIO_INFOS)
 void menuRadioInfosPushBackVoltage(int32_t voltage);
 
 void menuLockScreenPop(void);
