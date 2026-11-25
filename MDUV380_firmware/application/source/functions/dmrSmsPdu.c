@@ -1,6 +1,6 @@
 /*
- * Fork: DMR SMS receive, data PDU reassembly and text decoding (see functions/dmrSmsPdu.h),
- * by Marcin SP7TQ. RX path ported from dondch/OpenGD77-AES256 (cleartext only): the block
+ * Fork: DMR SMS receive (data PDU reassembly, text decoding) and send (the cleartext PDU builder,
+ * see functions/dmrSmsPdu.h), by Marcin SP7TQ. RX and TX paths ported from dondch/OpenGD77-AES256 (cleartext only): the block
  * accumulation, the CRC32 completion rule, the retransmission merge, the Response header and
  * the three text formats follow their functions/dmr_sms.c; no AES, key, provisioning or
  * diagnostic code was taken over.
@@ -173,6 +173,11 @@ void dmrSmsRxCallEnd(dmrSmsRx_t *rx)
 {
 	int total = (rx->count * rx->blkLen);
 
+	if (rx->hold)
+	{
+		return;
+	}
+
 	if (rx->haveHeader && (rx->enc == 0U) && (rx->count >= 2U) && (rx->ready == 0U) && (total <= (int)DMR_SMS_PDU_MAX))
 	{
 		memcpy(rx->pdu, rx->acc, (size_t)total);
@@ -247,6 +252,11 @@ static void buildAck(dmrSmsRx_t *rx, uint32_t ourId)
 
 bool dmrSmsRxFeed(dmrSmsRx_t *rx, int dataType, const uint8_t *p, uint32_t ourId)
 {
+	if (rx->hold)
+	{
+		return false; // pdu[] is being transmitted
+	}
+
 	if (dataType == DMR_SMS_DT_DATA_HEADER)
 	{
 		dataHeader(rx, p);
@@ -352,6 +362,27 @@ bool dmrSmsRxFeed(dmrSmsRx_t *rx, int dataType, const uint8_t *p, uint32_t ourId
 	rx->ready = 1U;
 	accReset(rx);
 	return true;
+}
+
+bool dmrSmsRxHold(dmrSmsRx_t *rx)
+{
+	// set first: from here on the interrupt leaves everything alone, then look at what it left
+	rx->hold = 1U;
+	if (rx->ready || (rx->haveHeader && (rx->count > 0U)))
+	{
+		rx->hold = 0U;
+		return false;
+	}
+	rx->altCount = 0U;
+	accReset(rx);
+	return true;
+}
+
+void dmrSmsRxRelease(dmrSmsRx_t *rx)
+{
+	rx->altCount = 0U;
+	accReset(rx);
+	rx->hold = 0U;
 }
 
 bool dmrSmsPduForUs(const dmrSmsPduInfo_t *info, uint32_t ourId)
@@ -582,6 +613,146 @@ int dmrSmsPduDecode(const uint8_t *pdu, const dmrSmsPduInfo_t *info, char *text,
 		return textDecode(&pdu[TYT_FMT_PREFIX], (body - TYT_FMT_PREFIX), 0x14U, text, textMax);
 	}
 	return -1;
+}
+
+// --- send (main loop) --------------------------------------------------------------------
+// Fork: TX path ported from dondch/OpenGD77-AES256 (dmr_sms.c build_plaintext / dmrSmsSend,
+// cleartext only: no ENC header, no encryption).
+#define TMS_HDR_LEN    10   // [len 2] A0 00 seq 04 0D 00 0A 00
+#define CSBK_PREAMBLE  0xBDU // last block, opcode 0x3D (preamble)
+
+// One's complement sum of big endian 16 bit words (an odd byte is padded with 0)
+static uint32_t onesSum(uint32_t sum, const uint8_t *b, int len)
+{
+	for (int i = 0; i < len; i += 2)
+	{
+		sum += (((uint32_t)b[i] << 8) | (((i + 1) < len) ? b[i + 1] : 0U));
+	}
+	return sum;
+}
+
+static uint16_t onesFold(uint32_t sum)
+{
+	while (sum >> 16)
+	{
+		sum = ((sum & 0xFFFFU) + (sum >> 16));
+	}
+	return (uint16_t)(~sum & 0xFFFFU);
+}
+
+static void put24(uint8_t *p, uint32_t v)
+{
+	p[0] = (uint8_t)(v >> 16);
+	p[1] = (uint8_t)(v >> 8);
+	p[2] = (uint8_t)v;
+}
+
+void dmrSmsTxPreamble(uint8_t out[12], uint32_t src, uint32_t dst, bool group, uint8_t following)
+{
+	uint16_t v;
+
+	out[0] = CSBK_PREAMBLE;
+	out[1] = 0x00U;                          // FID: standard
+	out[2] = (group ? 0xC0U : 0x80U);        // data follows, group / individual
+	out[3] = following;                      // blocks to follow
+	put24(&out[4], dst);
+	put24(&out[7], src);
+	v = (uint16_t)(crc16Ccitt(out, 10) ^ 0xA5A5U); // CSBK CRC mask
+	out[10] = (uint8_t)(v >> 8);
+	out[11] = (uint8_t)v;
+}
+
+int dmrSmsTxBuild(uint8_t *pdu, int pduMax, uint8_t hdr[12], const char *text, uint32_t src, uint32_t dst, bool group,
+		uint16_t ipId, uint8_t tmsSeq)
+{
+	int n = (int)strlen(text);
+
+	if (n > (int)DMR_SMS_TEXT_MAX)
+	{
+		n = (int)DMR_SMS_TEXT_MAX;
+	}
+
+	int tmsLen = (TMS_HDR_LEN + (2 * n));
+	int udpLen = (8 + tmsLen);
+	int ipLen = (20 + udpLen);
+	int total = ((((ipLen + 4) + (int)DMR_SMS_TX_BLOCK_LEN - 1) / (int)DMR_SMS_TX_BLOCK_LEN) * (int)DMR_SMS_TX_BLOCK_LEN);
+	int pad = (total - 4 - ipLen);
+	uint8_t *ip = pdu;
+	uint8_t *udp = &pdu[20];
+	uint8_t *tms = &pdu[28];
+
+	if ((n == 0) || (total > pduMax))
+	{
+		return 0;
+	}
+	memset(pdu, 0, (size_t)total);
+
+	// TMS: length of what follows the length field, then the stock header and the CR LF
+	tms[0] = (uint8_t)((tmsLen - 2) >> 8);
+	tms[1] = (uint8_t)(tmsLen - 2);
+	tms[2] = 0xA0U;
+	tms[3] = 0x00U;
+	tms[4] = tmsSeq;
+	tms[5] = 0x04U;
+	tms[6] = 0x0DU;
+	tms[8] = 0x0AU;
+	for (int i = 0; i < n; i++)
+	{
+		uint8_t c = (uint8_t)text[i];
+
+		tms[TMS_HDR_LEN + (2 * i)] = (((c >= 0x20U) && (c < 0x7FU)) ? c : (uint8_t)'?'); // UTF-16LE
+	}
+
+	// IPv4
+	ip[0] = 0x45U;
+	ip[2] = (uint8_t)(ipLen >> 8);
+	ip[3] = (uint8_t)ipLen;
+	ip[4] = (uint8_t)(ipId >> 8);
+	ip[5] = (uint8_t)ipId;
+	ip[8] = 0x40U;                           // TTL 64
+	ip[9] = 0x11U;                           // UDP
+	ip[12] = 0x0CU;                          // 12.<source ID>
+	put24(&ip[13], src);
+	ip[16] = (group ? 0xE1U : 0x0CU);        // 225.<talkgroup> / 12.<destination ID>
+	put24(&ip[17], dst);
+	uint16_t c = onesFold(onesSum(0U, ip, 20));
+	ip[10] = (uint8_t)(c >> 8);
+	ip[11] = (uint8_t)c;
+
+	// UDP 4007 -> 4007, checksum over the pseudo header (addresses, protocol, length) and the datagram
+	udp[0] = 0x0FU;
+	udp[1] = 0xA7U;
+	udp[2] = 0x0FU;
+	udp[3] = 0xA7U;
+	udp[4] = (uint8_t)(udpLen >> 8);
+	udp[5] = (uint8_t)udpLen;
+	c = onesFold(onesSum((0x0011U + (uint32_t)udpLen), &ip[12], 8) + (onesSum(0U, udp, udpLen)));
+	if (c == 0U)
+	{
+		c = 0xFFFFU;
+	}
+	udp[6] = (uint8_t)(c >> 8);
+	udp[7] = (uint8_t)c;
+
+	// packet CRC32 after the pad octets
+	uint32_t crc = dmrSmsCrc32(pdu, total);
+	pdu[total - 4] = (uint8_t)(crc >> 24);
+	pdu[total - 3] = (uint8_t)(crc >> 16);
+	pdu[total - 2] = (uint8_t)(crc >> 8);
+	pdu[total - 1] = (uint8_t)crc;
+
+	// Unconfirmed data header: group bit, no response, pad octet count, SAP 4 (IP based), the
+	// addresses, F (full message) + blocks to follow, FSN 0
+	int blocks = (total / (int)DMR_SMS_TX_BLOCK_LEN);
+
+	hdr[0] = (uint8_t)((group ? 0x80U : 0x00U) | (((uint32_t)pad & 0x10U) ? 0x10U : 0x00U) | DPF_UNCONFIRMED);
+	hdr[1] = (uint8_t)(0x40U | ((uint32_t)pad & 0x0FU));
+	put24(&hdr[2], dst);
+	put24(&hdr[5], src);
+	hdr[8] = (uint8_t)(0x80U | ((uint32_t)blocks & 0x7FU));
+	hdr[9] = 0x00U;
+	dmrSmsHdrCrc(hdr, &hdr[10]);
+	return blocks;
 }
 
 #endif

@@ -2,7 +2,8 @@
  * Host test for the DMR SMS receive path (functions/dmrSmsPdu.c): data PDUs built from the
  * layouts in dondch/OpenGD77-AES256 (dmr_sms.c), including the three stock TYT "DMR format"
  * captures quoted there (their CRC32s check the CRC implementation against real air data),
- * fed burst by burst as the HR-C6000 hands them over.
+ * fed burst by burst as the HR-C6000 hands them over. The send side (dmrSmsTxBuild) is checked
+ * against an independent build of the same packet and round tripped through the receive path.
  */
 #include <stdio.h>
 #include <string.h>
@@ -368,6 +369,150 @@ static void testMapChar(void)
 	CHECK(dmrSmsMapChar(0x4E2D) == '?' && dmrSmsMapChar(0x07) == 0 && dmrSmsMapChar(0x0A) == ' ', "map: others");
 }
 
+static uint16_t onesFoldRef(const uint8_t *b, int len, uint32_t sum)
+{
+	for (int i = 0; i < len; i += 2)
+	{
+		sum += ((uint32_t)b[i] << 8) | ((i + 1 < len) ? b[i + 1] : 0);
+	}
+	while (sum >> 16)
+	{
+		sum = (sum & 0xFFFF) + (sum >> 16);
+	}
+	return (uint16_t)sum;
+}
+
+// Builds with dmrSmsTxBuild, checks the framing, feeds header + blocks to the receiver
+static void txRoundTrip(const char *text, uint32_t dst, int group, uint16_t ipId, uint8_t seq)
+{
+	uint8_t pdu[DMR_SMS_PDU_MAX];
+	uint8_t hdr[12];
+	uint8_t ref[DMR_SMS_PDU_MAX];
+	uint16_t units[DMR_SMS_TEXT_MAX];
+	char got[DMR_SMS_TEXT_MAX + 1];
+	dmrSmsPduMeta_t meta;
+	int n = (int)strlen(text);
+	int blocks = dmrSmsTxBuild(pdu, sizeof(pdu), hdr, text, PEER_ID, dst, group, ipId, seq);
+	int total = blocks * 12;
+	int ipLen = 20 + 8 + 10 + 2 * n;
+
+	CHECK(blocks == ((ipLen + 4 + 11) / 12), "tx '%.10s': %d blocks", text, blocks);
+	if (blocks <= 0)
+	{
+		return;
+	}
+
+	// the packet, byte for byte, apart from the two checksums the reference leaves at 0
+	int refLen = buildIp(ref, units, asciiUnits(units, text), PEER_ID, dst, group, seq, ipId);
+	CHECK(refLen == ipLen, "tx: IP length %d", refLen);
+	uint8_t a[DMR_SMS_PDU_MAX];
+	memcpy(a, pdu, ipLen);
+	a[10] = a[11] = a[26] = a[27] = 0;
+	CHECK(memcmp(a, ref, ipLen) == 0, "tx '%.10s': IPv4 / UDP / TMS bytes", text);
+	CHECK(onesFoldRef(pdu, 20, 0) == 0xFFFF, "tx: IPv4 header checksum");
+	{
+		uint8_t pseudo[12] = { 0 };
+		memcpy(pseudo, &pdu[12], 8);
+		pseudo[9] = 0x11; pseudo[10] = (uint8_t)((ipLen - 20) >> 8); pseudo[11] = (uint8_t)(ipLen - 20);
+		CHECK(onesFoldRef(&pdu[20], ipLen - 20, onesFoldRef(pseudo, 12, 0)) == 0xFFFF, "tx: UDP checksum");
+	}
+	for (int i = ipLen; i < total - 4; i++)
+	{
+		CHECK(pdu[i] == 0, "tx: pad octet %d", i);
+	}
+	uint32_t crc = ((uint32_t)pdu[total - 4] << 24) | ((uint32_t)pdu[total - 3] << 16) | ((uint32_t)pdu[total - 2] << 8) | pdu[total - 1];
+	CHECK(crc == dmrSmsCrc32(pdu, total), "tx: CRC32");
+
+	// data header: Unconfirmed, no response, SAP 4, pad count, addresses, F + blocks, CRC-CCITT ^ CCCC
+	{
+		uint8_t want[12];
+		header(want, 0x02, group, 0, dst, PEER_ID, (uint8_t)blocks, (uint8_t)(total - 4 - ipLen), 0xFF, 0x00);
+		CHECK(memcmp(hdr, want, 12) == 0, "tx '%.10s': data header", text);
+		uint8_t c2[2];
+		dmrSmsHdrCrc(hdr, c2);
+		CHECK(c2[0] == hdr[10] && c2[1] == hdr[11], "tx: header CRC");
+	}
+
+	// through the receiver
+	dmrSmsRxInit(&rx);
+	dmrSmsRxFeed(&rx, DMR_SMS_DT_DATA_HEADER, hdr, OUR_ID);
+	CHECK(feedBlocks(pdu, total, 0, 0, -1) == 1, "tx rx '%.10s': one completion", text);
+	CHECK(rx.info.src == PEER_ID && rx.info.dst == dst && rx.info.group == (group ? 1 : 0), "tx rx: src %u dst %u group %u",
+			rx.info.src, rx.info.dst, rx.info.group);
+	CHECK(rx.ackReady == 0, "tx rx: unconfirmed, nothing to acknowledge");
+	CHECK(decode(got, &meta) == n && strcmp(got, text) == 0, "tx rx: text '%s'", got);
+	CHECK(meta.format == DMR_SMS_FMT_IP && meta.ipId == ipId && meta.seq == seq, "tx rx: IP format, id %04X seq %02X", meta.ipId, meta.seq);
+}
+
+static void testTx(void)
+{
+	char longText[DMR_SMS_TEXT_MAX + 11];
+	uint8_t pdu[DMR_SMS_PDU_MAX];
+	uint8_t hdr[12];
+
+	txRoundTrip("WX", 262993U, 0, 0x1234, 0x91);
+	txRoundTrip("INBOX", 262995U, 0, 0xFFFF, 0x9F);
+	txRoundTrip("SP5ABC test 123", OUR_ID, 0, 0x0001, 0x90);
+	txRoundTrip("CQ EMCOM net at 20Z", TG, 1, 0x8000, 0x92);
+	txRoundTrip("x", 16777215U, 1, 0x0002, 0x93);   // 24 bit addresses
+	for (int i = 0; i < (int)DMR_SMS_TEXT_MAX; i++)
+	{
+		longText[i] = (char)('A' + (i % 26));
+	}
+	longText[DMR_SMS_TEXT_MAX] = 0;
+	txRoundTrip(longText, OUR_ID, 0, 0x4242, 0x94);  // the longest: 27 blocks
+
+	// a longer text is cut at DMR_SMS_TEXT_MAX
+	memset(longText, 'z', sizeof(longText) - 1);
+	longText[sizeof(longText) - 1] = 0;
+	CHECK(dmrSmsTxBuild(pdu, sizeof(pdu), hdr, longText, PEER_ID, OUR_ID, 0, 1, 0x90) == 27, "tx: cut at %u characters", DMR_SMS_TEXT_MAX);
+	CHECK(dmrSmsTxBuild(pdu, sizeof(pdu), hdr, "", PEER_ID, OUR_ID, 0, 1, 0x90) == 0, "tx: empty text refused");
+	CHECK(dmrSmsTxBuild(pdu, 36, hdr, "too long for 36", PEER_ID, OUR_ID, 0, 1, 0x90) == 0, "tx: buffer too small refused");
+
+	// a known vector: "WX" to 262993 from 2609876, IP id 0x1234, seq 0x91 (values from this builder,
+	// checked by hand against the layout of the original's build_plaintext)
+	{
+		int b = dmrSmsTxBuild(pdu, sizeof(pdu), hdr, "WX", PEER_ID, 262993U, 0, 0x1234, 0x91);
+		static const uint8_t ip[20] = { 0x45, 0x00, 0x00, 0x2A, 0x12, 0x34, 0x00, 0x00, 0x40, 0x11, 0, 0,
+				0x0C, 0x27, 0xD2, 0xD4, 0x0C, 0x04, 0x03, 0x51 };
+		CHECK(b == 4, "WX: 4 blocks");
+		CHECK(memcmp(pdu, ip, 10) == 0 && memcmp(&pdu[12], &ip[12], 8) == 0, "WX: IPv4 header");
+		CHECK(hdr[0] == 0x02 && hdr[1] == (0x40 | 2) && hdr[8] == 0x84 && hdr[9] == 0x00, "WX: header %02X %02X %02X %02X", hdr[0], hdr[1], hdr[8], hdr[9]);
+	}
+
+	// CSBK preamble: BD 00, data follows (individual 80 / group C0), blocks to follow, addresses, CRC ^ A5A5
+	{
+		uint8_t c[12];
+		dmrSmsTxPreamble(c, PEER_ID, TG, 1, 9);
+		CHECK(c[0] == 0xBD && c[1] == 0x00 && c[2] == 0xC0 && c[3] == 9, "CSBK: group head");
+		CHECK(c[4] == 0 && c[5] == 0x01 && c[6] == 0x04 && c[7] == (uint8_t)(PEER_ID >> 16) && c[9] == (uint8_t)PEER_ID, "CSBK: addresses");
+		uint8_t h2[2];
+		dmrSmsHdrCrc(c, h2); // ^ CCCC
+		uint16_t raw = (uint16_t)(((h2[0] << 8) | h2[1]) ^ 0xCCCC);
+		CHECK((uint16_t)(((c[10] << 8) | c[11]) ^ 0xA5A5) == raw, "CSBK: CRC mask A5A5");
+		dmrSmsTxPreamble(c, PEER_ID, OUR_ID, 0, 0);
+		CHECK(c[2] == 0x80 && c[3] == 0, "CSBK: individual");
+	}
+
+	// the receive buffers lent to a transmission
+	{
+		int bl = dmrSmsTxBuild(pdu, sizeof(pdu), hdr, "hello", PEER_ID, OUR_ID, 0, 7, 0x97);
+
+		dmrSmsRxInit(&rx);
+		CHECK(dmrSmsRxHold(&rx), "hold: idle receiver lends");
+		dmrSmsRxFeed(&rx, DMR_SMS_DT_DATA_HEADER, hdr, OUR_ID);
+		CHECK(feedBlocks(pdu, bl * 12, 0, 0, -1) == 0 && rx.haveHeader == 0 && rx.ready == 0, "hold: bursts ignored");
+		dmrSmsRxRelease(&rx);
+		dmrSmsRxFeed(&rx, DMR_SMS_DT_DATA_HEADER, hdr, OUR_ID);
+		CHECK(feedBlocks(pdu, bl * 12, 0, 0, -1) == 1, "release: receives again");
+		CHECK(dmrSmsRxHold(&rx) == false && rx.hold == 0, "hold: refused while a PDU waits for the main loop");
+		rx.ready = 0;
+		dmrSmsRxFeed(&rx, DMR_SMS_DT_DATA_HEADER, hdr, OUR_ID);
+		feedBlocks(pdu, 12, 0, 0, -1);
+		CHECK(dmrSmsRxHold(&rx) == false, "hold: refused while a PDU is coming in");
+	}
+}
+
 int main(void)
 {
 	testTytCaptures();
@@ -375,6 +520,7 @@ int main(void)
 	testRobustness();
 	testShortData();
 	testMapChar();
+	testTx();
 
 	if (failures)
 	{

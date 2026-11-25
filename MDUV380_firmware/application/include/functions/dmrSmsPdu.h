@@ -1,6 +1,6 @@
 /*
- * Fork: DMR SMS receive, the hardware independent part (data PDU reassembly and text decoding),
- * by Marcin SP7TQ. RX path ported from dondch/OpenGD77-AES256 (cleartext only): every
+ * Fork: DMR SMS receive and send, the hardware independent part (data PDU reassembly, text
+ * decoding, the cleartext PDU builder), by Marcin SP7TQ. RX and TX paths ported from dondch/OpenGD77-AES256 (cleartext only): every
  * encryption, key, provisioning and diagnostic path of the original is left out. A PDU sent
  * under a Motorola ENC header is dropped without being read or acknowledged.
  *
@@ -31,6 +31,7 @@
 #if defined(PLATFORM_MDUV380) || defined(PLATFORM_MD380) || defined(PLATFORM_RT84_DM1701)
 #define HAS_DMR_SMS
 #define HAS_DMR_SMS_ACK   // acknowledge confirmed private SMS (hardware/HR-C6000.c), remove to receive silently
+#define HAS_DMR_SMS_TX    // send (functions/dmrSms.c, hardware/HR-C6000.c, the inbox screen), remove for receive only
 #endif
 
 #define DMR_SMS_TEXT_MAX      140U   // characters kept of a message
@@ -66,6 +67,7 @@ typedef struct
 	dmrSmsPduInfo_t info;            // of pdu[] when ready
 	volatile uint8_t ready;
 	volatile uint8_t ackReady;
+	volatile uint8_t hold;           // pdu[] is lent to a transmission (dmrSmsRxHold): nothing is fed
 	uint8_t  ack[12];                // the Response header to send (ackReady)
 
 	// the PDU being received
@@ -111,6 +113,29 @@ typedef struct
 // Text of a completed PDU (CRC32 checked here). 'text' gets at most textMax - 1 characters and a
 // NUL. Returns the length, 0 or less when it is not a readable message.
 int dmrSmsPduDecode(const uint8_t *pdu, const dmrSmsPduInfo_t *info, char *text, int textMax, dmrSmsPduMeta_t *meta);
+
+// Fork: DMR SMS send. TX path ported from dondch/OpenGD77-AES256 (cleartext only): the stock
+// TYT cleartext "IP" SMS as their dmr_sms.c builds it, IPv4 (12.x.x.x source, 12.x.x.x private /
+// 225.x.x.x group destination, the 24 bit IDs) / UDP 4007 / TMS (A0 00 seq 04, CR LF, UTF-16LE
+// text), carried as an Unconfirmed PDU (no response requested, SAP 4) in rate 1/2 blocks after
+// a CSBK preamble, for a private and a group message alike.
+#define DMR_SMS_TX_PREAMBLE    6U                      // CSBK preamble bursts before the data header
+#define DMR_SMS_TX_BLOCK_LEN   12U                     // rate 1/2, unconfirmed
+#define DMR_SMS_TX_BURSTS_MAX  (DMR_SMS_TX_PREAMBLE + 1U + (DMR_SMS_PDU_MAX / DMR_SMS_TX_BLOCK_LEN))
+
+// Builds the blocks in pdu[] (12 bytes each: the packet, zero pad, the CRC32) and the data header
+// burst in hdr[] (CRC included). 'text': printable ASCII, cut at DMR_SMS_TEXT_MAX characters.
+// Returns the number of blocks, 0 when it does not fit pduMax or the text is empty.
+int dmrSmsTxBuild(uint8_t *pdu, int pduMax, uint8_t hdr[12], const char *text, uint32_t src, uint32_t dst, bool group,
+		uint16_t ipId, uint8_t tmsSeq);
+// One preamble CSBK burst (CRC included): 'following' = bursts after it (preambles, header, blocks)
+void dmrSmsTxPreamble(uint8_t out[12], uint32_t src, uint32_t dst, bool group, uint8_t following);
+
+// Lends pdu[] to a transmission: false (nothing lent) while a PDU is being received or one waits
+// for the main loop. Until dmrSmsRxRelease() the feed ignores every burst; the kept copy of an
+// incomplete PDU is given up.
+bool dmrSmsRxHold(dmrSmsRx_t *rx);
+void dmrSmsRxRelease(dmrSmsRx_t *rx);
 
 // Helpers, also used by the host test to build vectors
 uint32_t dmrSmsCrc32(const uint8_t *pdu, int len);      // over len - 4 bytes, wire order
