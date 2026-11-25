@@ -98,6 +98,28 @@ bool dmrSmsIsrTxNext(uint8_t *slotType, uint8_t payload[12]);
 
 // HR-C6000 interrupt
 void dmrSmsIsrBurst(int dataType, const uint8_t *payload);
+
+// Fork: receive diagnostics (DMR SMS screen, '*'): where a received data call gets lost
+typedef struct
+{
+	uint16_t dataInt;    // data sync class bursts seen by the HR-C6000 interrupt
+	uint16_t crcBad;     // ... of them with a bad burst CRC
+	uint16_t hdr;        // data headers read (type 6)
+	uint16_t r12;        // rate 1/2 blocks (type 7)
+	uint16_t r34;        // rate 3/4 blocks (type 8)
+	uint16_t other;      // other data types (CSBK 3, terminator 2, ...)
+	uint16_t skipped;    // type 6/7/8 not read (own TX, hotspot mode, read error)
+	uint16_t pduDone;    // PDUs completed (CRC32 good)
+	uint16_t decodeFail; // completed but no text decoded
+	uint16_t notUs;      // decoded, not to our ID / not a group
+	uint16_t dup;        // repeats dropped
+	uint16_t stored;     // messages filed
+	uint16_t infoInt;    // HR-C6000 "information received" interrupts
+	uint8_t  last51;     // last reg 0x51 of a data burst
+	uint8_t  last90;     // last reg 0x90 of an information interrupt
+	uint8_t  lastHdr[12];// last data header
+} dmrSmsDiag_t;
+extern volatile dmrSmsDiag_t dmrSmsDiag;
 void dmrSmsIsrCallEnd(void);                           // CRC valid Terminator
 bool dmrSmsIsrAckTake(uint8_t out[12]);                // the Response header owed for the PDU just completed
 

@@ -1046,6 +1046,25 @@ static inline void hrc6000SysReceivedDataInt(void)
 	}
 
 #if defined(HAS_DMR_SMS)
+	if (rxSyncClass == SYNC_CLASS_DATA)
+	{
+		dmrSmsDiag.dataInt++;
+		dmrSmsDiag.last51 = reg_0x51;
+		if (hrc6000CrcIsValid() == false)
+		{
+			dmrSmsDiag.crcBad++;
+		}
+		else if ((rxDataType < DMR_SMS_DT_DATA_HEADER) || (rxDataType > DMR_SMS_DT_RATE34_DATA))
+		{
+			dmrSmsDiag.other++;
+		}
+		else if (hrc.transmissionEnabled || (settingsUsbMode == USB_MODE_HOTSPOT))
+		{
+			dmrSmsDiag.skipped++;
+		}
+	}
+#endif
+#if defined(HAS_DMR_SMS)
 	// Fork: DMR SMS receive (ported from dondch/OpenGD77-AES256, cleartext only). The chip
 	// BPTC / trellis decodes and CRC checks each data sync burst and presents its info bytes at
 	// page 0x02 (as for the LC): 12 for a data header (6) or a rate 1/2 block (7), 18 for a
@@ -1275,6 +1294,10 @@ static inline void hrc6000SysReceivedDataInt(void)
 static inline void hrc6000SysReceivedInformationInt(void)
 {
 	SPI0ReadPageRegByte(0x04, 0x90, &reg_0x90);
+#if defined(HAS_DMR_SMS)
+	dmrSmsDiag.infoInt++;
+	dmrSmsDiag.last90 = reg_0x90;
+#endif
 
 	/*
 		In DMR mode, this interrupt has sub-status register 0x90, which has three types:

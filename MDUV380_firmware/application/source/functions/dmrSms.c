@@ -341,9 +341,30 @@ void dmrSmsPeerName(uint32_t id, char *buf, size_t size)
 }
 
 // --- interrupt side ----------------------------------------------------------------------
+volatile dmrSmsDiag_t dmrSmsDiag;
+
 void dmrSmsIsrBurst(int dataType, const uint8_t *payload)
 {
+	uint8_t wasReady = rx.ready;
+
+	switch (dataType)
+	{
+		case DMR_SMS_DT_DATA_HEADER:
+			dmrSmsDiag.hdr++;
+			memcpy((void *)dmrSmsDiag.lastHdr, payload, 12);
+			break;
+		case DMR_SMS_DT_RATE12_DATA:
+			dmrSmsDiag.r12++;
+			break;
+		default:
+			dmrSmsDiag.r34++;
+			break;
+	}
 	dmrSmsRxFeed(&rx, dataType, payload, trxDMRID);
+	if ((wasReady == 0U) && (rx.ready != 0U))
+	{
+		dmrSmsDiag.pduDone++;
+	}
 }
 
 void dmrSmsIsrCallEnd(void)
@@ -421,10 +442,22 @@ void dmrSmsTick(void)
 	len = dmrSmsPduDecode(rx.pdu, &info, text, sizeof(text), &meta);
 	rx.ready = 0U; // pdu[] back to the interrupt
 
-	if ((len <= 0) || (dmrSmsPduForUs(&info, trxDMRID) == false) || isDuplicate(info.src, &meta, text, len))
+	if (len <= 0)
 	{
+		dmrSmsDiag.decodeFail++;
 		return;
 	}
+	if (dmrSmsPduForUs(&info, trxDMRID) == false)
+	{
+		dmrSmsDiag.notUs++;
+		return;
+	}
+	if (isDuplicate(info.src, &meta, text, len))
+	{
+		dmrSmsDiag.dup++;
+		return;
+	}
+	dmrSmsDiag.stored++;
 
 	// a received message: LIVE, UNREAD, RECEIVED and the unused bits set (as the first records)
 	store(info.src, info.dst, (uint8_t)(DMR_SMS_FLAG_LIVE | DMR_SMS_FLAG_UNREAD | ((info.group != 0U) ? DMR_SMS_FLAG_GROUP : 0U) | 0xF8U), text, len);

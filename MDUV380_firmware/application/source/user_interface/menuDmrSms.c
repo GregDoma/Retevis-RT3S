@@ -63,6 +63,7 @@ static uint32_t selected = 0;
 static uint32_t selectedSeq = 0;   // the message selected, found again when the list changes
 static uint8_t view = VIEW_LIST;
 static bool confirmAll = false;
+static bool showDiag = false;    // '*' on the list: receive diagnostics
 
 #if defined(HAS_DMR_SMS_TX)
 #define PICK_QUICK         3
@@ -243,8 +244,44 @@ static void footer(const char *emKeys, const char *line1, const char *line2)
 	classicFooter(line1, line2, THEME_ITEM_FG_HEADER_TEXT);
 }
 
+static void drawDiag(void)
+{
+	char buf[32];
+	volatile dmrSmsDiag_t *d = &dmrSmsDiag;
+	int16_t y = (MENU_HEADER_HEIGHT + 2);
+
+	displayClearBuf();
+	menuDisplayTitle("SMS RX diag");
+	snprintf(buf, sizeof(buf), "DATA %u CRCX %u", d->dataInt, d->crcBad);
+	displayPrintCore(2, y, buf, FONT_SIZE_1, TEXT_ALIGN_LEFT, false); y += 9;
+	snprintf(buf, sizeof(buf), "HDR %u R12 %u R34 %u", d->hdr, d->r12, d->r34);
+	displayPrintCore(2, y, buf, FONT_SIZE_1, TEXT_ALIGN_LEFT, false); y += 9;
+	snprintf(buf, sizeof(buf), "OTHER %u SKIP %u", d->other, d->skipped);
+	displayPrintCore(2, y, buf, FONT_SIZE_1, TEXT_ALIGN_LEFT, false); y += 9;
+	snprintf(buf, sizeof(buf), "PDU %u DECX %u", d->pduDone, d->decodeFail);
+	displayPrintCore(2, y, buf, FONT_SIZE_1, TEXT_ALIGN_LEFT, false); y += 9;
+	snprintf(buf, sizeof(buf), "NOTUS %u DUP %u OK %u", d->notUs, d->dup, d->stored);
+	displayPrintCore(2, y, buf, FONT_SIZE_1, TEXT_ALIGN_LEFT, false); y += 9;
+	snprintf(buf, sizeof(buf), "INFO %u 90:%02X 51:%02X", d->infoInt, d->last90, d->last51);
+	displayPrintCore(2, y, buf, FONT_SIZE_1, TEXT_ALIGN_LEFT, false); y += 11;
+	displayPrintCore(2, y, "LAST HEADER:", FONT_SIZE_1, TEXT_ALIGN_LEFT, false); y += 9;
+	snprintf(buf, sizeof(buf), "%02X%02X%02X%02X %02X%02X%02X%02X", d->lastHdr[0], d->lastHdr[1], d->lastHdr[2], d->lastHdr[3],
+			d->lastHdr[4], d->lastHdr[5], d->lastHdr[6], d->lastHdr[7]);
+	displayPrintCore(2, y, buf, FONT_SIZE_1, TEXT_ALIGN_LEFT, false); y += 9;
+	snprintf(buf, sizeof(buf), "%02X%02X%02X%02X", d->lastHdr[8], d->lastHdr[9], d->lastHdr[10], d->lastHdr[11]);
+	displayPrintCore(2, y, buf, FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
+	displayPrintCore(2, (DISPLAY_SIZE_Y - 10), "* BACK  0 RESET", FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
+	displayRender();
+}
+
 static void drawList(void)
 {
+	if (showDiag)
+	{
+		drawDiag();
+		return;
+	}
+
 	char buf[32];
 	char name[SCREEN_LINE_BUFFER_SIZE];
 	dmrSmsMessage_t m;
@@ -1026,6 +1063,16 @@ menuStatus_t menuDmrSms(uiEvent_t *ev, bool isFirstRun)
 					view = VIEW_READ;
 				}
 				updateScreen();
+			}
+			else if (KEYCHECK_SHORTUP(ev->keys, KEY_STAR) && (view == VIEW_LIST))
+			{
+				showDiag = !showDiag;
+				drawList();
+			}
+			else if (showDiag && (view == VIEW_LIST) && KEYCHECK_SHORTUP(ev->keys, KEY_0))
+			{
+				memset((void *)&dmrSmsDiag, 0, sizeof(dmrSmsDiag));
+				drawList();
 			}
 			else if (KEYCHECK_LONGDOWN(ev->keys, KEY_0) && (view == VIEW_LIST) && (dmrSmsCount() > 0U))
 			{
