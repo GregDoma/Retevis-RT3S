@@ -1,9 +1,19 @@
-# Changelog — SP7TQ fork of OpenGD77 for the RT3S / MDUV380
+# Changelog — SP7TQ fork of OpenGD77 for the RT3S / MDUV380, M0SQQ build
 
 This is an independent fork maintained by **Marcin SP7TQ**, based on the
 [EA4IPW fork](https://github.com/mangelajo/opengd77-rt3s-experiments) of the
 upstream [OpenGD77](https://www.opengd77.com/) R20260131 source. Features
 marked *(untested)* build and pass host tests but still need on-air checking.
+
+## Modifications by Greg M0SQQ (GregDoma/Retevis-RT3S) — unreleased
+
+Changes made in [GregDoma/Retevis-RT3S](https://github.com/GregDoma/Retevis-RT3S)
+on top of R20260131-SP7TQ.5. Tags: `R<YYYYMMDD>-SP7TQ.<N>-M0SQQ.<M>`.
+
+* **Author of the modifications on the radio**: `Greg M0SQQ` in the credits
+  (*Firmware info*, `DOWN`), `Mod: M0SQQ` on the build details page and
+  `OpenGD77 <commit> M0SQQ` on the EMCOM boot screen version bar
+  (`FORK_MOD_AUTHOR` in `uiGlobals.h`). OpenGD77 and SP7TQ credits unchanged.
 
 ## R20260131-SP7TQ.5 — 2026-11-22
 

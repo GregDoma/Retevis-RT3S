@@ -3,7 +3,7 @@ name: Build firmware
 on:
   push:
     branches: [main]
-    tags: ['R*-EA4IPW*', 'R*-SP7TQ*']
+    tags: ['R*-EA4IPW*', 'R*-SP7TQ*', 'R*-M0SQQ*']
   pull_request:
   workflow_dispatch:
     inputs:
@@ -101,7 +101,7 @@ jobs:
   release:
     name: Publish GitHub Release
     needs: [host-tests, build]
-    if: startsWith(github.ref, 'refs/tags/R') && (contains(github.ref, '-EA4IPW') || contains(github.ref, '-SP7TQ'))
+    if: startsWith(github.ref, 'refs/tags/R') && (contains(github.ref, '-EA4IPW') || contains(github.ref, '-SP7TQ') || contains(github.ref, '-M0SQQ'))
     runs-on: ubuntu-latest
 
     steps:
@@ -134,8 +134,9 @@ jobs:
           prerelease: false
           generate_release_notes: true
           body: |
-            Unofficial build of the SP7TQ fork (independent, based on the EA4IPW
-            fork) of the upstream OpenGD77 source.
+            Unofficial build of GregDoma/Retevis-RT3S: modifications by
+            Greg M0SQQ on top of the SP7TQ fork (Marcin SP7TQ; independent,
+            based on the EA4IPW fork) of the upstream OpenGD77 source.
 
             **Not affiliated with the OpenGD77 project.** For canonical
             firmware see <https://www.opengd77.com/>.

@@ -38,6 +38,13 @@
 #include "functions/ticks.h"
 #include "functions/aprs.h"
 
+// Fork: author of the modifications in this build (GregDoma/Retevis-RT3S),
+// shown on the boot screen version bar and on the firmware info screen,
+// next to the OpenGD77 and SP7TQ credits. Max 6 characters (version bar width).
+#if !defined(FORK_MOD_AUTHOR)
+#define FORK_MOD_AUTHOR "M0SQQ"
+#endif
+
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
