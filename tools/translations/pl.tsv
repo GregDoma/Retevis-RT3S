@@ -1,0 +1,391 @@
+// Fork (M0SQQ): Polish texts of the fork screens. Format: see gen_translations.py
+Classic	Klasyczny
+EMCOM contr	EMCOM kontr
+EMERGENCY SOS	SOS RATUNKOWE
+SCAN	SKAN
+GO TO CH	KANAŁ NR
+GRN OK  RED CANCEL	ZIEL OK CZER ANUL
+  ENTER TX	  WPISZ TX
+  ENTER RX	  WPISZ RX
+off	wył
+DIST	ODL
+CARRIER	NOŚNA
+PRIVATE	PRYWAT.
+PWR	MOC
+%u stn	%u st.
+MSG %u	WIAD %u
+MSG	WIAD
+POS	POZ
+no fix / location	brak pozycji
+JAN	STY
+FEB	LUT
+MAR	MAR
+APR	KWI
+MAY	MAJ
+JUN	CZE
+JUL	LIP
+AUG	SIE
+SEP	WRZ
+OCT	PAŹ
+NOV	LIS
+DEC	GRU
+ANY KEY: STOP	KLAWISZ: STOP
+TX OFF	TX WYŁ
+LOCK	BLOK
+KEYL	KLAW
+INFO	INFO
+WARNING	UWAGA
+ERROR	BŁĄD
+CONFIRM	POTWIERDŹ
+GRN YES  ANY NO	ZIEL TAK  INNY NIE
+GRN YES ANY NO	ZIEL TAK INNY NIE
+Again: SOS OFF	Jeszcze raz: SOS WYŁ
+Again: SOS ON	Jeszcze raz: SOS WŁ
+SOS: ON	SOS: WŁ
+SOS: OFF	SOS: WYŁ
+SOS: no APRS config	SOS: brak konfig. APRS
+SOS: TX not allowed	SOS: TX zabroniony
+SOS PAUSED	SOS WSTRZYMANY
+FM only	Tylko FM
+Switch to an FM channel	Przełącz na kanał FM
+# VIEW  1 MSG  RED EXIT	# WIDOK 1 WIAD CZER WYJ
+Listening...	Nasłuch...
+FM, e.g. 144.800 MHz	FM, np. 144.800 MHz
+(bad header)	(zły nagłówek)
+* RAW # VIEW 0 CLR RED EXIT	* HEX # WID 0 KAS CZER WYJ
+-- hex, %u bytes%s --	-- hex, %u bajtów%s --
+UP/DN SCROLL  * RED BACK	UP/DN PRZEWIŃ * CZER WRÓĆ
+No stations	Brak stacji
+pos	poz
+  no own pos	  brak wł. poz
+  no position	  brak pozycji
+GRN MSG	ZIEL WIAD
+No own pos	Brak wł. pozycji
+needs GPS fix/location	wymaga GPS/lokalizacji
+DST	ODL
+BRG	AZ
+AGE	WIEK
+no position	brak pozycji
+heard yet	z odbioru
+GRN MSG * WPT # VIEW 0 CLR	ZIEL WIAD *PKT #WID 0 KAS
+FAIL	BŁĄD
+noTX	bezTX
+no callsign	brak znaku
+ (no APRS cfg)	 (brak konf. APRS)
+No messages	Brak wiadomości
+GRN REPLY 1 NEW # VIEW	ZIEL ODP 1 NOWA # WIDOK
+WAIT %u	CZEKA %u
+NO ACK	BEZ ACK
+NOT SENT	NIEWYSŁ.
+OUT	NAD
+IN	ODB
+* READ  GRN REPLY  1 NEW	* CZYTAJ ZIEL ODP 1 NOWA
+APRS message	Wiadomość APRS
+AT	GODZ
+AGO	TEMU
+UP/DN NEXT  RED BACK	UP/DN DALEJ  CZER WRÓĆ
+GRN REPLY UP/DN  RED BACK	ZIEL ODP UP/DN  CZER WRÓĆ
+TO	DO
+? (* to type)	? (* aby wpisać)
+> Type a message...	> Wpisz wiadomość...
+GRN SEND  * TO  RED BACK	ZIEL WYŚLIJ * DO CZER WRÓĆ
+waiting for CW	czekam na CW
+KEY	KLUCZ
+0 CLEAR	0 KASUJ
+waiting for DTMF	czekam na DTMF
+APRS frames	Ramki APRS
+APRS stations	Stacje APRS
+APRS radar	Radar APRS
+APRS messages	Wiad. APRS
+DTMF decoder	Dekoder DTMF
+CW decoder	Dekoder CW
+TO: callsign (-SSID)	DO: znak (-SSID)
+TO %s	DO %s
+APRS raw	APRS hex
+NO CLK	BEZ ZEG
+FM ONLY	TYLKO FM
+PAUSE	PAUZA
+Saved WP%d\n%.8s	Zapisano PK%d\n%.8s
+Waypoint: %s\nlist full	Punkt: %s\nlista pełna
+Waypoint: %s	Punkt: %s
+NO GPS	BRAK GPS
+GPS OFF	GPS WYŁ
+NO FIX	BRAK FIX
+GOOD	DOBRY
+FAIR	ŚREDNI
+POOR	ZŁY
+SATS	SAT
+No GPS receiver found.	Nie znaleziono GPS.
+Checked at power on.	Sprawdzane przy włącz.
+UP/DN PAGE  RED EXIT	UP/DN STRONA  CZER WYJ
+The receiver is off.	Odbiornik wyłączony.
+SK2+GREEN turns it on	SK2+ZIEL włącza go
+(or Options > General).	(lub Opcje > Ogólne).
+SK2+GRN GPS ON  RED EXIT	SK2+ZIEL GPS WŁ CZER WYJ
+SEARCH	SZUKA
+LAT	SZER
+LON	DŁ
+LOC	LOK
+ALT	WYS
+SPD	PRĘD
+CRS	KURS
+DATE	DATA
+UP/DN PAGE  SK2+RED OFF	UP/DN STRONA SK2+CZER WYŁ
+No satellites yet	Brak satelitów
+Searching: %s	Szukanie: %s
+Open sky helps (1-5 min)	Otwarte niebo (1-5 min)
+N UP	N GÓRA
+no satellites	brak satelitów
+signal	sygnał
+no sig	brak
+rings	okręgi
+Waypoint set	Punkt ustawiony
+Trip reset	Trasa wyzerowana
+No waypoint	Brak punktu
+GREEN: mark here	ZIEL: zaznacz tu
+#: enter lat/lon	#: wpisz szer/dł
+*: saved list	*: zapisane
+No fix	Brak fix
+Ahead=up	Przód=góra
+North=up	Płn=góra
+*: saved	*: zapisane
+Lat 	Sz. 
+Lon 	Dł. 
+UP/DN field RED del	UP/DN pole CZER kas
+GREEN set	ZIEL ustaw
+Trip: no fix yet	Trasa: brak fix
+Long GREEN: reset	Długo ZIEL: zeruj
+Dist %um	Dyst %um
+Dist %u.%02ukm	Dyst %u.%02ukm
+Move %u:%02u:%02u	Ruch %u:%02u:%02u
+Avg  %u.%01ukm/h	Śr.  %u.%01ukm/h
+Alt  +%u -%um	Wys  +%u -%um
+SUN  no clock	SŁOŃCE brak zegara
+SUN  %s	SŁOŃCE %s
+always up	cały dzień
+always down	cała noc
+SUN  %02d:%02d - %02d:%02d %s	SŁOŃCE %02d:%02d-%02d:%02d %s
+WPT %um  %03d %s	PKT %um  %03d %s
+WPT %ukm  %03d %s	PKT %ukm  %03d %s
+POSITION	POZYCJA
+MANUAL	RĘCZNA
+NO POS	BRAK POZ
+from the settings	z ustawień
+no GPS fix	brak fix GPS
+No position	Brak pozycji
+Turn the GPS on, or set	Włącz GPS albo ustaw
+the location in Options.	lokalizację w Opcjach.
+RED EXIT	CZER WYJ
+polar (UPS)	polarny (UPS)
+WPT	PKT
+DEG	STOP
+WPT none (* marks)	PKT brak (* zaznacza)
+* MARK WAYPOINT  RED EXIT	* ZAZNACZ PKT  CZER WYJ
+LOC %s	LOK %s
+ALT %dm	WYS %dm
+FIX none (settings)	FIX brak (ustawienia)
+WPT none	PKT brak
+ONE	JEDEN
+TWO	DWA
+THREE	TRZY
+FOUR	CZTERY
+FIVE	PIĘĆ
+SIX	SZEŚĆ
+SEVEN	SIEDEM
+EIGHT	OSIEM
+NINE	DZIEWIĘĆ
+WEAK	SŁABY
+RADIO CHECK	TEST ŁĄCZNOŚCI
+IDLE	CZEKA
+LISTENING	NASŁUCH
+Each received over is	Każde odebrane nadanie
+rated R1-5 / S1-9.	ocenia R1-5 / S1-9.
+%d BY %d	%d NA %d
+%s BY %s	%s NA %s
+%s %u.%us AVG %d PK %d	%s %u.%us ŚR %d SZC %d
+CLEAR ALL?	USUŃ WSZYST.?
+0 CLEAR  RED EXIT	0 KASUJ  CZER WYJ
+Waiting for a call...	Czekam na wywołanie...
+%s  %d BY %d  %d dBm	%s  %d NA %d  %d dBm
+GREEN = yes	ZIEL = tak
+COVERAGE	ZASIĘG
+FULL	PEŁNA
+REC	ZAP
+EVERY	CO
+MEM	PAM
+GAP	BRAK
+Session: no points yet	Sesja: brak punktów
+GRN starts a session	ZIEL zaczyna sesję
+not logging	nie zapisuje
+GRN STOP  # INT  RED EXIT	ZIEL STOP # INT CZER WYJ
+GRN REC  # INT  0 CLR	ZIEL ZAP  # INT  0 KAS
+dBm  SIGNAL	dBm  SYGNAŁ
+dBm  noise	dBm  szum
+PTS %u/%u  EVERY %us	PKT %u/%u  CO %us
+CLEAR ALL? GREEN = yes	USUŃ WSZYST.? ZIEL = tak
+No GPS fix - not logging	Brak fix GPS - bez zapisu
+LENGTH	CZAS
+TUNE	KANAŁ
+ALERT	ALARM
+DAY	DZIEŃ
+%u H	%u GODZ
+NONE	BRAK
+NO SKED	BRAK SKEDU
+GREEN sets one	ZIEL ustawia
+EMPTY	PUSTY
+NOW	TERAZ
+ON	WŁ
+OFF	WYŁ
+NO CLOCK	BRAK ZEGARA
+S%d NOW	S%d TERAZ
+NEXT S%d	NAST. S%d
+EDIT SKED	EDYCJA SKEDU
+UP/DN  < > SET  GRN SAVE	UP/DN <> ZMIEŃ ZIEL ZAPISZ
+GRN EDIT  0 DEL  RED BACK	ZIEL EDYT 0 USUŃ CZER WRÓĆ
+DELETE S%d?	USUNĄĆ S%d?
+or UP/DOWN: FM preset	lub UP/DOWN: preset FM
+Waiting for	Czekam na
+SSTV picture	obraz SSTV
+Saved %u/%u	Zapisane %u/%u
+DOPPLER  0 CLEAR  RED EXIT	DOPPLER  0 KAS  CZER WYJ
+UP/DN QRG 0 CLEAR RED EXIT	UP/DN QRG 0 KAS CZER WYJ
+DONE	GOTOWE
+SAVING	ZAPIS
+SAVED 0 NEW	ZAPIS. 0 NOWY
+0 NEW	0 NOWY
+SAVED %u/%u	ZAPIS. %u/%u
+PRIMARY	GŁÓWNY
+ALTERNATE	ZAPASOWY
+CONTINGENCY	AWARYJNY
+EMERGENCY	RATUNKOWY
+PACE PLAN	PLAN PACE
+channel deleted	kanał usunięty
+* stores the channel	* zapisuje kanał
+DELETED	USUNIĘTY
+%d/%d SET	%d/%d UST
+ON %c	WŁ %c
+OFF PLAN	POZA PLAN.
+CLEAR %c?	USUNĄĆ %c?
+1-4 GO * STO 0 CLR # SKED	1-4 IDŹ *ZAP 0 KAS #SKED
+1-4 GO  # SKED  (VFO)	1-4 IDŹ  # SKED  (VFO)
+empty - * stores	pusty - * zapisuje
+* STORE	* ZAPISZ
+1-4 GO	1-4 IDŹ
+-- empty	-- pusty
+HERE	TU
+DELETE %d?	USUNĄĆ %d?
+GRN GO  RGT NAME  0 DEL	ZIEL IDŹ PRAW NAZWA 0 USUŃ
+* SAVE HERE  # LAT/LON	* ZAPISZ TU # SZER/DŁ
+SLOT %d	MIEJSCE %d
+WAYPOINT NAME	NAZWA PUNKTU
+NEW WAYPOINT	NOWY PUNKT
+New waypoint	Nowy punkt
+WAYPOINTS	PUNKTY
+Waypoints	Punkty
+%d/%d SAVED	%d/%d ZAPIS.
+All 8 used\n0 deletes one	Wszystkie 8 zajęte\n0 usuwa jeden
+Saved WP%d	Zapisano PK%d
+Target %s	Cel %s
+No GPS fix	Brak fix GPS
+GRN START  RED EXIT	ZIEL START  CZER WYJ
+* FM  # QUIET  0 END	* FM  # CISZA  0 KONIEC
+GRN HEARD * FM # Q 0 END	ZIEL SŁYSZ * FM # C 0 KON
+GRN QSO  * FM  # Q  0 END	ZIEL QSO  * FM  # C  0 KON
+QUIET	CISZA
+NET CONTROL	KONTROLA SIECI
+RUN	AKT
+NO NET	BRAK SIECI
+GREEN starts a net.	ZIEL rozpoczyna sieć.
+DMR / APRS stations	Stacje DMR / APRS
+heard check in.	słyszane się meldują.
+Last net: %u stations	Ost. sieć: %u stacji
+Stations heard on DMR	Stacje słyszane na DMR
+or APRS check in.	lub APRS się meldują.
+* adds an FM station.	* dodaje stację FM.
+END NET?	ZAKOŃCZYĆ?
+No net running.	Brak aktywnej sieci.
+GREEN starts a net:	ZIEL rozpoczyna sieć:
+Roster full	Lista pełna
+FOX	LIS
+RAW SIG %u  NOISE %u	SUR SYG %u  SZUM %u
+* RAW  # FOX  0 RST  9 APRS	* SUR  # LIS  0 RST  9 APRS
+* RAW  # FOX  9 APRS	* SUR  # LIS  9 APRS
+* RAW	* SUR
+Fox hunt: %s	Lis: %s
+Max @ %dm %03d deg	Max @ %dm %03d st.
+Max @ %dkm %03d deg	Max @ %dkm %03d st.
+Max @ (no GPS fix)	Max @ (brak fix GPS)
+Max @ no position	Max @ brak pozycji
+GREEN OPEN * POS RED EXIT	ZIEL OTWÓRZ * POZ CZER WYJ
+AOS in %s	AOS za %s
+LOS in %s	LOS za %s
+AOS in	AOS za
+RX only	Tylko RX
+1-3 QRG  9 SSTV  RED LIST	1-3 QRG 9 SSTV CZER LISTA
+1-3 QRG  # NEXT  RED LIST	1-3 QRG # NAST CZER LISTA
+UP/DN VIEW # NEXT RED LIST	UP/DN WID #NAST CZER LISTA
+DUR	CZAS
+</> PASS  SK2+GRN ALARM	</> PRZELOT SK2+ZIEL ALARM
+APRS beacon	Ramka APRS
+APRS on/off	APRS wł/wył
+Day/Night	Dzień/Noc
+Band scope	Panorama
+Scope: to peak	Panorama: szczyt
+APRS RX on/off	APRS RX wł/wył
+SOS (press x2)	SOS (2x)
+Blackout	Zaciemnienie
+Net control	Kontrola sieci
+no clock	brak zegara
+Log empty	Dziennik pusty
+TX, RX, DMR, APRS, MSG,	TX, RX, DMR, APRS, WIAD,
+DTMF, SOS, SSTV events	DTMF, SOS, SSTV
+CLEAR LOG?	USUNĄĆ DZIENNIK?
+UP/DN  0 CLEAR  RED EXIT	UP/DN  0 KASUJ  CZER WYJ
+CLEAR THE WHOLE LOG?	USUNĄĆ CAŁY DZIENNIK?
+GREEN yes, other key no	ZIEL tak, inny klawisz nie
+GRN CALL  * QSO  RED EXIT	ZIEL WYW  * QSO  CZER WYJ
+GRN CALL  RED EXIT	ZIEL WYW  CZER WYJ
+CLEAR LAST HEARD?	USUNĄĆ OST. SŁYSZANE?
+Wipe themes,	Usuń motywy,
+boot img, beep, TLE	obraz start., bip, TLE
+SK2 + GREEN to OK	SK2 + ZIEL = OK
+Storage reset	Pamięć wyczyszczona
+Reset failed	Błąd resetu
+APRS RX: on	APRS RX: wł
+APRS RX: off	APRS RX: wył
+APRS: no ch. config	APRS: brak konf. kanału
+APRS: TX not allowed	APRS: TX zabroniony
+APRS msg: no ACK	Wiad. APRS: brak ACK
+QSO logged	QSO zapisane
+QUIET %s	CISZA %s
+PACE %c (empty)	PACE %c (pusty)
+SKED in 1 min\nS%d %s	SKED za 1 min\nS%d %s
+SKED %d NOW\n%s%s	SKED %d TERAZ\n%s%s
+\nGREEN = TUNE	\nZIEL = USTAW
+DAILY %02u:%02u	CODZ. %02u:%02u
+HOURLY :%02u	CO GODZ :%02u
+EVERY %uM :%02u	CO %uM :%02u
+EVERY %uH %02u:%02u	CO %uH %02u:%02u
+(bad AX.25 header)	(zły nagłówek AX.25)
+BLACKOUT ON	ZACIEMNIENIE WŁ
+BLACKOUT OFF	ZACIEMNIENIE WYŁ
+Storage init.	Pamięć zainicjow.
+Init failed	Błąd inicjalizacji
+^v MODE  GRN OK  RED BACK	^v TRYB ZIEL OK CZER WRÓĆ
+GRN OK  # DEL  RED BACK	ZIEL OK  # USUŃ  CZER WRÓĆ
+0-9 TYPE  SK2+GRN GPS ON	0-9 WPISZ  SK2+ZIEL GPS WŁ
+0-9 TYPE DD.DDDD DDD.DDDD	0-9 WPISZ DD.DDDD DDD.DDDD
+GREEN SAVE RED CLEAR < DEL	ZIEL ZAPISZ CZER KAS <USUŃ
+time left	pozostało
+THANKS FOR LISTENING	DZIĘKI ZA NASŁUCH
+GRN EDIT 0 DFLT RED BACK	ZIEL EDYT 0 DOM CZER WRÓĆ
+Theme saved	Motyw zapisany
+Save failed	Błąd zapisu
+EMCOM colours	Kolory EMCOM
+GRN OK	ZIEL OK
+GRN YES     RED NO	ZIEL TAK    CZER NIE
+RED CLOSE	CZER ZAMKNIJ
+TX blocked	TX zablokowany
+TX stopped	TX zatrzymany
+Screen	Styl
+TX POWER	MOC TX

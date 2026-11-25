@@ -32,23 +32,11 @@
 
 #define CHAR_CONSTANTS_ONLY // Needed to get FONT_CHAR_* glyph offsets
 #if defined(PLATFORM_MD9600)
-	#if defined(LANGUAGE_BUILD_JAPANESE)
-		#include "hardware/ST7567_charset_JA.h"
-	#else
 		#include "hardware/ST7567_charset.h"
-	#endif
 #elif (defined(PLATFORM_MDUV380) || defined(PLATFORM_MD380) || defined(PLATFORM_RT84_DM1701) || defined(PLATFORM_MD2017))
-	#if defined(LANGUAGE_BUILD_JAPANESE)
-		#include "hardware/HX8353E_charset_JA.h"
-	#else
 		#include "hardware/HX8353E_charset.h"
-	#endif
 #else
-	#if defined(LANGUAGE_BUILD_JAPANESE)
-		#include "hardware/UC1701_charset_JA.h"
-	#else
 		#include "hardware/UC1701_charset.h"
-	#endif
 #endif
 
 static void updateScreen(bool isFirstRun);
@@ -58,7 +46,6 @@ static menuStatus_t menuLanguageExitCode = MENU_STATUS_SUCCESS;
 
 static void clearNonLatinChar(uint8_t *str)
 {
-#if ! defined(LANGUAGE_BUILD_JAPANESE)
 	uint8_t *p = str;
 
 	while (*p != '\0')
@@ -199,7 +186,6 @@ static void clearNonLatinChar(uint8_t *str)
 		}
 		p++;
 	}
-#endif
 }
 
 menuStatus_t menuLanguage(uiEvent_t *ev, bool isFirstRun)

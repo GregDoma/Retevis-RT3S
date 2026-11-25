@@ -29,16 +29,8 @@
 #include "user_interface/uiLocalisation.h"
 
 #include "user_interface/languages/english.h"
-#if defined(LANGUAGE_BUILD_JAPANESE)
-#include "user_interface/languages/japanese.h"
-#endif
-
-#if ! defined(LANGUAGE_BUILD_JAPANESE)
-#if defined(PLATFORM_GD77) || defined(PLATFORM_GD77S) || defined(PLATFORM_DM1801) || defined(PLATFORM_DM1801A) || defined(PLATFORM_RD5R)
-__attribute__((section(".upper_text")))
-#endif
-const stringsTable_t userLanguage = { .magicNumber = { LANGUAGE_TAG_MAGIC_NUMBER, { 0x00, 0x00, 0x00, 0x00 } }, .LANGUAGE_NAME = "User" }; // Don't change the version number
-#endif
+#include "user_interface/languages/polish.h"
+#include <string.h>
 
 
 /*
@@ -52,24 +44,14 @@ const stringsTable_t userLanguage = { .magicNumber = { LANGUAGE_TAG_MAGIC_NUMBER
 const stringsTable_t languages[]=
 {
 		englishLanguage,        // englishLanguageName
-#if defined(LANGUAGE_BUILD_JAPANESE)
-		japaneseLanguage       // japaneseLanguageName
-#else
-		userLanguage // User language, written by the CPS
-#endif
+		polishLanguage         // polishLanguageName (fork M0SQQ: built in, no .gla needed)
 };
 const stringsTable_t *currentLanguage;
 
 
 uint8_t languagesGetCount(void)
 {
-#if ! defined(LANGUAGE_BUILD_JAPANESE)
-	uint8_t magic[3][4] = { LANGUAGE_TAG_MAGIC_NUMBER, LANGUAGE_TAG_VERSION };
-
-	return ((memcmp(languages[1].magicNumber, magic, sizeof(magic)) == 0) ? 2 : 1);
-#else
-	return 2;
-#endif
+	return (sizeof(languages) / sizeof(languages[0]));
 }
 
 char currentLanguageGetSymbol(LanguageSymbol_t s)
@@ -89,7 +71,6 @@ char languageCharToUpper(char c)
 		return (char)(u - ('a' - 'A'));
 	}
 
-#if ! defined(LANGUAGE_BUILD_JAPANESE)
 	switch (u)
 	{
 		case 0x80: return (char)0x7F; // č -> Č
@@ -121,7 +102,40 @@ char languageCharToUpper(char c)
 	{
 		return (char)(u - 0x20);
 	}
-#endif
 
 	return c;
+}
+
+// Fork (M0SQQ): see TR() in uiLocalisation.h. Binary search in the table sorted by strcmp().
+const char *uiTranslate(const char *english)
+{
+	if ((english == NULL) || (currentLanguage != &languages[polishLanguageName]))
+	{
+		return english;
+	}
+
+	int32_t lo = 0;
+	int32_t hi = ((int32_t)uiTranslationsPLCount - 1);
+
+	while (lo <= hi)
+	{
+		int32_t mid = ((lo + hi) >> 1);
+		int c = strcmp(english, uiTranslationsPL[mid].en);
+
+		if (c == 0)
+		{
+			return uiTranslationsPL[mid].pl;
+		}
+
+		if (c < 0)
+		{
+			hi = (mid - 1);
+		}
+		else
+		{
+			lo = (mid + 1);
+		}
+	}
+
+	return english;
 }

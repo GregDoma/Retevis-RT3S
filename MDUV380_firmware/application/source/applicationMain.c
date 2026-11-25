@@ -529,7 +529,7 @@ void applicationMainTask(void)
 	{
 		bool ok = codeplugResetOpenGD77CustomDataArea();
 		uiNotificationShowKind((ok ? UI_ALERT_INFO : UI_ALERT_ERROR), NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 2500,
-				(ok ? "Storage init." : "Init failed"), true);
+				(ok ? TR("Storage init.") : TR("Init failed")), true);
 	}
 
 #if defined(HAS_GPS)

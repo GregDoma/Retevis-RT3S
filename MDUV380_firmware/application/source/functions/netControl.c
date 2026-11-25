@@ -18,6 +18,7 @@
 #include "functions/trx.h"
 #if defined(I2S_APRS_RX)
 #include "functions/aprsRx.h"
+#include "user_interface/uiLocalisation.h" // Fork (M0SQQ): TR()
 #endif
 
 #define TICK_MS  1000U
@@ -157,7 +158,7 @@ void netLogQso(const char *station)
 	netQsoText(text, sizeof(text), station, "59", NULL);
 	eventLogAdd(EVENT_LOG_QSO, "%s", text);
 	soundSetMelody(MELODY_ACK_BEEP);
-	uiNotificationShowKind(UI_ALERT_INFO, NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 1500U, "QSO logged", true);
+	uiNotificationShowKind(UI_ALERT_INFO, NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 1500U, TR("QSO logged"), true);
 }
 
 void netStationName(const LinkItem_t *item, char *buf, size_t size)
@@ -266,7 +267,7 @@ void netTick(void)
 			net.serial++;
 			if (cardAllowed())
 			{
-				snprintf(msg, sizeof(msg), "QUIET %s", call);
+				snprintf(msg, sizeof(msg), TR("QUIET %s"), call);
 				soundSetMelody(MELODY_NACK_BEEP);
 				uiNotificationShowKind(UI_ALERT_WARNING, NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 3000U, msg, true);
 			}

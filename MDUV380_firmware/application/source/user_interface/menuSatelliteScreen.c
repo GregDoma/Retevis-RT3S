@@ -214,7 +214,7 @@ static void emPositionStrip(void)
 		double lon = settingsLocationGetLongitude();
 		uint32_t la = (uint32_t)((fabs(lat) * 100.0) + 0.5);
 		uint32_t lo = (uint32_t)((fabs(lon) * 100.0) + 0.5);
-		int16_t x = (int16_t)(2 + emChip(2, (fromGps ? "GPS" : "MANUAL"), (fromGps ? THEME_ITEM_FG_RSSI_BAR : THEME_ITEM_FG_RSSI_BAR_S9P)) + 4);
+		int16_t x = (int16_t)(2 + emChip(2, (fromGps ? "GPS" : TR("MANUAL")), (fromGps ? THEME_ITEM_FG_RSSI_BAR : THEME_ITEM_FG_RSSI_BAR_S9P)) + 4);
 
 		snprintf(buf, sizeof(buf), "%u.%02u%c %u.%02u%c", (unsigned)(la / 100U), (unsigned)(la % 100U), ((lat >= 0.0) ? 'N' : 'S'),
 				(unsigned)(lo / 100U), (unsigned)(lo % 100U), ((lon >= 0.0) ? 'E' : 'W'));
@@ -222,7 +222,7 @@ static void emPositionStrip(void)
 	}
 	else
 	{
-		emChip(2, "NO POS", THEME_ITEM_FG_TX_COUNTER);
+		emChip(2, TR("NO POS"), THEME_ITEM_FG_TX_COUNTER);
 	}
 
 	emTextRight((DISPLAY_SIZE_X - 3), (EM_STRIP_Y + 2), ((emLocalOffset() != 0) ? "LT" : "UTC"), FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG_HEADER_TEXT);
@@ -234,7 +234,7 @@ static void emListFrame(void)
 	displayClearBuf();
 	emTitle(currentLanguage->satellite);
 	emPositionStrip();
-	emKeyBar("GREEN OPEN * POS RED EXIT");
+	emKeyBar(TR("GREEN OPEN * POS RED EXIT"));
 }
 
 static void emPredicting(void)
@@ -277,7 +277,7 @@ static void emListRow(int row, satelliteData_t *sat, int passNumber, const struc
 
 	if (visible)
 	{
-		snprintf(buf, sizeof(buf), "NOW");
+		snprintf(buf, sizeof(buf), TR("NOW"));
 	}
 	else
 	{
@@ -305,12 +305,12 @@ static themeItem_t emPassState(char *buf, size_t size)
 	if (now < p->satelliteAOS)
 	{
 		emDuration(t, sizeof(t), (p->satelliteAOS - now));
-		snprintf(buf, size, "AOS in %s", t);
+		snprintf(buf, size, TR("AOS in %s"), t);
 		return THEME_ITEM_FG_RSSI_BAR_S9P;
 	}
 
 	emDuration(t, sizeof(t), (p->satelliteLOS - now));
-	snprintf(buf, size, "LOS in %s", t);
+	snprintf(buf, size, TR("LOS in %s"), t);
 	return THEME_ITEM_FG_RSSI_BAR;
 }
 
@@ -362,7 +362,7 @@ static void emSelected(const char *freqName)
 	y += 23;
 	emFreqLine(y, "RX", f->rxFreq, THEME_ITEM_FG_RX_FREQ, "---");
 	y += 19;
-	emFreqLine(y, "TX", ((f->rxFreq != 0) ? f->txFreq : 0), THEME_ITEM_FG_TX_FREQ, ((f->rxFreq != 0) ? "RX only" : "---"));
+	emFreqLine(y, "TX", ((f->rxFreq != 0) ? f->txFreq : 0), THEME_ITEM_FG_TX_FREQ, ((f->rxFreq != 0) ? TR("RX only") : "---"));
 
 	// Pass
 	y += 23;
@@ -379,9 +379,9 @@ static void emSelected(const char *freqName)
 	emText(4, (y + 10), buf, FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
 
 #if defined(HAS_SSTV_MENU) && defined(I2S_APRS_RX)
-	emKeyBar("1-3 QRG  9 SSTV  RED LIST");
+	emKeyBar(TR("1-3 QRG  9 SSTV  RED LIST"));
 #else
-	emKeyBar("1-3 QRG  # NEXT  RED LIST");
+	emKeyBar(TR("1-3 QRG  # NEXT  RED LIST"));
 #endif
 	displayRender();
 }
@@ -392,7 +392,7 @@ static void emPolarFrame(void)
 	displayClearBuf();
 	emTitle(currentActiveSatellite->name);
 	emStrip();
-	emKeyBar("UP/DN VIEW # NEXT RED LIST");
+	emKeyBar(TR("UP/DN VIEW # NEXT RED LIST"));
 
 	displayThemeApply(THEME_ITEM_FG_POLAR_DRAWING, THEME_ITEM_BG);
 	displayDrawCircle(EM_POLAR_CX, EM_POLAR_CY, EM_POLAR_R, true);
@@ -475,14 +475,14 @@ static void emPrediction(satellitePass_t *pass)
 
 		emDuration(buf, sizeof(buf), pass->satellitePassDuration);
 		emTextRight((DISPLAY_SIZE_X - 4), y, buf, FONT_SIZE_3, THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
-		emText(84, (y + 5), "DUR", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+		emText(84, (y + 5), TR("DUR"), FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
 	}
 	else if ((pass->valid == PREDICTION_RESULT_LIMIT) && (sat->predictions.numPasses == 0))
 	{
 		emText(4, (y + 12), currentLanguage->list_empty, FONT_SIZE_3, THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
 	}
 
-	emKeyBar("</> PASS  SK2+GRN ALARM");
+	emKeyBar(TR("</> PASS  SK2+GRN ALARM"));
 	displayRender();
 }
 #endif
@@ -680,7 +680,7 @@ static void updateScreen(uiEvent_t *ev, bool firstRun, bool announceVP)
 #if defined(HAS_EMCOM_UI)
 			if (emcomStyleEnabled())
 			{
-				emKeyBar("RED EXIT");
+				emKeyBar(TR("RED EXIT"));
 			}
 #endif
 			displayRender();
@@ -973,7 +973,7 @@ static void updateScreen(uiEvent_t *ev, bool firstRun, bool announceVP)
 									buffer[0] = '-';
 									buffer[1] = 0;
 								}
-								emPolarValue((EM_STRIP_Y + EM_STRIP_H + 6), "AOS in", buffer, THEME_ITEM_FG_RSSI_BAR_S9P);
+								emPolarValue((EM_STRIP_Y + EM_STRIP_H + 6), TR("AOS in"), buffer, THEME_ITEM_FG_RSSI_BAR_S9P);
 								snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%u%c", (unsigned)satelliteGetMaximumElevation(currentActiveSatellite, currentActiveSatellite->predictions.selectedPassNumber), 176);
 								emPolarValue((EM_STRIP_Y + EM_STRIP_H + 36), currentLanguage->maximum, buffer, THEME_ITEM_FG_RSSI_BAR);
 							}
@@ -1147,7 +1147,7 @@ static void updateScreen(uiEvent_t *ev, bool firstRun, bool announceVP)
 						emTitle(currentActiveSatellite->name);
 						emStrip();
 						emText(4, ((DISPLAY_SIZE_Y / 2) - 8), buf, FONT_SIZE_3, THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
-						emKeyBar("UP/DN VIEW # NEXT RED LIST");
+						emKeyBar(TR("UP/DN VIEW # NEXT RED LIST"));
 					}
 					else
 #endif

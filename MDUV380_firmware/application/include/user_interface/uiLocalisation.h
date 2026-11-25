@@ -30,17 +30,17 @@
 
 #include "user_interface/languages/uiLanguage.h"
 
+#if defined(LANGUAGE_BUILD_JAPANESE)
+#error "Fork (M0SQQ): only English and Polish are supported, the Japanese build was removed"
+#endif
+
 extern const stringsTable_t languages[];
 extern const stringsTable_t *currentLanguage;
 
 typedef enum
 {
 	englishLanguageName = 0,
-#if ! defined(LANGUAGE_BUILD_JAPANESE)
-	userLanguageName
-#else
-	japaneseLanguageName
-#endif
+	polishLanguageName // Fork (M0SQQ): built in, replaces the CPS/.gla user language slot
 } languageNamesOrder_t;
 
 extern const languageNamesOrder_t LANGUAGE_DISPLAY_ORDER[];
@@ -57,5 +57,22 @@ typedef enum
 uint8_t languagesGetCount(void);
 char currentLanguageGetSymbol(LanguageSymbol_t s);
 char languageCharToUpper(char c);
+
+// Fork (M0SQQ): translation of the English UI texts hard coded in the fork screens.
+// TR("English text") returns the Polish text when Polish is the current language,
+// the English text otherwise (and for texts without a translation).
+// The table is generated from tools/translations/pl.tsv by tools/translations/gen_translations.py.
+typedef struct
+{
+	const char *en;
+	const char *pl;
+} uiTranslation_t;
+
+extern const uiTranslation_t uiTranslationsPL[];
+extern const uint16_t uiTranslationsPLCount;
+
+const char *uiTranslate(const char *english);
+#define TR(s) uiTranslate(s)
+#define TRN(s) (s) // Fork (M0SQQ): marks a literal translated later with TR(), e.g. TR(array[i])
 
 #endif

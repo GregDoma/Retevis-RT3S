@@ -755,7 +755,7 @@ const char *menuItemName(const menuItemNewData_t *item)
 	switch (item->stringOffset)
 	{
 		case MENU_STRING_NET_CONTROL:
-			return "Net control";
+			return TR("Net control");
 		default:
 			return NULL;
 	}

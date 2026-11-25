@@ -12,6 +12,7 @@
 #include "io/LEDs.h"
 #include "user_interface/menuSystem.h"
 #include "user_interface/uiGlobals.h"
+#include "user_interface/uiLocalisation.h" // Fork (M0SQQ): TR()
 
 typedef struct
 {
@@ -151,5 +152,5 @@ void blackoutToggle(void)
 		}
 	}
 
-	uiNotificationShowKind(UI_ALERT_INFO, NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 1500U, (active ? "BLACKOUT ON" : "BLACKOUT OFF"), false);
+	uiNotificationShowKind(UI_ALERT_INFO, NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 1500U, (active ? TR("BLACKOUT ON") : TR("BLACKOUT OFF")), false);
 }

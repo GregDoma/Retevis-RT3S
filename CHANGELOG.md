@@ -5,6 +5,13 @@ This is an independent fork maintained by **Marcin SP7TQ**, based on the
 upstream [OpenGD77](https://www.opengd77.com/) R20260131 source. Features
 marked *(untested)* build and pass host tests but still need on-air checking.
 
+## Unreleased — fork by Greg M0SQQ
+
+* **English and Polish only, both built in**: the other languages, the `.gla` language packs, `languages_builder` and the Japanese build are removed. Polish is chosen in *Options → Language*; no `-L <lang>.gla` is needed when flashing (an old `Polish.gla` loaded with `-L` would replace the built-in Polish and should not be used).
+* **Polish translation of the fork screens** *(untested on the radio)*: about 390 texts of the EMCOM / field tool screens (SSTV, APRS RX, event log screen, PACE, sked, position, coverage, radio check, net control, waypoints, GPS, satellites, alerts and key bars) are shown in Polish with `TR("...")`. The texts and their Polish versions are in `tools/translations/pl.tsv`; `tools/translations/gen_translations.py` checks them (font, printf conversions, every `TR()` / `TRN()` text has a translation) and writes `uiTranslationsPL.c`. The table is linked after the AMBE codec, it costs no RAM.
+* Event log entries, APRS canned texts and standard abbreviations (TX, RX, CC, TS, TG, APRS, DMR, UTC...) stay in English.
+* **Polish menu**: 67 fixes in `polish.h`; the EMCOM title bar, status chips and alert titles also upper-case Polish letters (`OPCJE DŹWIĘKU`).
+
 ## R20260131-SP7TQ.5 — 2026-11-22
 
 * **VFO power in the channel details**: the Power row showed `N/A` in the VFO; it now shows the master power (e.g. `Master 1W`) and `LEFT` / `RIGHT` change it at once, like `SK2` + `UP` / `DOWN` on the VFO screen.

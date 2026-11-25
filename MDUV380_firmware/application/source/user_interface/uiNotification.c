@@ -264,7 +264,7 @@ void uiNotificationRefresh(void)
 				if (emcomStyleEnabled())
 				{
 					sprintf(buffer, "%s%s", getPowerLevel(powerLevel), getPowerLevelUnit(powerLevel));
-					emcomDrawLevelAlert("TX POWER", buffer, -1);
+					emcomDrawLevelAlert(TR("TX POWER"), buffer, -1);
 					break;
 				}
 #endif

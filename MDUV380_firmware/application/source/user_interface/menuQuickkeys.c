@@ -102,21 +102,21 @@ const char *quickkeyActionGetName(quickkeyAction_t action)
 	switch (action)
 	{
 		case QUICKKEY_ACTION_APRS_BEACON:
-			return "APRS beacon";
+			return TR("APRS beacon");
 		case QUICKKEY_ACTION_APRS_TOGGLE:
-			return "APRS on/off";
+			return TR("APRS on/off");
 		case QUICKKEY_ACTION_DAY_NIGHT:
-			return "Day/Night";
+			return TR("Day/Night");
 		case QUICKKEY_ACTION_BAND_SCOPE:
-			return "Band scope";
+			return TR("Band scope");
 		case QUICKKEY_ACTION_SWEEP_TUNE_PEAK:
-			return "Scope: to peak";
+			return TR("Scope: to peak");
 		case QUICKKEY_ACTION_APRS_RX_TOGGLE:
-			return "APRS RX on/off";
+			return TR("APRS RX on/off");
 		case QUICKKEY_ACTION_SOS:
-			return "SOS (press x2)";
+			return TR("SOS (press x2)");
 		case QUICKKEY_ACTION_BLACKOUT:
-			return "Blackout";
+			return TR("Blackout");
 #if defined(HAS_SSTV_MENU)
 		case QUICKKEY_ACTION_MENU_POSITION:
 			return currentLanguage->position;
@@ -125,9 +125,9 @@ const char *quickkeyActionGetName(quickkeyAction_t action)
 		case QUICKKEY_ACTION_MENU_RADIO_CHECK:
 			return currentLanguage->radio_check;
 		case QUICKKEY_ACTION_MENU_NET_CONTROL:
-			return "Net control";
+			return TR("Net control");
 		case QUICKKEY_ACTION_MENU_WAYPOINTS:
-			return "Waypoints";
+			return TR("Waypoints");
 		case QUICKKEY_ACTION_MENU_SKED:
 			return "Sked";
 #endif

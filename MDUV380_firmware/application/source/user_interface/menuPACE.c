@@ -31,7 +31,7 @@
 #define CHIP_W     20
 
 static const char paceLetters[PACE_SLOTS] = { 'P', 'A', 'C', 'E' };
-static const char *const paceNames[PACE_SLOTS] = { "PRIMARY", "ALTERNATE", "CONTINGENCY", "EMERGENCY" };
+static const char *const paceNames[PACE_SLOTS] = { TRN("PRIMARY"), TRN("ALTERNATE"), TRN("CONTINGENCY"), TRN("EMERGENCY") };
 static int selectedSlot = 0;
 static bool confirmClear = false; // '0' pressed: GREEN clears the selected slot
 
@@ -80,7 +80,7 @@ static bool skedText(char *buf, size_t size)
 
 	if (next.on)
 	{
-		snprintf(buf, size, "S%d NOW", (next.slot + 1));
+		snprintf(buf, size, TR("S%d NOW"), (next.slot + 1));
 	}
 	else
 	{
@@ -104,7 +104,7 @@ static void updateScreenEmcom(void)
 
 	displayClearBuf();
 	snprintf(buf, sizeof(buf), "%d/%d", (selectedSlot + 1), PACE_SLOTS);
-	emcomUiTitle("PACE PLAN", buf);
+	emcomUiTitle(TR("PACE PLAN"), buf);
 
 	for (int i = 0; i < PACE_SLOTS; i++)
 	{
@@ -148,22 +148,22 @@ static void updateScreenEmcom(void)
 			formatFreq(ch.rxFreq, buf, sizeof(buf));
 			strcat(buf, ((ch.chMode == RADIO_MODE_DIGITAL) ? " DMR" : " FM"));
 			emcomUiText(EM_TEXT_X, (y + 12), buf, FONT_SIZE_1, muted, false);
-			if ((EM_TEXT_X + (int16_t)((strlen(buf) + 1 + strlen(paceNames[i])) * 6)) <= (DISPLAY_SIZE_X - 2))
+			if ((EM_TEXT_X + (int16_t)((strlen(buf) + 1 + strlen(TR(paceNames[i]))) * 6)) <= (DISPLAY_SIZE_X - 2))
 			{
-				emcomUiText((DISPLAY_SIZE_X - 2), (y + 12), paceNames[i], FONT_SIZE_1, muted, true);
+				emcomUiText((DISPLAY_SIZE_X - 2), (y + 12), TR(paceNames[i]), FONT_SIZE_1, muted, true);
 			}
 
 			if (slotIsCurrent(&slot))
 			{
 				active = i;
-				emcomUiChip((DISPLAY_SIZE_X - 2), (y + 3), "ON", (sel ? THEME_ITEM_BG : slotColour(i)), (sel ? EMCOM_CHIP_OUTLINE : EMCOM_CHIP_SOLID), true);
+				emcomUiChip((DISPLAY_SIZE_X - 2), (y + 3), TR("ON"), (sel ? THEME_ITEM_BG : slotColour(i)), (sel ? EMCOM_CHIP_OUTLINE : EMCOM_CHIP_SOLID), true);
 			}
 		}
 		else
 		{
-			emcomUiText(EM_TEXT_X, (y + 3), paceNames[i], FONT_SIZE_1_BOLD, (sel ? THEME_ITEM_BG : slotColour(i)), false);
-			emcomUiText(EM_TEXT_X, (y + 12), (used ? "channel deleted" : "* stores the channel"), FONT_SIZE_1, muted, false);
-			emcomUiChip((DISPLAY_SIZE_X - 2), (y + 3), (used ? "DELETED" : "EMPTY"), (sel ? THEME_ITEM_BG : (used ? THEME_ITEM_FG_TX_COUNTER : THEME_ITEM_FG_DECORATION)),
+			emcomUiText(EM_TEXT_X, (y + 3), TR(paceNames[i]), FONT_SIZE_1_BOLD, (sel ? THEME_ITEM_BG : slotColour(i)), false);
+			emcomUiText(EM_TEXT_X, (y + 12), (used ? TR("channel deleted") : TR("* stores the channel")), FONT_SIZE_1, muted, false);
+			emcomUiChip((DISPLAY_SIZE_X - 2), (y + 3), (used ? TR("DELETED") : TR("EMPTY")), (sel ? THEME_ITEM_BG : (used ? THEME_ITEM_FG_TX_COUNTER : THEME_ITEM_FG_DECORATION)),
 					EMCOM_CHIP_OUTLINE, true);
 		}
 	}
@@ -181,33 +181,33 @@ static void updateScreenEmcom(void)
 	}
 	else
 	{
-		snprintf(buf, sizeof(buf), "%d/%d SET", set, PACE_SLOTS);
+		snprintf(buf, sizeof(buf), TR("%d/%d SET"), set, PACE_SLOTS);
 		rightW = emcomUiText((DISPLAY_SIZE_X - 3), (EMCOM_UI_STRIP_Y + 2), buf, FONT_SIZE_1, THEME_ITEM_FG_DECORATION, true);
 	}
 
 	if (active >= 0)
 	{
-		snprintf(buf, sizeof(buf), "ON %c", paceLetters[active]);
+		snprintf(buf, sizeof(buf), TR("ON %c"), paceLetters[active]);
 		int16_t x = (int16_t)(2 + emcomUiChip(2, (EMCOM_UI_STRIP_Y + 2), buf, slotColour(active), EMCOM_CHIP_SOLID, false) + 4);
-		if ((x + (int16_t)(strlen(paceNames[active]) * 6) + 10) <= (DISPLAY_SIZE_X - 3 - rightW)) // the slot name when it fits, clear of the right text
+		if ((x + (int16_t)(strlen(TR(paceNames[active])) * 6) + 10) <= (DISPLAY_SIZE_X - 3 - rightW)) // the slot name when it fits, clear of the right text
 		{
-			emcomUiText(x, (EMCOM_UI_STRIP_Y + 2), paceNames[active], FONT_SIZE_1, THEME_ITEM_FG_HEADER_TEXT, false);
+			emcomUiText(x, (EMCOM_UI_STRIP_Y + 2), TR(paceNames[active]), FONT_SIZE_1, THEME_ITEM_FG_HEADER_TEXT, false);
 		}
 	}
 	else
 	{
-		emcomUiChip(2, (EMCOM_UI_STRIP_Y + 2), (onChannelScreen() ? "OFF PLAN" : "VFO"), (onChannelScreen() ? THEME_ITEM_FG_DECORATION : THEME_ITEM_FG_RSSI_BAR_S9P),
+		emcomUiChip(2, (EMCOM_UI_STRIP_Y + 2), (onChannelScreen() ? TR("OFF PLAN") : "VFO"), (onChannelScreen() ? THEME_ITEM_FG_DECORATION : THEME_ITEM_FG_RSSI_BAR_S9P),
 				EMCOM_CHIP_OUTLINE, false);
 	}
 
 	if (confirmClear)
 	{
-		snprintf(buf, sizeof(buf), "CLEAR %c?", paceLetters[selectedSlot]);
+		snprintf(buf, sizeof(buf), TR("CLEAR %c?"), paceLetters[selectedSlot]);
 		emcomUiConfirmBar(buf);
 	}
 	else
 	{
-		emcomUiKeyBar(onChannelScreen() ? "1-4 GO * STO 0 CLR # SKED" : "1-4 GO  # SKED  (VFO)");
+		emcomUiKeyBar(onChannelScreen() ? TR("1-4 GO * STO 0 CLR # SKED") : TR("1-4 GO  # SKED  (VFO)"));
 	}
 	paceDrawnSecs = uiDataGlobal.dateTimeSecs;
 	displayRender();
@@ -227,7 +227,7 @@ static void updateScreen(void)
 #endif
 
 	displayClearBuf();
-	menuDisplayTitle("PACE PLAN");
+	menuDisplayTitle(TR("PACE PLAN"));
 
 	for (int i = 0; i < PACE_SLOTS; i++)
 	{
@@ -270,15 +270,15 @@ static void updateScreen(void)
 				// "ON" chip: the radio is on this channel
 				displayThemeApply(slotColour(i), THEME_ITEM_BG);
 				displayFillRect((DISPLAY_SIZE_X - 21), (y + 2), 18, 9, false);
-				displayPrintCore((DISPLAY_SIZE_X - 18), (y + 3), "ON", FONT_SIZE_1_BOLD, TEXT_ALIGN_LEFT, true);
+				displayPrintCore((DISPLAY_SIZE_X - 18), (y + 3), TR("ON"), FONT_SIZE_1_BOLD, TEXT_ALIGN_LEFT, true);
 			}
 		}
 		else
 		{
 			displayThemeApply(slotColour(i), THEME_ITEM_BG);
-			displayPrintCore((CHIP_W + 4), (y + 1), paceNames[i], FONT_SIZE_1_BOLD, TEXT_ALIGN_LEFT, false);
+			displayPrintCore((CHIP_W + 4), (y + 1), TR(paceNames[i]), FONT_SIZE_1_BOLD, TEXT_ALIGN_LEFT, false);
 			displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
-			displayPrintCore((CHIP_W + 4), (y + 11), (used ? "channel deleted" : "empty - * stores"), FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
+			displayPrintCore((CHIP_W + 4), (y + 11), (used ? TR("channel deleted") : TR("empty - * stores")), FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
 		}
 	}
 
@@ -288,11 +288,11 @@ static void updateScreen(void)
 	displayFillRect(0, fy, DISPLAY_SIZE_X, FOOTER_H, false);
 	if (confirmClear)
 	{
-		snprintf(buf, sizeof(buf), "CLEAR %c?", paceLetters[selectedSlot]);
+		snprintf(buf, sizeof(buf), TR("CLEAR %c?"), paceLetters[selectedSlot]);
 		displayThemeApply(THEME_ITEM_FG_TX_COUNTER, THEME_ITEM_BG_HEADER_TEXT);
 		displayPrintCore(3, (fy + 2), buf, FONT_SIZE_1_BOLD, TEXT_ALIGN_LEFT, false);
 		displayThemeApply(THEME_ITEM_FG_HEADER_TEXT, THEME_ITEM_BG_HEADER_TEXT);
-		displayPrintCore(57, (fy + 2), "GREEN = yes", FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
+		displayPrintCore(57, (fy + 2), TR("GREEN = yes"), FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
 	}
 	else
 	{
@@ -302,11 +302,11 @@ static void updateScreen(void)
 		if (skedText(sked, sizeof(sked)))
 		{
 			// the next sked replaces the key hints (# opens the schedule)
-			snprintf(buf, sizeof(buf), "%s  # SKED %s", (onChannelScreen() ? "* STORE" : "1-4 GO"), sked);
+			snprintf(buf, sizeof(buf), "%s  # SKED %s", (onChannelScreen() ? TR("* STORE") : TR("1-4 GO")), sked);
 		}
 		else
 		{
-			snprintf(buf, sizeof(buf), "%s", (onChannelScreen() ? "1-4 GO * STO 0 CLR # SKED" : "1-4 GO  # SKED  (VFO)"));
+			snprintf(buf, sizeof(buf), "%s", (onChannelScreen() ? TR("1-4 GO * STO 0 CLR # SKED") : TR("1-4 GO  # SKED  (VFO)")));
 		}
 		displayPrintCore(3, (fy + 2), buf, FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
 	}
