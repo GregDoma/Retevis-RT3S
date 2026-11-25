@@ -270,7 +270,7 @@ static void emcomRssiScreen(void)
 	{
 		displayThemeApply(THEME_ITEM_FG_RSSI_BAR_S9P, THEME_ITEM_BG);
 		displayFillRect((DISPLAY_SIZE_X - 24), (MENU_HEADER_HEIGHT + 1), 22, 9, false);
-		displayPrintCore((DISPLAY_SIZE_X - 22), (MENU_HEADER_HEIGHT + 2), "FOX", FONT_SIZE_1_BOLD, TEXT_ALIGN_LEFT, true);
+		displayPrintCore((DISPLAY_SIZE_X - 22), (MENU_HEADER_HEIGHT + 2), TR("FOX"), FONT_SIZE_1_BOLD, TEXT_ALIGN_LEFT, true);
 	}
 #endif
 
@@ -333,7 +333,7 @@ static void emcomRssiScreen(void)
 	int16_t y = 90;
 	if (displayRawValues)
 	{
-		snprintf(buf, sizeof(buf), "RAW SIG %u  NOISE %u", rawSignal[RADIO_DEVICE_PRIMARY], rawNoise[RADIO_DEVICE_PRIMARY]);
+		snprintf(buf, sizeof(buf), TR("RAW SIG %u  NOISE %u"), rawSignal[RADIO_DEVICE_PRIMARY], rawNoise[RADIO_DEVICE_PRIMARY]);
 		displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
 		displayPrintCore(3, y, buf, FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
 		y += 10;
@@ -367,7 +367,7 @@ static void emcomRssiScreen(void)
 		}
 		else
 		{
-			snprintf(buf, sizeof(buf), (foxMaxHasPosition ? "no GPS fix" : "no position"));
+			snprintf(buf, sizeof(buf), (foxMaxHasPosition ? TR("no GPS fix") : TR("no position")));
 			displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
 		}
 		displayPrintCore((DISPLAY_SIZE_X - 3 - (int16_t)(strlen(buf) * 6)), y, buf, FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
@@ -379,9 +379,9 @@ static void emcomRssiScreen(void)
 	displayFillRect(0, (DISPLAY_SIZE_Y - 11), DISPLAY_SIZE_X, 11, false);
 	displayThemeApply(THEME_ITEM_FG_HEADER_TEXT, THEME_ITEM_BG_HEADER_TEXT);
 #if defined(FOX_HUNT_SUPPORTED)
-	displayPrintCore(3, (DISPLAY_SIZE_Y - 9), (foxHuntEnabled ? "* RAW  # FOX  0 RST  9 APRS" : "* RAW  # FOX  9 APRS"), FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
+	displayPrintCore(3, (DISPLAY_SIZE_Y - 9), (foxHuntEnabled ? TR("* RAW  # FOX  0 RST  9 APRS") : TR("* RAW  # FOX  9 APRS")), FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
 #else
-	displayPrintCore(3, (DISPLAY_SIZE_Y - 9), "* RAW", FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
+	displayPrintCore(3, (DISPLAY_SIZE_Y - 9), TR("* RAW"), FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
 #endif
 
 	displayThemeResetToDefault();
@@ -642,7 +642,7 @@ static void handleEvent(uiEvent_t *ev)
 
 		foxHuntEnabled = !foxHuntEnabled;
 		foxHuntReset();
-		snprintf(buf, SCREEN_LINE_BUFFER_SIZE, "Fox hunt: %s", (foxHuntEnabled ? currentLanguage->on : currentLanguage->off));
+		snprintf(buf, SCREEN_LINE_BUFFER_SIZE, TR("Fox hunt: %s"), (foxHuntEnabled ? currentLanguage->on : currentLanguage->off));
 		uiNotificationShow(NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 1000U, buf, false);
 		updateScreen(true, false);
 	}
@@ -775,16 +775,16 @@ static void foxHuntDrawInfo(void)
 
 		if (meters < 10000)
 		{
-			snprintf(buf, sizeof(buf), "Max @ %dm %03d deg", meters, bearing);
+			snprintf(buf, sizeof(buf), TR("Max @ %dm %03d deg"), meters, bearing);
 		}
 		else
 		{
-			snprintf(buf, sizeof(buf), "Max @ %dkm %03d deg", (meters / 1000), bearing);
+			snprintf(buf, sizeof(buf), TR("Max @ %dkm %03d deg"), (meters / 1000), bearing);
 		}
 	}
 	else
 	{
-		snprintf(buf, sizeof(buf), (foxMaxHasPosition ? "Max @ (no GPS fix)" : "Max @ no position"));
+		snprintf(buf, sizeof(buf), (foxMaxHasPosition ? TR("Max @ (no GPS fix)") : TR("Max @ no position")));
 	}
 	displayPrintCentered(FOX_INFO_LINE2_Y_POS, buf, FONT_SIZE_1);
 }

@@ -1303,13 +1303,13 @@ static const char *emFixState(themeItem_t *colour)
 	if (SETTINGS_GPS_MODE_GET(nonVolatileSettings) == GPS_NOT_DETECTED)
 	{
 		*colour = THEME_ITEM_FG_TX_COUNTER;
-		return "NO GPS";
+		return TR("NO GPS");
 	}
 
 	if (emGpsIsOn() == false)
 	{
 		*colour = THEME_ITEM_FG_DECORATION;
-		return "GPS OFF";
+		return TR("GPS OFF");
 	}
 
 	if (gpsData.Status & GPS_STATUS_HAS_FIX)
@@ -1325,7 +1325,7 @@ static const char *emFixState(themeItem_t *colour)
 	}
 
 	*colour = THEME_ITEM_FG_TX_COUNTER;
-	return "NO FIX";
+	return TR("NO FIX");
 }
 
 // HDOP value + word; returns its colour
@@ -1352,17 +1352,17 @@ static themeItem_t emHdop(char *value, size_t size, const char **word)
 
 	if (h <= 200U)
 	{
-		*word = "GOOD";
+		*word = TR("GOOD");
 		return THEME_ITEM_FG_RSSI_BAR;
 	}
 
 	if (h <= 500U)
 	{
-		*word = "FAIR";
+		*word = TR("FAIR");
 		return THEME_ITEM_FG_RSSI_BAR_S9P;
 	}
 
-	*word = "POOR";
+	*word = TR("POOR");
 	return THEME_ITEM_FG_TX_COUNTER;
 }
 
@@ -1399,7 +1399,7 @@ static void emFrame(bool withLegend, emSymbol_t gpsSymbol, emSymbol_t bdSymbol, 
 		}
 		else if (c == 0)
 		{
-			x = (int16_t)(x + emChip(x, (EM_STRIP_Y + 1), "SATS", THEME_ITEM_FG_RX_FREQ) + 4);
+			x = (int16_t)(x + emChip(x, (EM_STRIP_Y + 1), TR("SATS"), THEME_ITEM_FG_RX_FREQ) + 4);
 		}
 
 		snprintf(buf, sizeof(buf), "%s %u/%u", ((c == 0) ? "GPS" : "BD"), (unsigned)emSatsHeard(c != 0), (unsigned)emSatsInView(c != 0));
@@ -1424,16 +1424,16 @@ static void emOffBody(void)
 
 	if (SETTINGS_GPS_MODE_GET(nonVolatileSettings) == GPS_NOT_DETECTED)
 	{
-		emText(4, (y + 30), "No GPS receiver found.", FONT_SIZE_1, THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
-		emText(4, (y + 42), "Checked at power on.", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
-		emKeyBar("UP/DN PAGE  RED EXIT");
+		emText(4, (y + 30), TR("No GPS receiver found."), FONT_SIZE_1, THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
+		emText(4, (y + 42), TR("Checked at power on."), FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+		emKeyBar(TR("UP/DN PAGE  RED EXIT"));
 	}
 	else
 	{
-		emText(4, (y + 30), "The receiver is off.", FONT_SIZE_1, THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
-		emText(4, (y + 42), "SK2+GREEN turns it on", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
-		emText(4, (y + 52), "(or Options > General).", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
-		emKeyBar("SK2+GRN GPS ON  RED EXIT");
+		emText(4, (y + 30), TR("The receiver is off."), FONT_SIZE_1, THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
+		emText(4, (y + 42), TR("SK2+GREEN turns it on"), FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+		emText(4, (y + 52), TR("(or Options > General)."), FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+		emKeyBar(TR("SK2+GRN GPS ON  RED EXIT"));
 	}
 }
 
@@ -1484,16 +1484,16 @@ static void emStatusPage(void)
 		emTextRight((DISPLAY_SIZE_X - 2), (y + 1), buf, FONT_SIZE_3, THEME_ITEM_FG_RSSI_BAR_S9P, THEME_ITEM_BG);
 		if (strlen(buf) <= 7) // not beside a 10 hour search, the fix field is there
 		{
-			emTextRight((DISPLAY_SIZE_X - 2 - emTextWidth(buf, FONT_SIZE_3) - 4), (y + 5), "SEARCH", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+			emTextRight((DISPLAY_SIZE_X - 2 - emTextWidth(buf, FONT_SIZE_3) - 4), (y + 5), TR("SEARCH"), FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
 		}
 	}
 
 	// Position (the GPS one, not the location setting)
 	y += 21;
-	emText(2, (y + 5), "LAT", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
-	emText(2, (y + 21), "LON", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
-	emText(106, (y + 1), "LOC", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
-	emText(106, (y + 21), "ALT", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+	emText(2, (y + 5), TR("LAT"), FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+	emText(2, (y + 21), TR("LON"), FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+	emText(106, (y + 1), TR("LOC"), FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+	emText(106, (y + 21), TR("ALT"), FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
 
 	if (hasFix)
 	{
@@ -1553,7 +1553,7 @@ static void emStatusPage(void)
 	{
 		snprintf(buf, sizeof(buf), "--");
 	}
-	emKeyValue((DISPLAY_SIZE_X - 2), y, "SPD", buf, THEME_ITEM_FG_DEFAULT, true);
+	emKeyValue((DISPLAY_SIZE_X - 2), y, TR("SPD"), buf, THEME_ITEM_FG_DEFAULT, true);
 
 	// Course (only when moving), time to first fix
 	y += 10;
@@ -1567,7 +1567,7 @@ static void emStatusPage(void)
 	{
 		snprintf(buf, sizeof(buf), "--");
 	}
-	emKeyValue(2, y, "CRS", buf, THEME_ITEM_FG_DEFAULT, false);
+	emKeyValue(2, y, TR("CRS"), buf, THEME_ITEM_FG_DEFAULT, false);
 
 	if (gpsLastTtffSecs() != 0U)
 	{
@@ -1584,14 +1584,14 @@ static void emStatusPage(void)
 
 		gmtime_r_Custom(&tt, &t);
 		snprintf(buf, sizeof(buf), "%04u-%02u-%02u", (unsigned)(t.tm_year + 1900), (unsigned)(t.tm_mon + 1), (unsigned)t.tm_mday);
-		emKeyValue(2, y, "DATE", buf, THEME_ITEM_FG_DEFAULT, false);
+		emKeyValue(2, y, TR("DATE"), buf, THEME_ITEM_FG_DEFAULT, false);
 	}
 	if (SETTINGS_GPS_MODE_GET(nonVolatileSettings) == GPS_MODE_ON_NMEA)
 	{
 		emTextRight((DISPLAY_SIZE_X - 2), y, "NMEA>USB", FONT_SIZE_1, THEME_ITEM_FG_RX_FREQ, THEME_ITEM_BG);
 	}
 
-	emKeyBar("UP/DN PAGE  SK2+RED OFF");
+	emKeyBar(TR("UP/DN PAGE  SK2+RED OFF"));
 }
 
 static int16_t emSnrY(int8_t snr)
@@ -1616,20 +1616,20 @@ static void emSignalPage(void)
 		return;
 	}
 
-	emKeyBar("UP/DN PAGE  RED EXIT");
+	emKeyBar(TR("UP/DN PAGE  RED EXIT"));
 
 	if (n == 0)
 	{
-		emText(((DISPLAY_SIZE_X - emTextWidth("No satellites yet", FONT_SIZE_3)) / 2), 48, "No satellites yet", FONT_SIZE_3, THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
+		emText(((DISPLAY_SIZE_X - emTextWidth(TR("No satellites yet"), FONT_SIZE_3)) / 2), 48, TR("No satellites yet"), FONT_SIZE_3, THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
 		if ((gpsData.Status & GPS_STATUS_HAS_FIX) == 0)
 		{
 			char t[12];
 
 			emDuration(t, sizeof(t), emSearchSecs());
-			snprintf(buf, sizeof(buf), "Searching: %s", t);
+			snprintf(buf, sizeof(buf), TR("Searching: %s"), t);
 			emText(((DISPLAY_SIZE_X - emTextWidth(buf, FONT_SIZE_1)) / 2), 70, buf, FONT_SIZE_1, THEME_ITEM_FG_RSSI_BAR_S9P, THEME_ITEM_BG);
 		}
-		emText(((DISPLAY_SIZE_X - emTextWidth("Open sky helps (1-5 min)", FONT_SIZE_1)) / 2), 82, "Open sky helps (1-5 min)", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+		emText(((DISPLAY_SIZE_X - emTextWidth(TR("Open sky helps (1-5 min)"), FONT_SIZE_1)) / 2), 82, TR("Open sky helps (1-5 min)"), FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
 		return;
 	}
 
@@ -1757,7 +1757,7 @@ static void emSkyPage(void)
 	const char *word;
 	const char *state;
 
-	emFrame(true, EM_SYM_DISC, EM_SYM_SOLID, "N UP");
+	emFrame(true, EM_SYM_DISC, EM_SYM_SOLID, TR("N UP"));
 
 	if (emGpsIsOn() == false)
 	{
@@ -1765,7 +1765,7 @@ static void emSkyPage(void)
 		return;
 	}
 
-	emKeyBar("UP/DN PAGE  RED EXIT");
+	emKeyBar(TR("UP/DN PAGE  RED EXIT"));
 
 	// Grid
 	displayThemeApply(THEME_ITEM_FG_POLAR_DRAWING, THEME_ITEM_BG);
@@ -1870,7 +1870,7 @@ static void emSkyPage(void)
 
 	if (plotted == 0)
 	{
-		emText((EM_SKY_CX - (emTextWidth("no satellites", FONT_SIZE_1) / 2)), (EM_SKY_CY + 8), "no satellites", FONT_SIZE_1, THEME_ITEM_FG_RSSI_BAR_S9P, THEME_ITEM_BG);
+		emText((EM_SKY_CX - (emTextWidth(TR("no satellites"), FONT_SIZE_1) / 2)), (EM_SKY_CY + 8), TR("no satellites"), FONT_SIZE_1, THEME_ITEM_FG_RSSI_BAR_S9P, THEME_ITEM_BG);
 	}
 
 	// Right column: fix, HDOP, legend
@@ -1883,10 +1883,10 @@ static void emSkyPage(void)
 	emText((EM_SKY_COL_X + 28), (EM_TOP + 31), word, FONT_SIZE_1, colour, THEME_ITEM_BG);
 
 	emSymbol(EM_SKY_COL_X, (EM_TOP + 50), EM_SYM_DISC, true, THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
-	emText((EM_SKY_COL_X + 10), (EM_TOP + 50), "signal", FONT_SIZE_1, THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
+	emText((EM_SKY_COL_X + 10), (EM_TOP + 50), TR("signal"), FONT_SIZE_1, THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
 	emSymbol(EM_SKY_COL_X, (EM_TOP + 60), EM_SYM_DISC, false, THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
-	emText((EM_SKY_COL_X + 10), (EM_TOP + 60), "no sig", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
-	emText(EM_SKY_COL_X, (EM_TOP + 74), "rings", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+	emText((EM_SKY_COL_X + 10), (EM_TOP + 60), TR("no sig"), FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+	emText(EM_SKY_COL_X, (EM_TOP + 74), TR("rings"), FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
 	snprintf(buf, sizeof(buf), "0/30/60%c", 176);
 	emText(EM_SKY_COL_X, (EM_TOP + 83), buf, FONT_SIZE_1, THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
 }
@@ -2246,7 +2246,7 @@ static void handleEvent(uiEvent_t *ev)
 		if (r == GPS_WP_EDIT_DONE)
 		{
 			gpsWaypointSet(lat, lon);
-			uiNotificationShow(NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 1000U, "Waypoint set", false);
+			uiNotificationShow(NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 1000U, TR("Waypoint set"), false);
 		}
 		if (r != GPS_WP_EDIT_NONE)
 		{
@@ -2304,7 +2304,7 @@ static void handleEvent(uiEvent_t *ev)
 		if (waypointMarkHere())
 		{
 			soundSetMelody(MELODY_ACK_BEEP);
-			uiNotificationShow(NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 1000U, "Waypoint set", false);
+			uiNotificationShow(NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 1000U, TR("Waypoint set"), false);
 			isDirty = true;
 		}
 		else
@@ -2319,7 +2319,7 @@ static void handleEvent(uiEvent_t *ev)
 		// Long press so a stray GREEN does not wipe a day of hiking
 		gpsTripReset();
 		soundSetMelody(MELODY_ACK_BEEP);
-		uiNotificationShow(NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 1000U, "Trip reset", false);
+		uiNotificationShow(NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 1000U, TR("Trip reset"), false);
 		isDirty = true;
 	}
 #endif
@@ -2410,10 +2410,10 @@ static bool displayWaypoint(bool isFirstRun, bool forceRedraw)
 
 	if (waypointIsSet == false)
 	{
-		displayPrintCentered((WAYPOINT_ARROW_CY - FONT_SIZE_3_HEIGHT), "No waypoint", FONT_SIZE_3);
-		displayPrintCentered((WAYPOINT_ARROW_CY + 4), "GREEN: mark here", FONT_SIZE_1);
-		displayPrintCentered((WAYPOINT_ARROW_CY + 14), "#: enter lat/lon", FONT_SIZE_1);
-		displayPrintCentered((WAYPOINT_ARROW_CY + 24), "*: saved list", FONT_SIZE_1);
+		displayPrintCentered((WAYPOINT_ARROW_CY - FONT_SIZE_3_HEIGHT), TR("No waypoint"), FONT_SIZE_3);
+		displayPrintCentered((WAYPOINT_ARROW_CY + 4), TR("GREEN: mark here"), FONT_SIZE_1);
+		displayPrintCentered((WAYPOINT_ARROW_CY + 14), TR("#: enter lat/lon"), FONT_SIZE_1);
+		displayPrintCentered((WAYPOINT_ARROW_CY + 24), TR("*: saved list"), FONT_SIZE_1);
 		return true;
 	}
 
@@ -2423,7 +2423,7 @@ static bool displayWaypoint(bool isFirstRun, bool forceRedraw)
 
 	if (waypointPositionIsValid() == false)
 	{
-		displayPrintAt(WAYPOINT_TEXT_X, (WAYPOINT_ARROW_CY - 4), "No fix", FONT_SIZE_3);
+		displayPrintAt(WAYPOINT_TEXT_X, (WAYPOINT_ARROW_CY - 4), TR("No fix"), FONT_SIZE_3);
 		return true;
 	}
 
@@ -2473,8 +2473,8 @@ static bool displayWaypoint(bool isFirstRun, bool forceRedraw)
 	displayPrintAt(WAYPOINT_TEXT_X, (WAYPOINT_ARROW_CY - 6), buffer, FONT_SIZE_3);
 
 	displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
-	displayPrintAt(WAYPOINT_TEXT_X, (WAYPOINT_ARROW_CY + 16), (moving ? "Ahead=up" : "North=up"), FONT_SIZE_1);
-	displayPrintAt(WAYPOINT_TEXT_X, (WAYPOINT_ARROW_CY + 26), "*: saved", FONT_SIZE_1);
+	displayPrintAt(WAYPOINT_TEXT_X, (WAYPOINT_ARROW_CY + 16), (moving ? TR("Ahead=up") : TR("North=up")), FONT_SIZE_1);
+	displayPrintAt(WAYPOINT_TEXT_X, (WAYPOINT_ARROW_CY + 26), TR("*: saved"), FONT_SIZE_1);
 	displayThemeResetToDefault();
 
 	return true;
@@ -2530,7 +2530,7 @@ void gpsWaypointEditDraw(void)
 	{
 		bool active = (i == waypointEditFieldIndex);
 
-		snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%s%s%s", ((i == 0) ? "Lat " : "Lon "), waypointEditFields[i], (active ? "_" : ""));
+		snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "%s%s%s", ((i == 0) ? TR("Lat ") : TR("Lon ")), waypointEditFields[i], (active ? "_" : ""));
 
 		if (active)
 		{
@@ -2545,8 +2545,8 @@ void gpsWaypointEditDraw(void)
 
 	displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
 	displayPrintAt(2, WAYPOINT_EDIT_Y(2), "# .   * -(S/W)", FONT_SIZE_1);
-	displayPrintAt(2, (WAYPOINT_EDIT_Y(2) + 10), "UP/DN field RED del", FONT_SIZE_1);
-	displayPrintAt(2, (WAYPOINT_EDIT_Y(2) + 20), "GREEN set", FONT_SIZE_1);
+	displayPrintAt(2, (WAYPOINT_EDIT_Y(2) + 10), TR("UP/DN field RED del"), FONT_SIZE_1);
+	displayPrintAt(2, (WAYPOINT_EDIT_Y(2) + 20), TR("GREEN set"), FONT_SIZE_1);
 	displayThemeResetToDefault();
 }
 
@@ -2678,9 +2678,9 @@ static bool displayTrip(bool isFirstRun, bool forceRedraw)
 
 	if (gpsTrip.started == false)
 	{
-		displayPrintCentered((TRIP_LINE_Y(1) + 4), "Trip: no fix yet", FONT_SIZE_3);
+		displayPrintCentered((TRIP_LINE_Y(1) + 4), TR("Trip: no fix yet"), FONT_SIZE_3);
 		displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
-		displayPrintCentered((TRIP_LINE_Y(3) + 4), "Long GREEN: reset", FONT_SIZE_1);
+		displayPrintCentered((TRIP_LINE_Y(3) + 4), TR("Long GREEN: reset"), FONT_SIZE_1);
 		displayThemeResetToDefault();
 		return true;
 	}
@@ -2688,22 +2688,22 @@ static bool displayTrip(bool isFirstRun, bool forceRedraw)
 	// Distance
 	if (gpsTrip.distanceM < 1000U)
 	{
-		snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "Dist %um", (unsigned)gpsTrip.distanceM);
+		snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, TR("Dist %um"), (unsigned)gpsTrip.distanceM);
 	}
 	else
 	{
-		snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "Dist %u.%02ukm", (unsigned)(gpsTrip.distanceM / 1000U), (unsigned)((gpsTrip.distanceM % 1000U) / 10U));
+		snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, TR("Dist %u.%02ukm"), (unsigned)(gpsTrip.distanceM / 1000U), (unsigned)((gpsTrip.distanceM % 1000U) / 10U));
 	}
 	displayPrintAt(2, TRIP_LINE_Y(0), buffer, FONT_SIZE_3);
 
 	// Moving time
 	uint32_t s = (gpsTrip.movingTimeMs / 1000U);
-	snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "Move %u:%02u:%02u", (unsigned)(s / 3600U), (unsigned)((s / 60U) % 60U), (unsigned)(s % 60U));
+	snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, TR("Move %u:%02u:%02u"), (unsigned)(s / 3600U), (unsigned)((s / 60U) % 60U), (unsigned)(s % 60U));
 	displayPrintAt(2, TRIP_LINE_Y(1), buffer, FONT_SIZE_3);
 
 	// Average moving speed
 	uint32_t avg = gpsTripAvgSpeedHundredthKmh();
-	snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "Avg  %u.%01ukm/h", (unsigned)(avg / 100U), (unsigned)((avg % 100U) / 10U));
+	snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, TR("Avg  %u.%01ukm/h"), (unsigned)(avg / 100U), (unsigned)((avg % 100U) / 10U));
 	displayPrintAt(2, TRIP_LINE_Y(2), buffer, FONT_SIZE_3);
 
 	// Max speed (hundredth kn -> tenth km/h)
@@ -2712,7 +2712,7 @@ static bool displayTrip(bool isFirstRun, bool forceRedraw)
 	displayPrintAt(2, TRIP_LINE_Y(3), buffer, FONT_SIZE_3);
 
 	// Altitude gain / loss
-	snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, "Alt  +%u -%um", (unsigned)gpsTrip.altGainM, (unsigned)gpsTrip.altLossM);
+	snprintf(buffer, SCREEN_LINE_BUFFER_SIZE, TR("Alt  +%u -%um"), (unsigned)gpsTrip.altGainM, (unsigned)gpsTrip.altLossM);
 	displayPrintAt(2, TRIP_LINE_Y(4), buffer, FONT_SIZE_3);
 
 	return true;

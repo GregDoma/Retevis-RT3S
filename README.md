@@ -61,16 +61,17 @@ layout, fonts and icons (`docs/screens/`, example data).
 
 ## Quick start
 
-1. Download `OpenGD77_MDUV380_RT3S.bin` (or the 10 W / RT-84 variant) and
-   `OpenGD77_Languages.zip` from the
+1. Download `OpenGD77_MDUV380_RT3S.bin` (or the 10 W / RT-84 variant) from the
    [latest release](https://github.com/sptq/opengd77-rt3s-experiments/releases).
+   English and Polish are built into the firmware (fork by Greg M0SQQ): no
+   language pack is needed, choose *Options → Language*.
 2. Back up your codeplug. Put the radio in firmware-update mode: switched
    off, hold **PTT + the top side button** and switch it on.
 3. Flash with the OpenGD77 loader. DMR needs the original Retevis / TYT
    firmware as the "donor" of the AMBE codec, as with any OpenGD77:
    ```sh
    python3 MDUV380_firmware/tools/opengd77_stm32_firmware_loader.py \
-       -m MD-UV380 -f OpenGD77_MDUV380_RT3S.bin -L Polish.gla
+       -m MD-UV380 -f OpenGD77_MDUV380_RT3S.bin
    ```
 4. Read the [fork features](#fork-features-rt3s--mduv380) below, or the Polish
    [how-to](PLANS/rt3s_instrukcja_pl.md).

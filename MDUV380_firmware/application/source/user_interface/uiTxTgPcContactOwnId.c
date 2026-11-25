@@ -215,7 +215,7 @@ static void emcomEntryScreen(void)
 	displayThemeApply(THEME_ITEM_BG_HEADER_TEXT, THEME_ITEM_BG);
 	displayFillRect(0, (DISPLAY_SIZE_Y - 11), DISPLAY_SIZE_X, 11, false);
 	displayThemeApply(THEME_ITEM_FG_HEADER_TEXT, THEME_ITEM_BG_HEADER_TEXT);
-	displayPrintCore(3, (DISPLAY_SIZE_Y - 9), "^v MODE  GRN OK  RED BACK", FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
+	displayPrintCore(3, (DISPLAY_SIZE_Y - 9), TR("^v MODE  GRN OK  RED BACK"), FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
 
 	displayThemeResetToDefault();
 	displayRender();

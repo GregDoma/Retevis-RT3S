@@ -303,7 +303,7 @@ static void updateScreen(bool isFirstRun)
 
 #if defined(HAS_EMCOM_UI)
 				case DISPLAY_EMCOM_STYLE:
-					leftSide = "Screen";
+					leftSide = TR("Screen");
 					rightSideConst = emcomStyleName(emcomStyleGet());
 					break;
 #endif

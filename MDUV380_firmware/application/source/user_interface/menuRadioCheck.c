@@ -94,7 +94,7 @@ static void text(int16_t x, int16_t y, const char *s, ucFont_t font, themeItem_t
 	displayPrintCore(x, y, s, font, TEXT_ALIGN_LEFT, false);
 }
 
-static const char *const numberWords[] = { "", "ONE", "TWO", "THREE", "FOUR", "FIVE", "SIX", "SEVEN", "EIGHT", "NINE" };
+static const char *const numberWords[] = { "", TRN("ONE"), TRN("TWO"), TRN("THREE"), TRN("FOUR"), TRN("FIVE"), TRN("SIX"), TRN("SEVEN"), TRN("EIGHT"), TRN("NINE") };
 
 static void reportTime(const rcReport_t *r, char *buf, size_t size)
 {
@@ -115,7 +115,7 @@ static void reportTime(const rcReport_t *r, char *buf, size_t size)
 static const char *ratingWord(int rd, themeItem_t *colour)
 {
 	*colour = ((rd >= 4) ? THEME_ITEM_FG_RSSI_BAR : ((rd == 3) ? THEME_ITEM_FG_RSSI_BAR_S9P : THEME_ITEM_FG_TX_COUNTER));
-	return ((rd >= 4) ? "OK" : ((rd == 3) ? "WEAK" : "POOR"));
+	return ((rd >= 4) ? "OK" : ((rd == 3) ? TR("WEAK") : TR("POOR")));
 }
 
 static void updateScreenEmcom(void)
@@ -129,11 +129,11 @@ static void updateScreenEmcom(void)
 
 	displayClearBuf();
 	snprintf(buf, sizeof(buf), "%u/%u", (unsigned)rc.count, (unsigned)REPORTS);
-	emcomUiTitle("RADIO CHECK", buf);
+	emcomUiTitle(TR("RADIO CHECK"), buf);
 
 	// status strip: carrier, live level, length of the over being received
 	emcomUiStrip();
-	int16_t x = (int16_t)(2 + emcomUiChip(2, (EMCOM_UI_STRIP_Y + 2), (rx ? "RX" : "IDLE"), (rx ? THEME_ITEM_FG_RSSI_BAR : THEME_ITEM_FG_DECORATION),
+	int16_t x = (int16_t)(2 + emcomUiChip(2, (EMCOM_UI_STRIP_Y + 2), (rx ? "RX" : TR("IDLE")), (rx ? THEME_ITEM_FG_RSSI_BAR : THEME_ITEM_FG_DECORATION),
 			(rx ? EMCOM_CHIP_SOLID : EMCOM_CHIP_OUTLINE), false) + 4);
 	sText(dBm, buf, sizeof(buf));
 	x += (int16_t)(emcomUiText(x, (EMCOM_UI_STRIP_Y + 2), buf, FONT_SIZE_1_BOLD, THEME_ITEM_FG_HEADER_TEXT, false) + 6);
@@ -154,10 +154,10 @@ static void updateScreenEmcom(void)
 	if (rc.count == 0U)
 	{
 		displayThemeApply(THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
-		displayPrintCentered((y + 14), "LISTENING", FONT_SIZE_3);
+		displayPrintCentered((y + 14), TR("LISTENING"), FONT_SIZE_3);
 		displayThemeResetToDefault();
-		emcomUiText(4, (y + 40), "Each received over is", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, false);
-		emcomUiText(4, (y + 50), "rated R1-5 / S1-9.", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, false);
+		emcomUiText(4, (y + 40), TR("Each received over is"), FONT_SIZE_1, THEME_ITEM_FG_DECORATION, false);
+		emcomUiText(4, (y + 50), TR("rated R1-5 / S1-9."), FONT_SIZE_1, THEME_ITEM_FG_DECORATION, false);
 	}
 	else
 	{
@@ -167,7 +167,7 @@ static void updateScreenEmcom(void)
 
 		// last report: "5 BY 9" + rating
 		word = ratingWord(rd, &colour);
-		snprintf(buf, sizeof(buf), "%d BY %d", rd, st);
+		snprintf(buf, sizeof(buf), TR("%d BY %d"), rd, st);
 		emcomUiText(2, y, buf, FONT_SIZE_4, colour, false);
 		int16_t cw = (int16_t)((strlen(word) * 8) + 6);
 		displayThemeApply(colour, THEME_ITEM_BG);
@@ -175,9 +175,9 @@ static void updateScreenEmcom(void)
 		displayPrintCore((DISPLAY_SIZE_X - 2 - cw + 3), (y + 8), word, FONT_SIZE_3, TEXT_ALIGN_LEFT, true);
 		displayThemeResetToDefault();
 
-		snprintf(buf, sizeof(buf), "%s BY %s", numberWords[rd], numberWords[st]);
+		snprintf(buf, sizeof(buf), TR("%s BY %s"), TR(numberWords[rd]), TR(numberWords[st]));
 		emcomUiText(2, (y + 34), buf, FONT_SIZE_1_BOLD, THEME_ITEM_FG_DEFAULT, false);
-		snprintf(buf, sizeof(buf), "%s %u.%us AVG %d PK %d", (r->dmr ? "DMR" : "FM"), (unsigned)(r->lenDs / 10U), (unsigned)(r->lenDs % 10U), r->avg, r->peak);
+		snprintf(buf, sizeof(buf), TR("%s %u.%us AVG %d PK %d"), (r->dmr ? "DMR" : "FM"), (unsigned)(r->lenDs / 10U), (unsigned)(r->lenDs % 10U), r->avg, r->peak);
 		emcomUiText(2, (y + 44), buf, FONT_SIZE_1, THEME_ITEM_FG_DECORATION, false);
 
 		// older reports
@@ -191,7 +191,7 @@ static void updateScreenEmcom(void)
 
 			reportTime(o, buf, sizeof(buf));
 			emcomUiText(2, y, buf, FONT_SIZE_1, THEME_ITEM_FG_DECORATION, false);
-			snprintf(buf, sizeof(buf), "%d BY %d", ord, strength(o->avg));
+			snprintf(buf, sizeof(buf), TR("%d BY %d"), ord, strength(o->avg));
 			emcomUiText(36, y, buf, FONT_SIZE_1_BOLD, THEME_ITEM_FG_DEFAULT, false);
 			snprintf(buf, sizeof(buf), "%ddBm", o->avg);
 			emcomUiText(80, y, buf, FONT_SIZE_1, THEME_ITEM_FG_DECORATION, false);
@@ -202,11 +202,11 @@ static void updateScreenEmcom(void)
 
 	if (rc.confirmClear)
 	{
-		emcomUiConfirmBar("CLEAR ALL?");
+		emcomUiConfirmBar(TR("CLEAR ALL?"));
 	}
 	else
 	{
-		emcomUiKeyBar((rc.count > 0U) ? "0 CLEAR  RED EXIT" : "RED EXIT");
+		emcomUiKeyBar((rc.count > 0U) ? TR("0 CLEAR  RED EXIT") : TR("RED EXIT"));
 	}
 	displayRender();
 }
@@ -229,7 +229,7 @@ static void updateScreen(void)
 #endif
 
 	displayClearBuf();
-	menuDisplayTitle("RADIO CHECK");
+	menuDisplayTitle(TR("RADIO CHECK"));
 
 	// live level
 	displayThemeApply((rx ? THEME_ITEM_FG_RSSI_BAR : THEME_ITEM_FG_DECORATION), THEME_ITEM_BG_MENU_NAME);
@@ -254,9 +254,9 @@ static void updateScreen(void)
 
 	if (rc.count == 0U)
 	{
-		text(4, (y + 8), "Waiting for a call...", FONT_SIZE_1, THEME_ITEM_FG_DEFAULT);
-		text(4, (y + 20), "Each received over is", FONT_SIZE_1, THEME_ITEM_FG_DECORATION);
-		text(4, (y + 30), "rated R1-5 / S1-9.", FONT_SIZE_1, THEME_ITEM_FG_DECORATION);
+		text(4, (y + 8), TR("Waiting for a call..."), FONT_SIZE_1, THEME_ITEM_FG_DEFAULT);
+		text(4, (y + 20), TR("Each received over is"), FONT_SIZE_1, THEME_ITEM_FG_DECORATION);
+		text(4, (y + 30), TR("rated R1-5 / S1-9."), FONT_SIZE_1, THEME_ITEM_FG_DECORATION);
 	}
 	else
 	{
@@ -264,12 +264,12 @@ static void updateScreen(void)
 		int rd = readability(r->avg, r->dmr);
 		int st = strength(r->avg);
 
-		snprintf(buf, sizeof(buf), "%d BY %d", rd, st);
+		snprintf(buf, sizeof(buf), TR("%d BY %d"), rd, st);
 		text(2, y, buf, FONT_SIZE_4, ((rd >= 4) ? THEME_ITEM_FG_RSSI_BAR : ((rd == 3) ? THEME_ITEM_FG_RSSI_BAR_S9P : THEME_ITEM_FG_TX_COUNTER)));
 
-		snprintf(buf, sizeof(buf), "%s BY %s", words[rd], words[st]);
+		snprintf(buf, sizeof(buf), TR("%s BY %s"), TR(words[rd]), TR(words[st]));
 		text(2, (y + 33), buf, FONT_SIZE_1_BOLD, THEME_ITEM_FG_DEFAULT);
-		snprintf(buf, sizeof(buf), "%s %u.%us AVG %d PK %d", (r->dmr ? "DMR" : "FM"), (unsigned)(r->lenDs / 10U), (unsigned)(r->lenDs % 10U), r->avg, r->peak);
+		snprintf(buf, sizeof(buf), TR("%s %u.%us AVG %d PK %d"), (r->dmr ? "DMR" : "FM"), (unsigned)(r->lenDs / 10U), (unsigned)(r->lenDs % 10U), r->avg, r->peak);
 		text(2, (y + 43), buf, FONT_SIZE_1, THEME_ITEM_FG_DECORATION);
 
 		// older reports
@@ -280,7 +280,7 @@ static void updateScreen(void)
 			char t[8];
 
 			reportTime(o, t, sizeof(t));
-			snprintf(buf, sizeof(buf), "%s  %d BY %d  %d dBm", t, readability(o->avg, o->dmr), strength(o->avg), o->avg);
+			snprintf(buf, sizeof(buf), TR("%s  %d BY %d  %d dBm"), t, readability(o->avg, o->dmr), strength(o->avg), o->avg);
 			text(2, ry, buf, FONT_SIZE_1, THEME_ITEM_FG_RX_FREQ);
 		}
 	}
@@ -292,14 +292,14 @@ static void updateScreen(void)
 	if (rc.confirmClear)
 	{
 		displayThemeApply(THEME_ITEM_FG_TX_COUNTER, THEME_ITEM_BG_HEADER_TEXT);
-		displayPrintCore(3, (fy + 2), "CLEAR ALL?", FONT_SIZE_1_BOLD, TEXT_ALIGN_LEFT, false);
+		displayPrintCore(3, (fy + 2), TR("CLEAR ALL?"), FONT_SIZE_1_BOLD, TEXT_ALIGN_LEFT, false);
 		displayThemeApply(THEME_ITEM_FG_HEADER_TEXT, THEME_ITEM_BG_HEADER_TEXT);
-		displayPrintCore(69, (fy + 2), "GREEN = yes", FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
+		displayPrintCore(69, (fy + 2), TR("GREEN = yes"), FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
 	}
 	else
 	{
 		displayThemeApply(THEME_ITEM_FG_HEADER_TEXT, THEME_ITEM_BG_HEADER_TEXT);
-		displayPrintCore(3, (fy + 2), "0 CLEAR  RED EXIT", FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
+		displayPrintCore(3, (fy + 2), TR("0 CLEAR  RED EXIT"), FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
 	}
 
 	displayThemeResetToDefault();

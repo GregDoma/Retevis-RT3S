@@ -61,7 +61,7 @@ _Static_assert(sizeof(skUi_t) <= FIELD_SCRATCH_SIZE, "sked screen state too big"
 #define ui (*(skUi_t *)fieldToolsScratch) // CCM scratch, set up on entry
 
 static const char paceLetters[PACE_SLOTS] = { 'P', 'A', 'C', 'E' };
-static const char *const fieldNames[SK_FIELD_COUNT] = { "EVERY", "AT", "LENGTH", "TUNE", "ALERT" };
+static const char *const fieldNames[SK_FIELD_COUNT] = { TRN("EVERY"), TRN("AT"), TRN("LENGTH"), TRN("TUNE"), TRN("ALERT") };
 
 static int selected(void)
 {
@@ -77,7 +77,7 @@ static void periodText(uint16_t p, char *buf, size_t size)
 {
 	if (p >= SKED_DAY_MIN)
 	{
-		snprintf(buf, size, "DAY");
+		snprintf(buf, size, TR("DAY"));
 	}
 	else if (p < 60U)
 	{
@@ -85,7 +85,7 @@ static void periodText(uint16_t p, char *buf, size_t size)
 	}
 	else
 	{
-		snprintf(buf, size, "%u H", (unsigned)(p / 60U));
+		snprintf(buf, size, TR("%u H"), (unsigned)(p / 60U));
 	}
 }
 
@@ -116,7 +116,7 @@ static void tuneText(const fieldSked_t *s, char *buf, size_t size)
 	}
 	else
 	{
-		snprintf(buf, size, "NONE");
+		snprintf(buf, size, TR("NONE"));
 	}
 }
 
@@ -156,9 +156,9 @@ static void drawListRow(int i, int16_t y, int16_t rowH)
 
 	if (used == false)
 	{
-		emcomUiText(TEXT_X, (y + 3), "NO SKED", FONT_SIZE_1_BOLD, muted, false);
-		emcomUiText(TEXT_X, (y + 12), "GREEN sets one", FONT_SIZE_1, muted, false);
-		emcomUiChip((DISPLAY_SIZE_X - 2), (y + 3), "EMPTY", (sel ? THEME_ITEM_BG : THEME_ITEM_FG_DECORATION), EMCOM_CHIP_OUTLINE, true);
+		emcomUiText(TEXT_X, (y + 3), TR("NO SKED"), FONT_SIZE_1_BOLD, muted, false);
+		emcomUiText(TEXT_X, (y + 12), TR("GREEN sets one"), FONT_SIZE_1, muted, false);
+		emcomUiChip((DISPLAY_SIZE_X - 2), (y + 3), TR("EMPTY"), (sel ? THEME_ITEM_BG : THEME_ITEM_FG_DECORATION), EMCOM_CHIP_OUTLINE, true);
 		return;
 	}
 
@@ -168,11 +168,11 @@ static void drawListRow(int i, int16_t y, int16_t rowH)
 	// state chip: NOW (solid), ON / OFF (outlined)
 	if (on)
 	{
-		emcomUiChip((DISPLAY_SIZE_X - 2), (y + 3), "NOW", (sel ? THEME_ITEM_BG : THEME_ITEM_FG_RSSI_BAR), (sel ? EMCOM_CHIP_OUTLINE : EMCOM_CHIP_SOLID), true);
+		emcomUiChip((DISPLAY_SIZE_X - 2), (y + 3), TR("NOW"), (sel ? THEME_ITEM_BG : THEME_ITEM_FG_RSSI_BAR), (sel ? EMCOM_CHIP_OUTLINE : EMCOM_CHIP_SOLID), true);
 	}
 	else
 	{
-		emcomUiChip((DISPLAY_SIZE_X - 2), (y + 3), (s.time.enabled ? "ON" : "OFF"), (sel ? THEME_ITEM_BG : colour), EMCOM_CHIP_OUTLINE, true);
+		emcomUiChip((DISPLAY_SIZE_X - 2), (y + 3), (s.time.enabled ? TR("ON") : TR("OFF")), (sel ? THEME_ITEM_BG : colour), EMCOM_CHIP_OUTLINE, true);
 	}
 
 	// second line: length, tune, count-down
@@ -206,17 +206,17 @@ static void drawStrip(void)
 
 	if (skedClockValid() == false)
 	{
-		emcomUiChip(2, (EMCOM_UI_STRIP_Y + 2), "NO CLOCK", THEME_ITEM_FG_TX_COUNTER, EMCOM_CHIP_OUTLINE, false);
+		emcomUiChip(2, (EMCOM_UI_STRIP_Y + 2), TR("NO CLOCK"), THEME_ITEM_FG_TX_COUNTER, EMCOM_CHIP_OUTLINE, false);
 		return;
 	}
 
 	if (next.slot < 0)
 	{
-		emcomUiChip(2, (EMCOM_UI_STRIP_Y + 2), "NO SKED", THEME_ITEM_FG_DECORATION, EMCOM_CHIP_OUTLINE, false);
+		emcomUiChip(2, (EMCOM_UI_STRIP_Y + 2), TR("NO SKED"), THEME_ITEM_FG_DECORATION, EMCOM_CHIP_OUTLINE, false);
 	}
 	else
 	{
-		snprintf(buf, sizeof(buf), (next.on ? "S%d NOW" : "NEXT S%d"), (next.slot + 1));
+		snprintf(buf, sizeof(buf), (next.on ? TR("S%d NOW") : TR("NEXT S%d")), (next.slot + 1));
 		int16_t x = (int16_t)(2 + emcomUiChip(2, (EMCOM_UI_STRIP_Y + 2), buf, (next.on ? THEME_ITEM_FG_RSSI_BAR : THEME_ITEM_FG_RSSI_BAR_S9P),
 				(next.on ? EMCOM_CHIP_SOLID : EMCOM_CHIP_OUTLINE), false) + 4);
 		skedFormatCountdown(next.secs, cd, sizeof(cd));
@@ -238,7 +238,7 @@ static void fieldValue(skField_t f, char *buf, size_t size)
 		case SK_FIELD_START:  startText(&ui.edit.time, buf, size); break;
 		case SK_FIELD_LENGTH: snprintf(buf, size, "%u MIN", (unsigned)ui.edit.time.durationMin); break;
 		case SK_FIELD_TUNE:   tuneText(&ui.edit, buf, size); break;
-		default:              snprintf(buf, size, "%s", (ui.edit.time.enabled ? "ON" : "OFF")); break;
+		default:              snprintf(buf, size, "%s", (ui.edit.time.enabled ? TR("ON") : TR("OFF"))); break;
 	}
 }
 
@@ -257,7 +257,7 @@ static void drawEditor(int16_t y0, bool emcom)
 			displayFillRect(0, y, DISPLAY_SIZE_X, (EDIT_ROW_H - 2), false);
 			displayThemeResetToDefault();
 		}
-		emcomUiText(4, (y + 3), fieldNames[f], FONT_SIZE_1, (sel ? THEME_ITEM_BG : THEME_ITEM_FG_DECORATION), false);
+		emcomUiText(4, (y + 3), TR(fieldNames[f]), FONT_SIZE_1, (sel ? THEME_ITEM_BG : THEME_ITEM_FG_DECORATION), false);
 		fieldValue((skField_t)f, buf, sizeof(buf));
 		buf[(DISPLAY_SIZE_X - EDIT_VALUE_X - 14) / 6] = 0;
 		emcomUiText(EDIT_VALUE_X, (y + 3), buf, FONT_SIZE_1_BOLD, (sel ? THEME_ITEM_BG : THEME_ITEM_FG_DEFAULT), false);
@@ -289,7 +289,7 @@ static void updateScreen(void)
 		if (ui.mode == SK_MODE_EDIT)
 		{
 			snprintf(buf, sizeof(buf), "S%d", (selected() + 1));
-			emcomUiTitle("EDIT SKED", buf);
+			emcomUiTitle(TR("EDIT SKED"), buf);
 		}
 		else
 		{
@@ -329,11 +329,11 @@ static void updateScreen(void)
 		}
 	}
 
-	const char *keys = ((ui.mode == SK_MODE_EDIT) ? "UP/DN  < > SET  GRN SAVE" : "GRN EDIT  0 DEL  RED BACK");
+	const char *keys = ((ui.mode == SK_MODE_EDIT) ? TR("UP/DN  < > SET  GRN SAVE") : TR("GRN EDIT  0 DEL  RED BACK"));
 
 	if (ui.mode == SK_MODE_CONFIRM_DELETE)
 	{
-		snprintf(buf, sizeof(buf), "DELETE S%d?", (selected() + 1));
+		snprintf(buf, sizeof(buf), TR("DELETE S%d?"), (selected() + 1));
 	}
 
 	if (emcom)
@@ -358,7 +358,7 @@ static void updateScreen(void)
 			displayThemeApply(THEME_ITEM_FG_TX_COUNTER, THEME_ITEM_BG_HEADER_TEXT);
 			displayPrintCore(3, (fy + 2), buf, FONT_SIZE_1_BOLD, TEXT_ALIGN_LEFT, false);
 			displayThemeApply(THEME_ITEM_FG_HEADER_TEXT, THEME_ITEM_BG_HEADER_TEXT);
-			displayPrintCore(75, (fy + 2), "GREEN = yes", FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
+			displayPrintCore(75, (fy + 2), TR("GREEN = yes"), FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
 		}
 		else
 		{

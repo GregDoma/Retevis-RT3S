@@ -134,20 +134,20 @@ static void updateScreenEmcom(void)
 
 	displayClearBuf();
 	snprintf(buf, sizeof(buf), "%u/%u", (unsigned)points, (unsigned)COVERAGE_POINTS_MAX);
-	emcomUiTitle("COVERAGE", buf);
+	emcomUiTitle(TR("COVERAGE"), buf);
 
 	// status strip: state, interval, memory used
 	emcomUiStrip();
 	{
-		const char *st = (cov.full ? "FULL" : (cov.recording ? (fix ? "REC" : "NO FIX") : "STOP"));
+		const char *st = (cov.full ? TR("FULL") : (cov.recording ? (fix ? TR("REC") : TR("NO FIX")) : "STOP"));
 		themeItem_t c = (cov.full ? THEME_ITEM_FG_TX_COUNTER : (cov.recording ? (fix ? THEME_ITEM_FG_TX_COUNTER : THEME_ITEM_FG_RSSI_BAR_S9P) : THEME_ITEM_FG_DECORATION));
 		int16_t x = (int16_t)(2 + emcomUiChip(2, (EMCOM_UI_STRIP_Y + 2), st, c, ((cov.recording || cov.full) ? EMCOM_CHIP_SOLID : EMCOM_CHIP_OUTLINE), false) + 4);
 
 		snprintf(buf, sizeof(buf), "%us", (unsigned)intervals[cov.intervalIdx]);
-		emcomUiKeyValue(x, (EMCOM_UI_STRIP_Y + 2), "EVERY", buf, THEME_ITEM_FG_HEADER_TEXT);
+		emcomUiKeyValue(x, (EMCOM_UI_STRIP_Y + 2), TR("EVERY"), buf, THEME_ITEM_FG_HEADER_TEXT);
 		snprintf(buf, sizeof(buf), "%u%%", (unsigned)((points * 100U) / COVERAGE_POINTS_MAX));
 		int16_t w = emcomUiText((DISPLAY_SIZE_X - 3), (EMCOM_UI_STRIP_Y + 2), buf, FONT_SIZE_1, THEME_ITEM_FG_HEADER_TEXT, true);
-		emcomUiText((DISPLAY_SIZE_X - 3 - w - 4), (EMCOM_UI_STRIP_Y + 2), "MEM", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, true);
+		emcomUiText((DISPLAY_SIZE_X - 3 - w - 4), (EMCOM_UI_STRIP_Y + 2), TR("MEM"), FONT_SIZE_1, THEME_ITEM_FG_DECORATION, true);
 	}
 
 	// level: dBm big, S units, carrier, a word for the level
@@ -158,7 +158,7 @@ static void updateScreenEmcom(void)
 	emcomUiChip((DISPLAY_SIZE_X - 2), (y + 5), (carrier() ? "RF" : "--"), (carrier() ? THEME_ITEM_FG_RSSI_BAR : THEME_ITEM_FG_DECORATION),
 			(carrier() ? EMCOM_CHIP_SOLID : EMCOM_CHIP_OUTLINE), true);
 	int16_t x = (int16_t)(84 + emcomUiText(84, (y + 21), "dBm", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, false) + 6);
-	emcomUiText(x, (y + 21), ((dBm >= -100) ? "GOOD" : ((dBm >= -115) ? "WEAK" : "GAP")), FONT_SIZE_1_BOLD, levelColour(dBm), false);
+	emcomUiText(x, (y + 21), ((dBm >= -100) ? TR("GOOD") : ((dBm >= -115) ? TR("WEAK") : TR("GAP"))), FONT_SIZE_1_BOLD, levelColour(dBm), false);
 
 	// graph of the last samples (1 per second)
 	int16_t gTop = (y + 34);
@@ -212,7 +212,7 @@ static void updateScreenEmcom(void)
 	}
 	else
 	{
-		emcomUiText(2, y, (cov.recording ? "Session: no points yet" : "GRN starts a session"), FONT_SIZE_1, THEME_ITEM_FG_DECORATION, false);
+		emcomUiText(2, y, (cov.recording ? TR("Session: no points yet") : TR("GRN starts a session")), FONT_SIZE_1, THEME_ITEM_FG_DECORATION, false);
 	}
 
 	y += 10;
@@ -227,17 +227,17 @@ static void updateScreenEmcom(void)
 	}
 	else
 	{
-		x = (int16_t)(2 + emcomUiChip(2, y, "NO GPS", THEME_ITEM_FG_RSSI_BAR_S9P, EMCOM_CHIP_SOLID, false) + 4);
-		emcomUiText(x, y, "not logging", FONT_SIZE_1, THEME_ITEM_FG_RSSI_BAR_S9P, false);
+		x = (int16_t)(2 + emcomUiChip(2, y, TR("NO GPS"), THEME_ITEM_FG_RSSI_BAR_S9P, EMCOM_CHIP_SOLID, false) + 4);
+		emcomUiText(x, y, TR("not logging"), FONT_SIZE_1, THEME_ITEM_FG_RSSI_BAR_S9P, false);
 	}
 
 	if (cov.confirmClear)
 	{
-		emcomUiConfirmBar("CLEAR ALL?");
+		emcomUiConfirmBar(TR("CLEAR ALL?"));
 	}
 	else
 	{
-		emcomUiKeyBar(cov.recording ? "GRN STOP  # INT  RED EXIT" : "GRN REC  # INT  0 CLR");
+		emcomUiKeyBar(cov.recording ? TR("GRN STOP  # INT  RED EXIT") : TR("GRN REC  # INT  0 CLR"));
 	}
 	displayRender();
 }
@@ -260,11 +260,11 @@ static void updateScreen(void)
 #endif
 
 	displayClearBuf();
-	menuDisplayTitle("COVERAGE");
+	menuDisplayTitle(TR("COVERAGE"));
 
 	// state chip
 	{
-		const char *st = (cov.full ? "FULL" : (cov.recording ? (fix ? "REC" : "NO FIX") : "STOP"));
+		const char *st = (cov.full ? TR("FULL") : (cov.recording ? (fix ? TR("REC") : TR("NO FIX")) : "STOP"));
 		themeItem_t c = (cov.full ? THEME_ITEM_FG_TX_COUNTER : (cov.recording ? (fix ? THEME_ITEM_FG_TX_COUNTER : THEME_ITEM_FG_RSSI_BAR_S9P) : THEME_ITEM_FG_DECORATION));
 		int16_t w = (int16_t)((strlen(st) * 6) + 4);
 
@@ -281,7 +281,7 @@ static void updateScreen(void)
 	text(2, y, buf, FONT_SIZE_4, level);
 	sUnits(dBm, buf, sizeof(buf));
 	text(84, (y + 2), buf, FONT_SIZE_3, THEME_ITEM_FG_DEFAULT);
-	text(84, (y + 20), (carrier() ? "dBm  SIGNAL" : "dBm  noise"), FONT_SIZE_1, (carrier() ? THEME_ITEM_FG_RSSI_BAR : THEME_ITEM_FG_DECORATION));
+	text(84, (y + 20), (carrier() ? TR("dBm  SIGNAL") : TR("dBm  noise")), FONT_SIZE_1, (carrier() ? THEME_ITEM_FG_RSSI_BAR : THEME_ITEM_FG_DECORATION));
 
 	// graph of the last samples (1 per second)
 	int16_t gTop = (y + 34);
@@ -309,13 +309,13 @@ static void updateScreen(void)
 
 	// counters
 	y = (gTop + gH + 3);
-	snprintf(buf, sizeof(buf), "PTS %u/%u  EVERY %us", (unsigned)fieldCoverageCount(), (unsigned)COVERAGE_POINTS_MAX, (unsigned)intervals[cov.intervalIdx]);
+	snprintf(buf, sizeof(buf), TR("PTS %u/%u  EVERY %us"), (unsigned)fieldCoverageCount(), (unsigned)COVERAGE_POINTS_MAX, (unsigned)intervals[cov.intervalIdx]);
 	text(2, y, buf, FONT_SIZE_1, THEME_ITEM_FG_DEFAULT);
 
 	y += 10;
 	if (cov.confirmClear)
 	{
-		text(2, y, "CLEAR ALL? GREEN = yes", FONT_SIZE_1_BOLD, THEME_ITEM_FG_TX_COUNTER);
+		text(2, y, TR("CLEAR ALL? GREEN = yes"), FONT_SIZE_1_BOLD, THEME_ITEM_FG_TX_COUNTER);
 	}
 	else if (cov.sessCount > 0U)
 	{
@@ -333,7 +333,7 @@ static void updateScreen(void)
 	}
 	else
 	{
-		text(2, y, "No GPS fix - not logging", FONT_SIZE_1, THEME_ITEM_FG_RSSI_BAR_S9P);
+		text(2, y, TR("No GPS fix - not logging"), FONT_SIZE_1, THEME_ITEM_FG_RSSI_BAR_S9P);
 	}
 
 	// key bar
@@ -341,7 +341,7 @@ static void updateScreen(void)
 	displayThemeApply(THEME_ITEM_BG_HEADER_TEXT, THEME_ITEM_BG);
 	displayFillRect(0, fy, DISPLAY_SIZE_X, FOOTER_H, false);
 	displayThemeApply(THEME_ITEM_FG_HEADER_TEXT, THEME_ITEM_BG_HEADER_TEXT);
-	displayPrintCore(3, (fy + 2), (cov.recording ? "GRN STOP  # INT  RED EXIT" : "GRN REC  # INT  0 CLR"), FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
+	displayPrintCore(3, (fy + 2), (cov.recording ? TR("GRN STOP  # INT  RED EXIT") : TR("GRN REC  # INT  0 CLR")), FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
 
 	displayThemeResetToDefault();
 	displayRender();

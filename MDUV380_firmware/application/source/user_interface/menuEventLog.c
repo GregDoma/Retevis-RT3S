@@ -55,7 +55,7 @@ static void timeString(uint32_t t, char *buf, size_t size, bool withDate)
 {
 	if (t == 0U)
 	{
-		snprintf(buf, size, (withDate ? "no clock" : "--:--"));
+		snprintf(buf, size, (withDate ? TR("no clock") : "--:--"));
 		return;
 	}
 
@@ -110,14 +110,14 @@ static void updateScreenEmcom(void)
 	{
 		emcomUiTitle(currentLanguage->event_log, "0");
 		emcomUiStrip();
-		emcomUiChip(2, (EMCOM_UI_STRIP_Y + 2), "EMPTY", THEME_ITEM_FG_DECORATION, EMCOM_CHIP_OUTLINE, false);
+		emcomUiChip(2, (EMCOM_UI_STRIP_Y + 2), TR("EMPTY"), THEME_ITEM_FG_DECORATION, EMCOM_CHIP_OUTLINE, false);
 		displayThemeApply(THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
-		displayPrintCentered((EMCOM_UI_BODY_Y + 16), "Log empty", FONT_SIZE_3);
+		displayPrintCentered((EMCOM_UI_BODY_Y + 16), TR("Log empty"), FONT_SIZE_3);
 		displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
-		displayPrintCentered((EMCOM_UI_BODY_Y + 40), "TX, RX, DMR, APRS, MSG,", FONT_SIZE_1);
-		displayPrintCentered((EMCOM_UI_BODY_Y + 50), "DTMF, SOS, SSTV events", FONT_SIZE_1);
+		displayPrintCentered((EMCOM_UI_BODY_Y + 40), TR("TX, RX, DMR, APRS, MSG,"), FONT_SIZE_1);
+		displayPrintCentered((EMCOM_UI_BODY_Y + 50), TR("DTMF, SOS, SSTV events"), FONT_SIZE_1);
 		displayThemeResetToDefault();
-		emcomUiKeyBar("RED EXIT");
+		emcomUiKeyBar(TR("RED EXIT"));
 		displayRender();
 		return;
 	}
@@ -181,11 +181,11 @@ static void updateScreenEmcom(void)
 
 	if (confirmClear)
 	{
-		emcomUiConfirmBar("CLEAR LOG?");
+		emcomUiConfirmBar(TR("CLEAR LOG?"));
 	}
 	else
 	{
-		emcomUiKeyBar("UP/DN  0 CLEAR  RED EXIT");
+		emcomUiKeyBar(TR("UP/DN  0 CLEAR  RED EXIT"));
 	}
 	displayRender();
 }
@@ -215,10 +215,10 @@ static void updateScreen(void)
 	if (count == 0U)
 	{
 		displayThemeApply(THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
-		displayPrintCentered((LIST_Y + 24), "Log empty", FONT_SIZE_3);
+		displayPrintCentered((LIST_Y + 24), TR("Log empty"), FONT_SIZE_3);
 		displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
-		displayPrintCentered((LIST_Y + 48), "TX, RX, DMR, APRS, MSG,", FONT_SIZE_1);
-		displayPrintCentered((LIST_Y + 58), "DTMF, SOS, SSTV events", FONT_SIZE_1);
+		displayPrintCentered((LIST_Y + 48), TR("TX, RX, DMR, APRS, MSG,"), FONT_SIZE_1);
+		displayPrintCentered((LIST_Y + 58), TR("DTMF, SOS, SSTV events"), FONT_SIZE_1);
 		displayThemeResetToDefault();
 		displayRender();
 		return;
@@ -271,9 +271,9 @@ static void updateScreen(void)
 	if (confirmClear)
 	{
 		displayThemeApply(THEME_ITEM_FG_TX_COUNTER, THEME_ITEM_BG_HEADER_TEXT);
-		displayPrintCore(3, (fy + 1), "CLEAR THE WHOLE LOG?", FONT_SIZE_1_BOLD, TEXT_ALIGN_LEFT, false);
+		displayPrintCore(3, (fy + 1), TR("CLEAR THE WHOLE LOG?"), FONT_SIZE_1_BOLD, TEXT_ALIGN_LEFT, false);
 		displayThemeApply(THEME_ITEM_FG_HEADER_TEXT, THEME_ITEM_BG_HEADER_TEXT);
-		displayPrintCore(3, (fy + 11), "GREEN yes, other key no", FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
+		displayPrintCore(3, (fy + 11), TR("GREEN yes, other key no"), FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
 	}
 	else if (eventLogGet(selected, &rec))
 	{

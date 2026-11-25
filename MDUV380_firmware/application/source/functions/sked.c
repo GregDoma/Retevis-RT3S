@@ -18,6 +18,7 @@
 #include "functions/settings.h"
 #include "functions/sound.h"
 #include "functions/trx.h"
+#include "user_interface/uiLocalisation.h" // Fork (M0SQQ): TR()
 
 #define CLOCK_VALID_SECS   1704067200U // 2024-01-01: earlier means the clock was never set
 #define CARD_WARN_MS       5000U
@@ -113,7 +114,7 @@ void skedTargetName(const fieldSked_t *s, char *buf, size_t size)
 
 	if ((s->time.tune >= SKED_TUNE_PACE_FIRST) && (s->time.tune < (SKED_TUNE_PACE_FIRST + PACE_SLOTS)))
 	{
-		snprintf(buf, size, "PACE %c (empty)", paceLetters[s->time.tune - SKED_TUNE_PACE_FIRST]);
+		snprintf(buf, size, TR("PACE %c (empty)"), paceLetters[s->time.tune - SKED_TUNE_PACE_FIRST]);
 	}
 	else if (menuSystemGetRootMenuNumber() == UI_CHANNEL_MODE)
 	{
@@ -200,7 +201,7 @@ void skedTick(void)
 			if (cardAllowed())
 			{
 				skedTargetName(&s, name, sizeof(name));
-				snprintf(msg, sizeof(msg), "SKED in 1 min\nS%d %s", (i + 1), name);
+				snprintf(msg, sizeof(msg), TR("SKED in 1 min\nS%d %s"), (i + 1), name);
 				alert(MELODY_NACK_BEEP);
 				uiNotificationShowKind(UI_ALERT_WARNING, NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, CARD_WARN_MS, msg, true);
 			}
@@ -216,7 +217,7 @@ void skedTick(void)
 			if (cardAllowed())
 			{
 				skedTargetName(&s, name, sizeof(name));
-				snprintf(msg, sizeof(msg), "SKED %d NOW\n%s%s", (i + 1), name, ((canTune && onMainScreen()) ? "\nGREEN = TUNE" : ""));
+				snprintf(msg, sizeof(msg), TR("SKED %d NOW\n%s%s"), (i + 1), name, ((canTune && onMainScreen()) ? TR("\nGREEN = TUNE") : ""));
 				rt.tuneSlot = (int8_t)(canTune ? i : -1);
 				alert(MELODY_ACK_BEEP);
 				uiNotificationShowKind(UI_ALERT_INFO, NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_USER_SKED, CARD_NOW_MS, msg, true);

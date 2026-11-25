@@ -220,8 +220,8 @@ static void aprsMonDrawHint(const char *line1, const char *line2)
 {
 	if (trxGetMode() != RADIO_MODE_ANALOG)
 	{
-		line1 = "FM only";
-		line2 = "Switch to an FM channel";
+		line1 = TR("FM only");
+		line2 = TR("Switch to an FM channel");
 	}
 
 	displayThemeApply(((trxGetMode() != RADIO_MODE_ANALOG) ? THEME_ITEM_FG_RSSI_BAR_S9P : THEME_ITEM_FG_DEFAULT), THEME_ITEM_BG);
@@ -229,7 +229,7 @@ static void aprsMonDrawHint(const char *line1, const char *line2)
 	displayThemeApply(THEME_ITEM_FG_RX_FREQ, THEME_ITEM_BG);
 	displayPrintCentered((APRS_MON_LIST_Y + 44), line2, FONT_SIZE_1);
 	displayThemeResetToDefault();
-	aprsMonFooter("# VIEW  1 MSG  RED EXIT", NULL, THEME_ITEM_FG_DEFAULT);
+	aprsMonFooter(TR("# VIEW  1 MSG  RED EXIT"), NULL, THEME_ITEM_FG_DEFAULT);
 }
 
 // Small filled field with the text in the background colour ("chip")
@@ -285,7 +285,7 @@ static void aprsMonDrawFrames(void)
 
 	if (count == 0)
 	{
-		aprsMonDrawHint("Listening...", "FM, e.g. 144.800 MHz");
+		aprsMonDrawHint(TR("Listening..."), TR("FM, e.g. 144.800 MHz"));
 		return;
 	}
 
@@ -309,7 +309,7 @@ static void aprsMonDrawFrames(void)
 		}
 		else
 		{
-			snprintf(line, sizeof(line), "(bad header)");
+			snprintf(line, sizeof(line), TR("(bad header)"));
 			p.info = f->data;
 			p.infoLen = 0;
 		}
@@ -335,7 +335,7 @@ static void aprsMonDrawFrames(void)
 		displayThemeResetToDefault();
 	}
 
-	aprsMonFooter("* RAW # VIEW 0 CLR RED EXIT", NULL, THEME_ITEM_FG_DEFAULT);
+	aprsMonFooter(TR("* RAW # VIEW 0 CLR RED EXIT"), NULL, THEME_ITEM_FG_DEFAULT);
 }
 
 // Raw view: TNC2 text lines, a separator, then the hex dump
@@ -379,7 +379,7 @@ static void aprsMonDrawRaw(void)
 		}
 		else if (l == textLines)
 		{
-			snprintf(line, sizeof(line), "-- hex, %u bytes%s --", (unsigned)f->len, (f->truncated ? "+" : ""));
+			snprintf(line, sizeof(line), TR("-- hex, %u bytes%s --"), (unsigned)f->len, (f->truncated ? "+" : ""));
 			displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
 			displayPrintCentered(y, line, FONT_SIZE_1);
 			displayThemeResetToDefault();
@@ -397,7 +397,7 @@ static void aprsMonDrawRaw(void)
 		}
 	}
 
-	aprsMonFooter("UP/DN SCROLL  * RED BACK", NULL, THEME_ITEM_FG_DEFAULT);
+	aprsMonFooter(TR("UP/DN SCROLL  * RED BACK"), NULL, THEME_ITEM_FG_DEFAULT);
 }
 
 // --- Stations / radar helpers -------------------------------------------------------
@@ -462,7 +462,7 @@ static void aprsMonDrawStations(void)
 
 	if (count == 0)
 	{
-		aprsMonDrawHint("No stations", "FM, e.g. 144.800 MHz");
+		aprsMonDrawHint(TR("No stations"), TR("FM, e.g. 144.800 MHz"));
 		return;
 	}
 
@@ -483,7 +483,7 @@ static void aprsMonDrawStations(void)
 		}
 		else
 		{
-			snprintf(right, sizeof(right), "%s %3s", (st->hasPos ? "pos" : "-"), age);
+			snprintf(right, sizeof(right), "%s %3s", (st->hasPos ? TR("pos") : "-"), age);
 		}
 		snprintf(left, sizeof(left), "%s", st->name);
 		aprsMonPrintRow((APRS_MON_LIST_Y + (r * (FONT_SIZE_1_HEIGHT + 1))), left, right, ((first + r) == sel));
@@ -499,9 +499,9 @@ static void aprsMonDrawStations(void)
 		}
 		else
 		{
-			snprintf(left, sizeof(left), "x%u%s", (unsigned)st->count, (st->hasPos ? (hasOwn ? "" : "  no own pos") : "  no position"));
+			snprintf(left, sizeof(left), "x%u%s", (unsigned)st->count, (st->hasPos ? (hasOwn ? "" : TR("  no own pos")) : TR("  no position")));
 		}
-		aprsMonFooter(left, "GRN MSG", THEME_ITEM_FG_RX_FREQ);
+		aprsMonFooter(left, TR("GRN MSG"), THEME_ITEM_FG_RX_FREQ);
 	}
 }
 
@@ -524,7 +524,7 @@ static void aprsMonDrawRadar(void)
 
 	if (aprsRxOwnPosition(&myLat, &myLon) == false)
 	{
-		aprsMonDrawHint("No own pos", "needs GPS fix/location");
+		aprsMonDrawHint(TR("No own pos"), TR("needs GPS fix/location"));
 		return;
 	}
 
@@ -649,11 +649,11 @@ static void aprsMonDrawRadar(void)
 		displayThemeResetToDefault();
 
 		aprsRxFormatDistance(d, dist, sizeof(dist));
-		aprsMonKeyValue(RADAR_TX, (ty + 13), "DST", dist, THEME_ITEM_FG_DEFAULT);
+		aprsMonKeyValue(RADAR_TX, (ty + 13), TR("DST"), dist, THEME_ITEM_FG_DEFAULT);
 		snprintf(buf, sizeof(buf), "%03u", (unsigned)(aprsRxBearingDeg(myLat, myLon, selSt->lat, selSt->lon) + 0.5) % 360U);
-		aprsMonKeyValue(RADAR_TX, (ty + 23), "BRG", buf, THEME_ITEM_FG_DEFAULT);
+		aprsMonKeyValue(RADAR_TX, (ty + 23), TR("BRG"), buf, THEME_ITEM_FG_DEFAULT);
 		aprsMonAge((now - selSt->lastMs), age, sizeof(age));
-		aprsMonKeyValue(RADAR_TX, (ty + 33), "AGE", age, THEME_ITEM_FG_DEFAULT);
+		aprsMonKeyValue(RADAR_TX, (ty + 33), TR("AGE"), age, THEME_ITEM_FG_DEFAULT);
 		if (selSt->speedKmh >= 0)
 		{
 			snprintf(buf, sizeof(buf), "%u", (unsigned)selSt->speedKmh);
@@ -663,21 +663,21 @@ static void aprsMonDrawRadar(void)
 	else
 	{
 		displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
-		displayPrintAt(RADAR_TX, ty, "no position", FONT_SIZE_1);
-		displayPrintAt(RADAR_TX, (ty + 10), "heard yet", FONT_SIZE_1);
+		displayPrintAt(RADAR_TX, ty, TR("no position"), FONT_SIZE_1);
+		displayPrintAt(RADAR_TX, (ty + 10), TR("heard yet"), FONT_SIZE_1);
 		displayThemeResetToDefault();
 	}
 
 	char rng[12];
 	aprsRxFormatDistance(range, rng, sizeof(rng));
 	aprsMonKeyValue(RADAR_TX, (DISPLAY_SIZE_Y - APRS_MON_FOOTER_H - FONT_SIZE_1_HEIGHT - 2), "R", rng, THEME_ITEM_FG_RX_FREQ);
-	aprsMonFooter("GRN MSG * WPT # VIEW 0 CLR", NULL, THEME_ITEM_FG_DEFAULT);
+	aprsMonFooter(TR("GRN MSG * WPT # VIEW 0 CLR"), NULL, THEME_ITEM_FG_DEFAULT);
 }
 
 // --- Messages view ---------------------------------------------------------------------
 static void aprsMonDrawMessages(void)
 {
-	static const char *status[] = { "", "BLN", "...", "ACK", "REJ", "FAIL", "noTX" };
+	static const char *status[] = { "", "BLN", "...", "ACK", "REJ", TRN("FAIL"), TRN("noTX") };
 	char line[APRS_MON_CHARS + 1];
 	char right[APRS_MON_CHARS + 1];
 	char age[8];
@@ -689,8 +689,8 @@ static void aprsMonDrawMessages(void)
 		char own[APRS_RX_CALL_LEN + 4];
 		bool canTx = aprsRxGetOwnCall(own, sizeof(own));
 
-		snprintf(line, sizeof(line), "%s%s", (own[0] ? own : "no callsign"), (canTx ? "" : " (no APRS cfg)"));
-		aprsMonDrawHint("No messages", line);
+		snprintf(line, sizeof(line), "%s%s", (own[0] ? own : TR("no callsign")), (canTx ? "" : TR(" (no APRS cfg)")));
+		aprsMonDrawHint(TR("No messages"), line);
 		return;
 	}
 
@@ -731,11 +731,11 @@ static void aprsMonDrawMessages(void)
 		{
 			if (m->kind == APRS_MSG_OUT_PENDING)
 			{
-				snprintf(right, sizeof(right), "%s%u", status[m->kind], (unsigned)m->tries);
+				snprintf(right, sizeof(right), "%s%u", TR(status[m->kind]), (unsigned)m->tries);
 			}
 			else
 			{
-				snprintf(right, sizeof(right), "%s", status[m->kind]);
+				snprintf(right, sizeof(right), "%s", TR(status[m->kind]));
 			}
 			aprsMonChip((DISPLAY_SIZE_X - 2 - (int16_t)(strlen(age) * 6) - 4 - (int16_t)((strlen(right) * 6) + 4)), y, right, statusColour[m->kind]);
 		}
@@ -752,7 +752,7 @@ static void aprsMonDrawMessages(void)
 		displayThemeResetToDefault();
 	}
 
-	aprsMonFooter("GRN REPLY 1 NEW # VIEW", NULL, THEME_ITEM_FG_DEFAULT);
+	aprsMonFooter(TR("GRN REPLY 1 NEW # VIEW"), NULL, THEME_ITEM_FG_DEFAULT);
 }
 
 #if defined(APRS_MON_READ_VIEW)
@@ -774,7 +774,7 @@ static aprsMsgSymbol_t aprsMsgState(const aprsRxMsgEntry_t *m, char *word, size_
 	switch (m->kind)
 	{
 		case APRS_MSG_OUT_PENDING:
-			snprintf(word, size, "WAIT %u", (unsigned)m->tries);
+			snprintf(word, size, TR("WAIT %u"), (unsigned)m->tries);
 			*colour = THEME_ITEM_FG_RSSI_BAR_S9P;
 			return APRS_SYM_WAIT;
 		case APRS_MSG_OUT_ACKED:
@@ -786,11 +786,11 @@ static aprsMsgSymbol_t aprsMsgState(const aprsRxMsgEntry_t *m, char *word, size_
 			*colour = THEME_ITEM_FG_TX_COUNTER;
 			return APRS_SYM_CROSS;
 		case APRS_MSG_OUT_FAILED:
-			snprintf(word, size, "NO ACK");
+			snprintf(word, size, TR("NO ACK"));
 			*colour = THEME_ITEM_FG_TX_COUNTER;
 			return APRS_SYM_CROSS;
 		case APRS_MSG_OUT_NOT_SENT:
-			snprintf(word, size, "NOT SENT");
+			snprintf(word, size, TR("NOT SENT"));
 			*colour = THEME_ITEM_FG_TX_COUNTER;
 			return APRS_SYM_CROSS;
 		default:
@@ -835,7 +835,7 @@ static void aprsMsgSymbol(int16_t x, int16_t y, aprsMsgSymbol_t sym, themeItem_t
 static void aprsMsgDirChip(int16_t x, int16_t y, const aprsRxMsgEntry_t *m, bool selected)
 {
 	bool out = (m->kind >= APRS_MSG_OUT_PENDING);
-	const char *word = (out ? "OUT" : ((m->kind == APRS_MSG_IN_BULLETIN) ? "BLN" : "IN"));
+	const char *word = (out ? TR("OUT") : ((m->kind == APRS_MSG_IN_BULLETIN) ? "BLN" : TR("IN")));
 	themeItem_t colour = (out ? THEME_ITEM_FG_RX_FREQ : ((m->kind == APRS_MSG_IN_BULLETIN) ? THEME_ITEM_FG_RSSI_BAR_S9P : THEME_ITEM_FG_RSSI_BAR));
 	int16_t tx = (int16_t)(x + ((22 - (int16_t)(strlen(word) * 6)) / 2));
 
@@ -987,7 +987,7 @@ static void aprsMonDrawMessagesEmcom(void)
 		displayThemeResetToDefault();
 	}
 
-	aprsMonFooter("* READ  GRN REPLY  1 NEW", NULL, THEME_ITEM_FG_DEFAULT);
+	aprsMonFooter(TR("* READ  GRN REPLY  1 NEW"), NULL, THEME_ITEM_FG_DEFAULT);
 }
 
 // Word wrap of 'str' in lines of 'perLine' characters, drawn at x 4 from 'y' when 'draw' (at most
@@ -1090,7 +1090,7 @@ static void aprsMonDrawMessageRead(void)
 	aprsMsgRemember(m);
 
 	displayClearBuf();
-	menuDisplayTitle("APRS message");
+	menuDisplayTitle(TR("APRS message"));
 	snprintf(line, sizeof(line), "%u/%u", (unsigned)(aprsMonMsgSelected + 1), (unsigned)count);
 	displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG_MENU_NAME);
 	displayPrintCore((DISPLAY_SIZE_X - 3 - (int16_t)(strlen(line) * 6)), 4, line, FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
@@ -1120,16 +1120,16 @@ static void aprsMonDrawMessageRead(void)
 	if (strcmp(clock, age) != 0)
 	{
 		snprintf(line, sizeof(line), "%sZ", clock);
-		x += aprsMonKeyValue(x, iy, "AT", line, THEME_ITEM_FG_DEFAULT) + 8;
+		x += aprsMonKeyValue(x, iy, TR("AT"), line, THEME_ITEM_FG_DEFAULT) + 8;
 	}
 	else
 	{
-		x += aprsMonKeyValue(x, iy, "AGO", age, THEME_ITEM_FG_DEFAULT) + 8;
+		x += aprsMonKeyValue(x, iy, TR("AGO"), age, THEME_ITEM_FG_DEFAULT) + 8;
 	}
 	if (aprsMsgDistance(m->peer, word, sizeof(word), &bearing))
 	{
 		snprintf(line, sizeof(line), "%s %03u", word, bearing);
-		aprsMonKeyValue(x, iy, "DST", line, THEME_ITEM_FG_DEFAULT);
+		aprsMonKeyValue(x, iy, TR("DST"), line, THEME_ITEM_FG_DEFAULT);
 	}
 	displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
 	displayDrawFastHLine(0, (iy + 10), DISPLAY_SIZE_X, true);
@@ -1151,7 +1151,7 @@ static void aprsMonDrawMessageRead(void)
 	}
 	displayThemeResetToDefault();
 
-	aprsMonFooter(((m->kind == APRS_MSG_IN_BULLETIN) ? "UP/DN NEXT  RED BACK" : "GRN REPLY UP/DN  RED BACK"), NULL, THEME_ITEM_FG_DEFAULT);
+	aprsMonFooter(((m->kind == APRS_MSG_IN_BULLETIN) ? TR("UP/DN NEXT  RED BACK") : TR("GRN REPLY UP/DN  RED BACK")), NULL, THEME_ITEM_FG_DEFAULT);
 	displayRender();
 }
 #endif
@@ -1164,7 +1164,7 @@ static void aprsMonDrawReply(void)
 	uint32_t rows = ((DISPLAY_SIZE_Y - APRS_MON_LIST_Y - APRS_MON_FOOTER_H - FONT_SIZE_1_HEIGHT - 2) / FONT_SIZE_1_HEIGHT);
 	uint32_t first = ((aprsMonReplyIndex >= rows) ? (aprsMonReplyIndex - rows + 1) : 0);
 
-	aprsMonKeyValue(4, APRS_MON_LIST_Y, "TO", (aprsMonReplyTo[0] ? aprsMonReplyTo : "? (* to type)"), THEME_ITEM_FG_DEFAULT);
+	aprsMonKeyValue(4, APRS_MON_LIST_Y, TR("TO"), (aprsMonReplyTo[0] ? aprsMonReplyTo : TR("? (* to type)")), THEME_ITEM_FG_DEFAULT);
 
 	for (uint32_t r = 0; r < rows; r++)
 	{
@@ -1177,7 +1177,7 @@ static void aprsMonDrawReply(void)
 
 		if (i == 0)
 		{
-			snprintf(line, sizeof(line), "%s", "> Type a message...");
+			snprintf(line, sizeof(line), "%s", TR("> Type a message..."));
 		}
 		else
 		{
@@ -1187,7 +1187,7 @@ static void aprsMonDrawReply(void)
 		aprsMonPrintRow((APRS_MON_LIST_Y + ((r + 1) * FONT_SIZE_1_HEIGHT) + 2), line, "", (i == aprsMonReplyIndex));
 	}
 
-	aprsMonFooter("GRN SEND  * TO  RED BACK", NULL, THEME_ITEM_FG_DEFAULT);
+	aprsMonFooter(TR("GRN SEND  * TO  RED BACK"), NULL, THEME_ITEM_FG_DEFAULT);
 }
 
 static void aprsMonEditStart(aprsMonEdit_t stage)
@@ -1288,13 +1288,13 @@ static void aprsMonDrawToneText(bool cw)
 		}
 		else
 		{
-			snprintf(line, sizeof(line), "waiting for CW");
+			snprintf(line, sizeof(line), TR("waiting for CW"));
 		}
-		aprsMonFooter(line, (cwRxIsKeyed() ? "KEY" : NULL), THEME_ITEM_FG_RSSI_BAR);
+		aprsMonFooter(line, (cwRxIsKeyed() ? TR("KEY") : NULL), THEME_ITEM_FG_RSSI_BAR);
 	}
 	else
 	{
-		aprsMonFooter((len ? "0 CLEAR" : "waiting for DTMF"), NULL, THEME_ITEM_FG_DEFAULT);
+		aprsMonFooter((len ? TR("0 CLEAR") : TR("waiting for DTMF")), NULL, THEME_ITEM_FG_DEFAULT);
 	}
 	displayThemeApply(THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
 
@@ -1337,7 +1337,7 @@ static void aprsMonSetView(aprsMonView_t view)
 
 static void aprsMonDraw(void)
 {
-	static const char *titles[] = { "APRS frames", "APRS stations", "APRS radar", "APRS messages", "DTMF decoder", "CW decoder" };
+	static const char *titles[] = { TRN("APRS frames"), TRN("APRS stations"), TRN("APRS radar"), TRN("APRS messages"), TRN("DTMF decoder"), TRN("CW decoder") };
 	char line[APRS_MON_CHARS + 1];
 	aprsRxStatus_t st;
 
@@ -1345,12 +1345,12 @@ static void aprsMonDraw(void)
 	{
 		if (aprsMonEditStage == APRS_MON_EDIT_TO)
 		{
-			uiTextEditDraw("APRS message", "TO: callsign (-SSID)");
+			uiTextEditDraw(TR("APRS message"), TR("TO: callsign (-SSID)"));
 		}
 		else
 		{
-			snprintf(line, sizeof(line), "TO %s", aprsMonReplyTo);
-			uiTextEditDraw("APRS message", line);
+			snprintf(line, sizeof(line), TR("TO %s"), aprsMonReplyTo);
+			uiTextEditDraw(TR("APRS message"), line);
 		}
 		return;
 	}
@@ -1370,7 +1370,7 @@ static void aprsMonDraw(void)
 	aprsRxGetStatus(&st);
 
 	displayClearBuf();
-	menuDisplayTitle(aprsMonReplyActive ? "APRS message" : (aprsMonRawView ? "APRS raw" : titles[aprsMonView]));
+	menuDisplayTitle(aprsMonReplyActive ? TR("APRS message") : (aprsMonRawView ? TR("APRS raw") : TR(titles[aprsMonView])));
 
 	// Status strip: state chip, audio level, frames OK / errors, unread messages or dBm
 	int16_t sy = (MENU_HEADER_HEIGHT + 2);
@@ -1385,10 +1385,10 @@ static void aprsMonDraw(void)
 			x += aprsMonChip(x, sy, "RX", THEME_ITEM_FG_RSSI_BAR) + 4;
 			break;
 		case APRS_RX_STATE_NO_CLOCK:
-			x += aprsMonChip(x, sy, "NO CLK", THEME_ITEM_FG_TX_COUNTER) + 4;
+			x += aprsMonChip(x, sy, TR("NO CLK"), THEME_ITEM_FG_TX_COUNTER) + 4;
 			break;
 		default:
-			x += aprsMonChip(x, sy, ((trxGetMode() != RADIO_MODE_ANALOG) ? "FM ONLY" : "PAUSE"), THEME_ITEM_FG_RSSI_BAR_S9P) + 4;
+			x += aprsMonChip(x, sy, ((trxGetMode() != RADIO_MODE_ANALOG) ? TR("FM ONLY") : TR("PAUSE")), THEME_ITEM_FG_RSSI_BAR_S9P) + 4;
 			break;
 	}
 
@@ -1657,12 +1657,12 @@ static bool aprsMonHandleEvent(uiEvent_t *ev)
 			slot = fieldWaypointAdd(st->lat, st->lon, st->name, FIELD_WAYPOINT_FLAG_APRS);
 			if (slot >= 0)
 			{
-				snprintf(buf, sizeof(buf), "Saved WP%d\n%.8s", (slot + 1), st->name);
+				snprintf(buf, sizeof(buf), TR("Saved WP%d\n%.8s"), (slot + 1), st->name);
 				soundSetMelody(MELODY_ACK_BEEP);
 			}
 			else
 			{
-				snprintf(buf, sizeof(buf), "Waypoint: %s\nlist full", st->name);
+				snprintf(buf, sizeof(buf), TR("Waypoint: %s\nlist full"), st->name);
 				soundSetMelody(MELODY_ERROR_BEEP);
 			}
 			uiNotificationShow(NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 2000U, buf, false);
@@ -1697,7 +1697,7 @@ static bool aprsMonHandleEvent(uiEvent_t *ev)
 				char buf[SCREEN_LINE_BUFFER_SIZE];
 
 				gpsWaypointSet(st->lat, st->lon);
-				snprintf(buf, sizeof(buf), "Waypoint: %s", st->name);
+				snprintf(buf, sizeof(buf), TR("Waypoint: %s"), st->name);
 				uiNotificationShow(NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 1500U, buf, false);
 				soundSetMelody(MELODY_ACK_BEEP);
 			}

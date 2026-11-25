@@ -186,7 +186,7 @@ static void emcomLastHeardRow(int16_t y, const char *text, LinkItem_t *item, uin
 	// right column: TG / PRIVATE, then TS and age
 	if (isPC)
 	{
-		snprintf(buf, sizeof(buf), "PRIVATE");
+		snprintf(buf, sizeof(buf), TR("PRIVATE"));
 	}
 	else
 	{
@@ -323,9 +323,9 @@ void menuLastHeardUpdateScreen(bool showTitleOrHeader, bool displayDetails, bool
 	if (emcomStyleEnabled() && showTitleOrHeader && (confirmClear == false))
 	{
 #if defined(HAS_NET_CONTROL)
-		emcomUiKeyBar((uiDataGlobal.lastHeardCount > 0) ? "GRN CALL  * QSO  RED EXIT" : "RED EXIT");
+		emcomUiKeyBar((uiDataGlobal.lastHeardCount > 0) ? TR("GRN CALL  * QSO  RED EXIT") : TR("RED EXIT"));
 #else
-		emcomUiKeyBar((uiDataGlobal.lastHeardCount > 0) ? "GRN CALL  RED EXIT" : "RED EXIT");
+		emcomUiKeyBar((uiDataGlobal.lastHeardCount > 0) ? TR("GRN CALL  RED EXIT") : TR("RED EXIT"));
 #endif
 	}
 #endif
@@ -338,9 +338,9 @@ void menuLastHeardUpdateScreen(bool showTitleOrHeader, bool displayDetails, bool
 		displayThemeApply(THEME_ITEM_BG_HEADER_TEXT, THEME_ITEM_BG);
 		displayFillRect(0, fy, DISPLAY_SIZE_X, 20, false);
 		displayThemeApply(THEME_ITEM_FG_TX_COUNTER, THEME_ITEM_BG_HEADER_TEXT);
-		displayPrintCore(3, (fy + 1), "CLEAR LAST HEARD?", FONT_SIZE_1_BOLD, TEXT_ALIGN_LEFT, false);
+		displayPrintCore(3, (fy + 1), TR("CLEAR LAST HEARD?"), FONT_SIZE_1_BOLD, TEXT_ALIGN_LEFT, false);
 		displayThemeApply(THEME_ITEM_FG_HEADER_TEXT, THEME_ITEM_BG_HEADER_TEXT);
-		displayPrintCore(3, (fy + 11), "GREEN yes, other key no", FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
+		displayPrintCore(3, (fy + 11), TR("GREEN yes, other key no"), FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
 	}
 
 	displayThemeResetToDefault();

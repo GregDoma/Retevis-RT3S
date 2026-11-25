@@ -6,6 +6,12 @@
  */
 #include <stdio.h>
 #include "functions/skedMath.h"
+#if defined(STM32F405xx) // Fork (M0SQQ): firmware build, Polish texts (TR); the host tests keep the English texts
+#include "user_interface/uiLocalisation.h"
+#else
+#define TR(s) (s)
+#define TRN(s) (s)
+#endif
 
 static const uint16_t periods[] = { 15U, 20U, 30U, 60U, 120U, 180U, 240U, 360U, 480U, 720U, 1440U };
 static const uint8_t durations[] = { 1U, 2U, 3U, 5U, 10U, 15U, 20U, 30U, 45U, 60U };
@@ -145,19 +151,19 @@ void skedFormatWhen(const skedTime_t *s, char *buf, size_t size)
 
 	if (s->periodMin >= SKED_DAY_MIN)
 	{
-		snprintf(buf, size, "DAILY %02u:%02u", h, m);
+		snprintf(buf, size, TR("DAILY %02u:%02u"), h, m);
 	}
 	else if (s->periodMin == 60U)
 	{
-		snprintf(buf, size, "HOURLY :%02u", m);
+		snprintf(buf, size, TR("HOURLY :%02u"), m);
 	}
 	else if (s->periodMin < 60U)
 	{
-		snprintf(buf, size, "EVERY %uM :%02u", (unsigned)s->periodMin, m);
+		snprintf(buf, size, TR("EVERY %uM :%02u"), (unsigned)s->periodMin, m);
 	}
 	else
 	{
-		snprintf(buf, size, "EVERY %uH %02u:%02u", (unsigned)(s->periodMin / 60U), h, m);
+		snprintf(buf, size, TR("EVERY %uH %02u:%02u"), (unsigned)(s->periodMin / 60U), h, m);
 	}
 }
 
