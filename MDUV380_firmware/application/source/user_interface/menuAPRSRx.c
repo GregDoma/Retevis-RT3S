@@ -1,8 +1,8 @@
 /*
  * Fork: APRS RX screen (main menu > APRS RX), by Marcin SP7TQ. APRS frames,
- * stations, radar and messages, plus the DTMF and CW decoders, all fed by the
- * FM RX audio (functions/aprsRx.c). Moved out of the RSSI screen, where '9'
- * still opens it.
+ * stations, radar and messages, fed by the FM RX audio (functions/aprsRx.c).
+ * The DTMF / CW / STQC decoders have their own screen (menuDecoders.c).
+ * Moved out of the RSSI screen, where '9' still opens it.
  *
  * Use of this source code or binary releases for commercial purposes is
  * strictly forbidden (see license.txt).
@@ -16,7 +16,6 @@
 #include "functions/sound.h"
 #include "interfaces/i2s.h"
 #include "functions/aprsRx.h"
-#include "functions/toneRxDecoders.h"
 #include "functions/ticks.h"
 #include "functions/aprsText.h"
 #include "functions/fieldData.h"
@@ -30,8 +29,8 @@
 // Fork: APRS RX monitor (main menu > APRS RX, or '9' on the RSSI screen):
 // status line + one of the views, cycled with '#': received frames (UP/DOWN select,
 // '*' raw: full TNC2 text + hex dump), stations (distance / bearing / age),
-// radar (north up, own position in the centre), APRS messages, DTMF and CW
-// decoders (SSTV has its own menu entry, menuSSTV.c). '0' clears the current view. GREEN on a message / station:
+// radar (north up, own position in the centre) and APRS messages (the DTMF / CW / STQC
+// decoders: menuDecoders.c, SSTV: menuSSTV.c). '0' clears the current view. GREEN on a message / station:
 // reply / new message (canned texts, editable in Options > APRS, or a text typed on the keypad);
 // '1': new message to a callsign typed on the keypad; '*' on a station: GPS waypoint, long '*': also
 // saved in the waypoint list (fieldData.h) under the callsign.
@@ -50,9 +49,6 @@ typedef enum
 	APRS_MON_VIEW_STATIONS,
 	APRS_MON_VIEW_RADAR,
 	APRS_MON_VIEW_MESSAGES,
-	APRS_MON_VIEW_DTMF,
-	APRS_MON_VIEW_CW,
-	APRS_MON_VIEW_STQC,
 	APRS_MON_VIEW_MAX
 } aprsMonView_t;
 #if defined(HAS_GPS) && (defined(PLATFORM_MDUV380) || defined(PLATFORM_MD380) || defined(PLATFORM_RT84_DM1701))
@@ -71,8 +67,6 @@ static bool aprsMonReplyActive = false;
 static uint8_t aprsMonEditStage = APRS_MON_EDIT_NONE;
 static uint32_t aprsMonReplyIndex = 0;
 static char aprsMonReplyTo[APRS_RX_CALL_LEN];
-static uint32_t aprsMonToneSerial = 0;
-static uint32_t aprsMonStqcSerial = 0;
 #if defined(HAS_EMCOM_UI)
 // Fork: EMCOM styles: '*' on a message opens it on its own screen (whole text, wrapped)
 #define APRS_MON_READ_VIEW
@@ -133,25 +127,6 @@ static void aprsMonUpdate(uint32_t now)
 		}
 		aprsMonLastGen = gen;
 		aprsMonLastDraw = 0; // redraw now
-	}
-
-	if ((aprsMonView == APRS_MON_VIEW_DTMF) || (aprsMonView == APRS_MON_VIEW_CW))
-	{
-		char tmp[2];
-		uint32_t serial;
-
-		aprsRxToneText((aprsMonView == APRS_MON_VIEW_CW), tmp, sizeof(tmp), &serial);
-		if (serial != aprsMonToneSerial)
-		{
-			aprsMonToneSerial = serial;
-			aprsMonLastDraw = 0;
-		}
-	}
-
-	if ((aprsMonView == APRS_MON_VIEW_STQC) && (aprsRxStqcSerial() != aprsMonStqcSerial))
-	{
-		aprsMonStqcSerial = aprsRxStqcSerial();
-		aprsMonLastDraw = 0;
 	}
 
 	if ((aprsMonLastDraw == 0) || ((now - aprsMonLastDraw) >= APRS_MON_REDRAW_MS))
@@ -1277,109 +1252,6 @@ static void aprsMonEditHandleEvent(uiEvent_t *ev)
 	aprsMonDraw();
 }
 
-// --- DTMF / CW views -----------------------------------------------------------------
-static void aprsMonDrawToneText(bool cw)
-{
-	char text[APRS_RX_TONE_TEXT_LEN + 1];
-	char line[24];
-	uint32_t perLine = (DISPLAY_SIZE_X / 8); // FONT_SIZE_3: 8 px wide
-	uint32_t lines = ((DISPLAY_SIZE_Y - APRS_MON_LIST_Y - APRS_MON_FOOTER_H - 2) / FONT_SIZE_3_HEIGHT);
-	uint32_t len = aprsRxToneText(cw, text, sizeof(text), NULL);
-
-	if (cw)
-	{
-		uint8_t wpm = cwRxGetWpm();
-
-		if (wpm)
-		{
-			snprintf(line, sizeof(line), "%u WPM  %u Hz", (unsigned)wpm, (unsigned)cwRxGetToneHz());
-		}
-		else
-		{
-			snprintf(line, sizeof(line), "waiting for CW");
-		}
-		aprsMonFooter(line, (cwRxIsKeyed() ? "KEY" : NULL), THEME_ITEM_FG_RSSI_BAR);
-	}
-	else
-	{
-		aprsMonFooter((len ? "0 CLEAR" : "waiting for DTMF"), NULL, THEME_ITEM_FG_DEFAULT);
-	}
-	displayThemeApply(THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
-
-	// Last 'lines' lines of text
-	uint32_t maxChars = (perLine * lines);
-	uint32_t start = ((len > maxChars) ? (len - maxChars) : 0);
-	if (start)
-	{
-		start += ((perLine - ((len - start) % perLine)) % perLine); // keep line alignment stable
-	}
-
-	for (uint32_t l = 0; l < lines; l++)
-	{
-		uint32_t off = (start + (l * perLine));
-		uint32_t n = 0;
-
-		if (off >= len)
-		{
-			break;
-		}
-		while ((n < perLine) && ((off + n) < len))
-		{
-			line[n] = text[off + n];
-			n++;
-		}
-		line[n] = 0;
-		displayPrintAt(0, (APRS_MON_LIST_Y + (l * FONT_SIZE_3_HEIGHT)), line, FONT_SIZE_3);
-	}
-	displayThemeResetToDefault();
-}
-
-// --- STQC view: the last selcalls, newest first ------------------------------------
-#define APRS_MON_STQC_BLOCK_H   ((2 * FONT_SIZE_1_HEIGHT) + 2)
-#define APRS_MON_STQC_BLOCKS    ((DISPLAY_SIZE_Y - APRS_MON_FOOTER_H - APRS_MON_LIST_Y) / APRS_MON_STQC_BLOCK_H)
-
-static void aprsMonDrawStqc(void)
-{
-	char line[APRS_MON_CHARS + 1];
-	char age[8];
-	uint32_t count = aprsRxStqcCount();
-	uint32_t now = ticksGetMillis();
-
-	aprsMonFooter("0 CLR  # VIEW  RED EXIT", NULL, THEME_ITEM_FG_DEFAULT);
-	if (count == 0)
-	{
-		aprsMonDrawHint("Waiting for STQC", "selcall, receive only");
-		return;
-	}
-
-	for (uint32_t b = 0; (b < APRS_MON_STQC_BLOCKS) && (b < count); b++)
-	{
-		const aprsRxStqcCall_t *call = aprsRxStqcGet(b);
-		int16_t y = (APRS_MON_LIST_Y + (b * APRS_MON_STQC_BLOCK_H));
-		char addr[STQC_MAX_SYMBOLS + 1];
-		char cmd[STQC_MAX_SYMBOLS + 1];
-
-		aprsMonAge((now - call->ms), age, sizeof(age));
-		aprsRxStqcFormat(call, line, sizeof(line));
-		aprsMonPrintRow(y, line, age, false);
-
-		// the tones as sent (0..4, 4 = repeat), to compare with other decoders
-		addr[0] = cmd[0] = 0;
-		if (call->addrLen)
-		{
-			stqcValueToSymbolText(call->addr, call->addrLen, addr);
-		}
-		if (call->cmdLen)
-		{
-			stqcValueToSymbolText(call->cmd, call->cmdLen, cmd);
-		}
-		snprintf(line, sizeof(line), "%s%s%s", addr, ((addr[0] && cmd[0]) ? " " : ""), cmd);
-		displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
-		displayPrintCore(0, (y + FONT_SIZE_1_HEIGHT), line, FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
-		displayThemeResetToDefault();
-	}
-}
-
 static void aprsMonSetView(aprsMonView_t view)
 {
 	aprsMonRawView = false;
@@ -1391,7 +1263,7 @@ static void aprsMonSetView(aprsMonView_t view)
 
 static void aprsMonDraw(void)
 {
-	static const char *titles[] = { "APRS frames", "APRS stations", "APRS radar", "APRS messages", "DTMF decoder", "CW decoder", "STQC selcall" };
+	static const char *titles[] = { "APRS frames", "APRS stations", "APRS radar", "APRS messages" };
 	char line[APRS_MON_CHARS + 1];
 	aprsRxStatus_t st;
 
@@ -1513,15 +1385,6 @@ static void aprsMonDraw(void)
 				}
 #endif
 				aprsMonDrawMessages();
-				break;
-			case APRS_MON_VIEW_DTMF:
-				aprsMonDrawToneText(false);
-				break;
-			case APRS_MON_VIEW_CW:
-				aprsMonDrawToneText(true);
-				break;
-			case APRS_MON_VIEW_STQC:
-				aprsMonDrawStqc();
 				break;
 			case APRS_MON_VIEW_STATIONS:
 				aprsMonDrawStations();
@@ -1769,13 +1632,6 @@ static bool aprsMonHandleEvent(uiEvent_t *ev)
 				aprsRxMessagesClear();
 				aprsMonMsgSelected = 0;
 				break;
-			case APRS_MON_VIEW_DTMF:
-			case APRS_MON_VIEW_CW:
-				aprsRxToneTextClear();
-				break;
-			case APRS_MON_VIEW_STQC:
-				aprsRxStqcClear();
-				break;
 
 			default:
 				aprsRxHistoryClear();
@@ -1813,10 +1669,6 @@ static bool aprsMonHandleEvent(uiEvent_t *ev)
 			{
 				aprsMonMsgSelected++;
 			}
-		}
-		else if ((aprsMonView == APRS_MON_VIEW_DTMF) || (aprsMonView == APRS_MON_VIEW_CW) || (aprsMonView == APRS_MON_VIEW_STQC))
-		{
-			return false;
 		}
 		else if (aprsMonView == APRS_MON_VIEW_FRAMES)
 		{

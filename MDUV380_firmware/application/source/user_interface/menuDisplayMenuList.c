@@ -121,6 +121,7 @@ static uiIcon_t menuIcon(int menuNum)
 		case MENU_COVERAGE:           return UI_ICON_COVERAGE;
 		case MENU_RADIO_CHECK:        return UI_ICON_RADIOCHECK;
 		case MENU_NET_CONTROL:        return UI_ICON_NET;
+		case MENU_DECODERS:           return UI_ICON_DTMF;
 #endif
 		case MENU_CONTACT_LIST:       return UI_ICON_CONTACTLIST;
 		case MENU_DTMF_CONTACT_LIST:  return UI_ICON_DTMF;
