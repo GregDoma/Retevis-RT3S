@@ -36,7 +36,7 @@ program u≈ºyje go sam. Bez pliku dawcy firmware zostanie wgrany, ale radio dzia≈
 
 ## Instalacja
 
-Potrzebne: Python 3.9+, libusb-1.0, Tkinter (tylko do okna).
+Potrzebne: Python 3.10+, libusb-1.0, Tkinter (tylko do okna).
 
 ```
 # Debian / Ubuntu / Mint / Raspberry Pi OS

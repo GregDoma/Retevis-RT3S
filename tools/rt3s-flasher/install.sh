@@ -16,7 +16,7 @@ fi
 
 [ "$(id -u)" -ne 0 ] || { echo "Program instaluj jako zwykły użytkownik (bez sudo); sudo tylko dla --udev."; exit 1; }
 
-python3 -c 'import sys; sys.exit(sys.version_info < (3, 9))' || { echo "Potrzebny Python 3.9 lub nowszy."; exit 1; }
+python3 -c 'import sys; sys.exit(sys.version_info < (3, 10))' || { echo "Potrzebny Python 3.10 lub nowszy."; exit 1; }
 python3 -c 'import tkinter' 2>/dev/null || echo "UWAGA: brak tkinter, okno nie zadziała (Debian/Ubuntu: sudo apt install python3-tk). Wiersz poleceń działa."
 ldconfig -p 2>/dev/null | grep -q 'libusb-1.0' || echo "UWAGA: nie widzę libusb-1.0 (Debian/Ubuntu: sudo apt install libusb-1.0-0)."
 
