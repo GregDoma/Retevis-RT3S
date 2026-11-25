@@ -5,6 +5,10 @@ This is an independent fork maintained by **Marcin SP7TQ**, based on the
 upstream [OpenGD77](https://www.opengd77.com/) R20260131 source. Features
 marked *(untested)* build and pass host tests but still need on-air checking.
 
+## R20260131-SP7TQ.7 — 2026-11-25
+
+* **Fix: the radio froze with voice prompts on** (issue #21). With *Options → Sound → Prompt* set to *Voice* / *Voice L2* / *Voice L3*, highlighting a fork menu entry (PACE, Position, Coverage, Radio check, APRS RX, Event log, SSTV, and *Reset* / *Quickkeys* at the end of *Options*) froze the radio until the battery was pulled. These names have no recording in the voice pack; the firmware read past the voice pack table of contents. They are now spelled letter by letter, and playback refuses prompt numbers outside the table. Radios with *Beep* or *Silent* were not affected.
+
 ## R20260131-SP7TQ.6 — 2026-11-25
 
 * **DMR SMS** (new main menu tile *DMR SMS*, envelope icon): cleartext text messages over DMR, receive and send. Send and receive work through a BrandMeister hotspot (service numbers 262993 / 262994 answer); radio to radio with a stock TYT is not tested yet *(untested)*. The data path is ported from [dondch/OpenGD77-AES256](https://github.com/dondch/OpenGD77-AES256), without any encryption (encrypted traffic is not allowed on the amateur bands; encrypted messages are ignored).
