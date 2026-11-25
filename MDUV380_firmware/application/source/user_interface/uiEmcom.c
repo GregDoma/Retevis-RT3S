@@ -45,6 +45,7 @@
 #endif
 #if defined(I2S_APRS_RX)
 #include "functions/aprsRx.h"
+#include "functions/dmrSms.h"
 #endif
 
 #if defined(HAS_EMCOM_UI)
@@ -1589,6 +1590,9 @@ static void drawEmcomRows(const emcomLayout_t *layout, const emcomPositionDispla
 
 #if defined(I2S_APRS_RX)
 	uint32_t unread = aprsRxMessageUnreadCount();
+#if defined(HAS_DMR_SMS)
+	uint32_t smsUnread = dmrSmsUnreadCount();
+#endif
 
 	if (aprsRxGetBackground())
 	{
@@ -1600,6 +1604,23 @@ static void drawEmcomRows(const emcomLayout_t *layout, const emcomPositionDispla
 		keyValue(2, y1, "APRS", "off", pal->mut);
 	}
 
+#if defined(HAS_DMR_SMS)
+	// unread DMR SMS in the same chip: "SMS 2" alone, "MSG 1+2" with APRS messages
+	if (smsUnread)
+	{
+		if (unread)
+		{
+			snprintf(buf, sizeof(buf), "MSG %u+%u", (unsigned)(unread > 9U ? 9U : unread), (unsigned)(smsUnread > 9U ? 9U : smsUnread));
+		}
+		else
+		{
+			snprintf(buf, sizeof(buf), "SMS %u", (unsigned)smsUnread);
+		}
+		fill(72, (y1 + EMCOM_CHIP_TOP_OFFSET), (int16_t)((strlen(buf) * 6) + 4), EMCOM_CHIP_HEIGHT, pal->info);
+		text(74, y1, buf, FONT_SIZE_1_BOLD, pal->bg, false);
+	}
+	else
+#endif
 	if (unread)
 	{
 		snprintf(buf, sizeof(buf), "MSG %u", (unsigned)unread);
@@ -1783,6 +1804,18 @@ static void drawFooter(emcomState_t st)
 	}
 }
 
+#if defined(I2S_APRS_RX)
+// What the MSG chip shows: APRS unread messages, DMR SMS unread in the high half
+static uint32_t emcomUnreadKey(void)
+{
+#if defined(HAS_DMR_SMS)
+	return (aprsRxMessageUnreadCount() | (dmrSmsUnreadCount() << 16));
+#else
+	return aprsRxMessageUnreadCount();
+#endif
+}
+#endif
+
 static void rememberDrawn(emcomState_t st, const emcomMainInfo_t *info, emcomPanel_t panel,
 		const emcomPositionDisplay_t *position, uint32_t renderedAt)
 {
@@ -1790,7 +1823,7 @@ static void rememberDrawn(emcomState_t st, const emcomMainInfo_t *info, emcomPan
 	drawn.volume = (int8_t)visibleVolumeLevel();
 	drawn.minute = (uiDataGlobal.dateTimeSecs / 60U);
 #if defined(I2S_APRS_RX)
-	drawn.unread = aprsRxMessageUnreadCount();
+	drawn.unread = emcomUnreadKey();
 	drawn.stations = aprsRxStationCount();
 #endif
 	drawn.gpsFix = gpsHasFix();
@@ -1961,7 +1994,7 @@ bool emcomNeedsFullRedraw(uint32_t now)
 	}
 
 #if defined(I2S_APRS_RX)
-	if ((aprsRxMessageUnreadCount() != drawn.unread) || (aprsRxStationCount() != drawn.stations))
+	if ((emcomUnreadKey() != drawn.unread) || (aprsRxStationCount() != drawn.stations))
 	{
 		return true;
 	}
@@ -2605,6 +2638,7 @@ static bool sosScreenAllowsTx(int menu)
 		case MENU_WAYPOINTS:
 		case MENU_SKED:
 		case MENU_DECODERS:
+		case MENU_DMR_SMS:
 		case MENU_EVENT_LOG:
 #endif
 			return true;

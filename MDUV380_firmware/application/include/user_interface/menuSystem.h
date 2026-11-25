@@ -174,6 +174,7 @@ typedef struct
 // Fork: menu entries without a language string (no translation): stringOffset below -1, a fixed English name
 #define MENU_STRING_NET_CONTROL   (-2)
 #define MENU_STRING_DECODERS      (-3)
+#define MENU_STRING_DMR_SMS       (-4)
 const char *menuItemName(const menuItemNewData_t *item);  // NULL: no name
 void menuItemNamePrompt(const menuItemNewData_t *item);   // voice prompt of the name
 
@@ -354,6 +355,7 @@ enum MENU_SCREENS
 	MENU_WAYPOINTS,// Fork: saved waypoints
 	MENU_SKED,// Fork: comms schedule reminders
 	MENU_DECODERS,// Fork: DTMF / CW / STQC decoders
+	MENU_DMR_SMS,// Fork: DMR SMS inbox
 #endif
 	// *** Add new menus to be accessed using quickkey (ID: 0..31) above this line ***
 	UI_MESSAGE_BOX,
@@ -455,6 +457,7 @@ typedef enum
 	QUICKKEY_ACTION_MENU_WAYPOINTS, // Fork: saved waypoints
 	QUICKKEY_ACTION_MENU_SKED,      // Fork: comms schedule
 	QUICKKEY_ACTION_MENU_DECODERS,  // Fork: DTMF / CW / STQC decoders
+	QUICKKEY_ACTION_MENU_DMR_SMS,   // Fork: DMR SMS inbox
 	QUICKKEY_ACTION_MAX
 } quickkeyAction_t;
 
@@ -535,6 +538,7 @@ menuStatus_t menuNetControl(uiEvent_t *event, bool isFirstRun);
 menuStatus_t menuWaypoints(uiEvent_t *event, bool isFirstRun);
 menuStatus_t menuSked(uiEvent_t *event, bool isFirstRun);
 menuStatus_t menuDecoders(uiEvent_t *event, bool isFirstRun);
+menuStatus_t menuDmrSms(uiEvent_t *event, bool isFirstRun);
 #endif
 menuStatus_t menuLastHeard(uiEvent_t *event, bool isFirstRun);
 menuStatus_t menuGeneralOptions(uiEvent_t *event, bool isFirstRun);
