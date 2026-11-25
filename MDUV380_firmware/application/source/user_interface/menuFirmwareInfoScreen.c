@@ -29,12 +29,6 @@
 #include "user_interface/menuSystem.h"
 #include "user_interface/uiLocalisation.h"
 #include "user_interface/uiUtilities.h"
-#if defined(STM32F405xx)
-#include "cmsis_os.h"
-#include "hardware/HR-C6000.h"
-#include "functions/sound.h"
-extern osThreadId_t defaultTaskHandle;
-#endif
 
 
 enum
@@ -243,13 +237,6 @@ static void displayBuildDetails(bool playVP)
 	displayPrintAt(8, 84, cpuTypeBuf , FONT_SIZE_2);
 	sprintf(cpuTypeBuf, "CPU Flash:%dkb", cpuGetFlashSize());
 	displayPrintAt(8, 94, cpuTypeBuf , FONT_SIZE_2);
-	// Fork: RAM headroom, to size the FreeRTOS heap and task stacks: lowest free heap since boot,
-	// and the unused stack (bytes) of the main / HR-C6000 / beep tasks
-	snprintf(cpuTypeBuf, sizeof(cpuTypeBuf), "Heap min:%u", (unsigned)xPortGetMinimumEverFreeHeapSize());
-	displayPrintAt(8, 104, cpuTypeBuf , FONT_SIZE_2);
-	snprintf(cpuTypeBuf, sizeof(cpuTypeBuf), "S%u %u %u", (unsigned)(uxTaskGetStackHighWaterMark((TaskHandle_t)defaultTaskHandle) * 4U),
-			(unsigned)(uxTaskGetStackHighWaterMark(hrc6000Task.Handle) * 4U), (unsigned)(uxTaskGetStackHighWaterMark(beepTask.Handle) * 4U));
-	displayPrintAt(8, 112, cpuTypeBuf , FONT_SIZE_2);
 #endif
 
 	displayFillTriangle(63 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 1), 59 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 3), 67 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 3), blink);
