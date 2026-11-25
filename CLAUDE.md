@@ -2,12 +2,15 @@
 
 Firmware dla Retevis RT3S / TYT MD-UV380 oparty na forku OpenGD77 SP7TQ
 (https://github.com/sptq/opengd77-rt3s-experiments), baza OpenGD77 R20260131.
+Modyfikacje w tym repozytorium: **Greg M0SQQ** (GregDoma).
 
 ## Zasady
 - Odpowiadaj po polsku, krótko i konkretnie. Odbiorcą jest doświadczony elektronik, więc niczego nie upraszczaj.
 - Pracuj profesjonalnie: podawaj tylko fakty sprawdzone w kodzie, w wyniku buildu albo w testach. Nie zgaduj i nie wymyślaj. Wszystko, czego nie zweryfikowano (np. na radiu), oznacz wprost jako niesprawdzone.
 - Każda zmiana idzie na osobnej gałęzi i trafia do `main` wyłącznie przez Pull Request.
 - Nie usuwaj kodu ani zmian upstreamu bez wyraźnej potrzeby. Własne zmiany rób tak, żeby dało się je łatwo scalić z nowszym SP7TQ.
+- Znak Grega to **M0SQQ**. Zawsze podawaj go jako autora modyfikacji: README, CHANGELOG, nagłówki dokumentów w `docs/`, opisy PR, narzędzia (`--version`, okno „O programie”, README) i firmware (kredyty, ekran informacji o wersji, pasek wersji na ekranie startowym, makro `FORK_MOD_AUTHOR`). Kredyty OpenGD77 i SP7TQ zostają bez zmian.
+- Tagi wydań z tego repozytorium: `R<YYYYMMDD>-SP7TQ.<N>-M0SQQ.<M>`.
 - Licencja OpenGD77 (`license.txt`) zabrania użytku komercyjnego.
 
 ## Remote'y
