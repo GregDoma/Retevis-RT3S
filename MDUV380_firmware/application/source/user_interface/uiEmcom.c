@@ -665,11 +665,9 @@ static int volumeLevel(void)
 
 static bool volumeIndicatorVisible(void)
 {
-#if defined(HAS_SOFT_VOLUME)
-	return settingsIsOptionBitSet(BIT_VISUAL_VOLUME);
-#else
+	// The header always shows the volume. BIT_VISUAL_VOLUME is the upstream "volume pop-up on change"
+	// option (applicationMain.c updateVolumeGain), off by default, so it must not hide this indicator.
 	return true;
-#endif
 }
 
 static int visibleVolumeLevel(void)
