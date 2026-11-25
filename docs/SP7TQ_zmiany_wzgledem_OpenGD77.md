@@ -1,5 +1,8 @@
 # Zmiany SP7TQ względem OpenGD77 R20260131 — przegląd
 
+Opracowanie dla: **Greg M0SQQ**, repozytorium [GregDoma/Retevis-RT3S](https://github.com/GregDoma/Retevis-RT3S).
+Kredyty: OpenGD77 (VK3KYY, F1RMB, DG4KLU i inni), fork EA4IPW, fork SP7TQ (Marcin SP7TQ).
+
 Stan na 2026-11-25, `main` = `a2471d3` (SP7TQ.5 + 57 commitów bez wydania).
 Raport powstał wyłącznie z analizy kodu i historii git, kompilacji i testów hosta.
 Na radiu nic nie było sprawdzane. Kodu firmware nie zmieniano.
