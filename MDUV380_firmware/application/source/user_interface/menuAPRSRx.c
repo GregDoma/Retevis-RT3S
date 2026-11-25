@@ -52,6 +52,7 @@ typedef enum
 	APRS_MON_VIEW_MESSAGES,
 	APRS_MON_VIEW_DTMF,
 	APRS_MON_VIEW_CW,
+	APRS_MON_VIEW_STQC,
 	APRS_MON_VIEW_MAX
 } aprsMonView_t;
 #if defined(HAS_GPS) && (defined(PLATFORM_MDUV380) || defined(PLATFORM_MD380) || defined(PLATFORM_RT84_DM1701))
@@ -71,6 +72,7 @@ static uint8_t aprsMonEditStage = APRS_MON_EDIT_NONE;
 static uint32_t aprsMonReplyIndex = 0;
 static char aprsMonReplyTo[APRS_RX_CALL_LEN];
 static uint32_t aprsMonToneSerial = 0;
+static uint32_t aprsMonStqcSerial = 0;
 #if defined(HAS_EMCOM_UI)
 // Fork: EMCOM styles: '*' on a message opens it on its own screen (whole text, wrapped)
 #define APRS_MON_READ_VIEW
@@ -144,6 +146,12 @@ static void aprsMonUpdate(uint32_t now)
 			aprsMonToneSerial = serial;
 			aprsMonLastDraw = 0;
 		}
+	}
+
+	if ((aprsMonView == APRS_MON_VIEW_STQC) && (aprsRxStqcSerial() != aprsMonStqcSerial))
+	{
+		aprsMonStqcSerial = aprsRxStqcSerial();
+		aprsMonLastDraw = 0;
 	}
 
 	if ((aprsMonLastDraw == 0) || ((now - aprsMonLastDraw) >= APRS_MON_REDRAW_MS))
@@ -1326,6 +1334,52 @@ static void aprsMonDrawToneText(bool cw)
 	displayThemeResetToDefault();
 }
 
+// --- STQC view: the last selcalls, newest first ------------------------------------
+#define APRS_MON_STQC_BLOCK_H   ((2 * FONT_SIZE_1_HEIGHT) + 2)
+#define APRS_MON_STQC_BLOCKS    ((DISPLAY_SIZE_Y - APRS_MON_FOOTER_H - APRS_MON_LIST_Y) / APRS_MON_STQC_BLOCK_H)
+
+static void aprsMonDrawStqc(void)
+{
+	char line[APRS_MON_CHARS + 1];
+	char age[8];
+	uint32_t count = aprsRxStqcCount();
+	uint32_t now = ticksGetMillis();
+
+	aprsMonFooter("0 CLR  # VIEW  RED EXIT", NULL, THEME_ITEM_FG_DEFAULT);
+	if (count == 0)
+	{
+		aprsMonDrawHint("Waiting for STQC", "selcall, receive only");
+		return;
+	}
+
+	for (uint32_t b = 0; (b < APRS_MON_STQC_BLOCKS) && (b < count); b++)
+	{
+		const aprsRxStqcCall_t *call = aprsRxStqcGet(b);
+		int16_t y = (APRS_MON_LIST_Y + (b * APRS_MON_STQC_BLOCK_H));
+		char addr[STQC_MAX_SYMBOLS + 1];
+		char cmd[STQC_MAX_SYMBOLS + 1];
+
+		aprsMonAge((now - call->ms), age, sizeof(age));
+		aprsRxStqcFormat(call, line, sizeof(line));
+		aprsMonPrintRow(y, line, age, false);
+
+		// the tones as sent (0..4, 4 = repeat), to compare with other decoders
+		addr[0] = cmd[0] = 0;
+		if (call->addrLen)
+		{
+			stqcValueToSymbolText(call->addr, call->addrLen, addr);
+		}
+		if (call->cmdLen)
+		{
+			stqcValueToSymbolText(call->cmd, call->cmdLen, cmd);
+		}
+		snprintf(line, sizeof(line), "%s%s%s", addr, ((addr[0] && cmd[0]) ? " " : ""), cmd);
+		displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
+		displayPrintCore(0, (y + FONT_SIZE_1_HEIGHT), line, FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
+		displayThemeResetToDefault();
+	}
+}
+
 static void aprsMonSetView(aprsMonView_t view)
 {
 	aprsMonRawView = false;
@@ -1337,7 +1391,7 @@ static void aprsMonSetView(aprsMonView_t view)
 
 static void aprsMonDraw(void)
 {
-	static const char *titles[] = { "APRS frames", "APRS stations", "APRS radar", "APRS messages", "DTMF decoder", "CW decoder" };
+	static const char *titles[] = { "APRS frames", "APRS stations", "APRS radar", "APRS messages", "DTMF decoder", "CW decoder", "STQC selcall" };
 	char line[APRS_MON_CHARS + 1];
 	aprsRxStatus_t st;
 
@@ -1465,6 +1519,9 @@ static void aprsMonDraw(void)
 				break;
 			case APRS_MON_VIEW_CW:
 				aprsMonDrawToneText(true);
+				break;
+			case APRS_MON_VIEW_STQC:
+				aprsMonDrawStqc();
 				break;
 			case APRS_MON_VIEW_STATIONS:
 				aprsMonDrawStations();
@@ -1716,6 +1773,9 @@ static bool aprsMonHandleEvent(uiEvent_t *ev)
 			case APRS_MON_VIEW_CW:
 				aprsRxToneTextClear();
 				break;
+			case APRS_MON_VIEW_STQC:
+				aprsRxStqcClear();
+				break;
 
 			default:
 				aprsRxHistoryClear();
@@ -1754,7 +1814,7 @@ static bool aprsMonHandleEvent(uiEvent_t *ev)
 				aprsMonMsgSelected++;
 			}
 		}
-		else if ((aprsMonView == APRS_MON_VIEW_DTMF) || (aprsMonView == APRS_MON_VIEW_CW))
+		else if ((aprsMonView == APRS_MON_VIEW_DTMF) || (aprsMonView == APRS_MON_VIEW_CW) || (aprsMonView == APRS_MON_VIEW_STQC))
 		{
 			return false;
 		}
