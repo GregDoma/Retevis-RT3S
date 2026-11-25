@@ -320,6 +320,9 @@ static inline void hrc6000RxInterruptHandler(void);
 static void hrc6000TransitionToTx(void);
 static void hrc6000InitDigitalState(void);
 static void hrc6000TriggerPrivateCallQSODataDisplay(void);
+#if defined(HAS_DMR_SMS_ACK)
+static void hrc6000DataAckStart(const uint8_t *hdr12);
+#endif
 
 static HRC6000_Tone1Config_t savedTone1Config = { .Mode = 0, .Dev = 0, .D1 = 0 };
 
@@ -1053,6 +1056,22 @@ static inline void hrc6000SysReceivedDataInt(void)
 		if (SPI0ReadPageRegByteArray(0x02, 0x00, dataBurst, ((rxDataType == DMR_SMS_DT_RATE34_DATA) ? 18 : LC_DATA_LENGTH)) == kStatus_Success)
 		{
 			dmrSmsIsrBurst(rxDataType, dataBurst);
+#if defined(HAS_DMR_SMS_ACK)
+			// A confirmed private SMS to us has just completed: the sender expects the Response
+			// in the very next timeslot (a stock receiver answers 0..1 ms after the last burst),
+			// or it repeats the whole PDU. Keyed from here, not from the main loop. Only in DMO
+			// (radio to radio, the case verified on the bench by the original), and only where a
+			// PTT press could transmit: not Rx only, not TX inhibited, inside the band limits.
+			uint8_t ackHdr[LC_DATA_LENGTH];
+
+			if (dmrSmsIsrAckTake(ackHdr) && (slotState < DMR_STATE_TX_START_1) && (currentRadioDevice->trxDMRModeRx == DMR_MODE_DMO) &&
+					(currentChannelData != NULL) && (codeplugChannelGetFlag(currentChannelData, CHANNEL_FLAG_RX_ONLY) == 0) &&
+					(settingsIsOptionBitSet(BIT_TX_INHIBIT) == false) &&
+					((nonVolatileSettings.txFreqLimited == BAND_LIMITS_NONE) || trxCheckFrequencyInAmateurBand(currentChannelData->txFreq)))
+			{
+				hrc6000DataAckStart(ackHdr);
+			}
+#endif
 		}
 	}
 #endif
@@ -1885,6 +1904,17 @@ void hrc6000TimeslotInterruptHandler(void)
 #endif
 			break;
 
+#if defined(HAS_DMR_SMS_ACK)
+		case DMR_STATE_TX_ACK_1: // the DMR SMS acknowledgement goes out in this timeslot
+			SPI0WritePageRegByte(0x04, 0x41, 0x00); // and nothing in the next one
+			slotState = DMR_STATE_TX_ACK_2;
+			break;
+		case DMR_STATE_TX_ACK_2: // sent: back to receive, as the end of a DMO transmission does
+			addTimerCallback(hrc6000TxBurstCallback, 29, MENU_ANY, false);
+			HRC6000InitDigitalDmrRx();
+			slotState = DMR_STATE_TX_END_3_DMO;
+			break;
+#endif
 		case DMR_STATE_TX_END_3_DMO:
 			slotState = DMR_STATE_IDLE;
 			trxIsTransmitting = false;
@@ -2684,6 +2714,33 @@ int HRC6000GetIsWakingState(void)
 {
 	return hrc.isWaking;
 }
+
+#if defined(HAS_DMR_SMS_ACK)
+// Fork: DMR SMS acknowledgement, ported from dondch/OpenGD77-AES256. One data header burst
+// (the Response packet, functions/dmrSmsPdu.c) in the NEXT timeslot, from the receive state,
+// without a data call key-up (no CSBK preamble, no Voice LC): the chip keeps the passive timing
+// it locked to the sender, so the burst lands in the slot after the sender's last one, where a
+// stock radio puts its acknowledgement. The RF_TX interrupt keys the PA for the burst as for any
+// DMR burst (hrc6000TxInterruptHandler) and the timeslot interrupt turns it off after 20 ms;
+// TX_ACK_1 / TX_ACK_2 then return to receive the way a DMO transmission ends. The UI is not
+// told and trxTransmissionEnabled stays false.
+static void hrc6000DataAckStart(const uint8_t *hdr12)
+{
+	audioAmpDisable(AUDIO_AMP_CHANNEL_RF);
+	// keyed without trxSetTX(): set the PA drive for the TX frequency if the last transmission
+	// left another one (the original's bench: a radio that had not transmitted since boot sent
+	// its ACK about 31 dB down)
+	if ((currentRadioDevice->lastSetTxFrequency != currentRadioDevice->currentTxFrequency) ||
+			(currentRadioDevice->lastSetTxPowerLevel != currentRadioDevice->txPowerLevel))
+	{
+		trxConfigurePA_DAC_ForFrequencyBand();
+	}
+	SPI0WritePageRegByteArray(0x02, 0x00, hdr12, LC_DATA_LENGTH);
+	SPI0WritePageRegByte(0x04, 0x50, 0x60); // Data Header, Data, LCSS = 00
+	SPI0WritePageRegByte(0x04, 0x41, 0x80); // transmit during the next timeslot
+	slotState = DMR_STATE_TX_ACK_1;
+}
+#endif
 
 void HRC6000ClearActiveDMRID(void)
 {

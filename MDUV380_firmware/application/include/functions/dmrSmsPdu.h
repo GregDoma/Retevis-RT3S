@@ -30,6 +30,7 @@
 
 #if defined(PLATFORM_MDUV380) || defined(PLATFORM_MD380) || defined(PLATFORM_RT84_DM1701)
 #define HAS_DMR_SMS
+#define HAS_DMR_SMS_ACK   // acknowledge confirmed private SMS (hardware/HR-C6000.c), remove to receive silently
 #endif
 
 #define DMR_SMS_TEXT_MAX      140U   // characters kept of a message
