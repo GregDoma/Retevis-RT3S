@@ -1,5 +1,8 @@
 # rt3s-flasher: wgrywanie firmware do Retevis RT3S z Linuksa
 
+Autor: **Greg M0SQQ** ([GregDoma/Retevis-RT3S](https://github.com/GregDoma/Retevis-RT3S)).
+Firmware: OpenGD77 i fork SP7TQ (Marcin SP7TQ), kredyty na końcu tej strony.
+
 Natywny program (okno + wiersz poleceń) do wgrywania firmware OpenGD77 / SP7TQ do
 **Retevis RT3S / TYT MD-UV380** przez USB. Robi to samo co flasher WebUSB (strona SP7TQ,
 `web/js`) i loader OpenGD77 (`MDUV380_firmware/tools/opengd77_stm32_firmware_loader.py`),
@@ -117,6 +120,9 @@ python3 -m unittest discover -s tests -t .
 RT3S_REAL_FIRMWARE=OpenGD77_MDUV380.bin RT3S_REAL_LANG=Polish.gla RT3S_DONOR=dawca.bin \
   python3 -m unittest tests.test_core -v
 ```
+
+Autor programu: Greg M0SQQ. Wersję i kredyty pokazują `rt3s-flasher --version` oraz przycisk
+**O programie** w oknie.
 
 Licencja: jak całe repozytorium (`license.txt`). Kod DFU i szyfry pochodzą z loadera OpenGD77
 (F1RMB, VK3KYY), który bazuje na `pydfu.py` (OpenMV) i md380tools.

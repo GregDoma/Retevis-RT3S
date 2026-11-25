@@ -5,7 +5,7 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
-from . import __version__, core, dfu, job, settings
+from . import CREDITS, __version__, core, dfu, job, settings
 
 HOWTO = ('1. Wyłącz radio. Trzymając PTT i boczny przycisk nad nim, włącz je: ekran zostaje pusty, dioda miga.\n'
          '2. Podłącz kabel USB.\n'
@@ -19,7 +19,7 @@ class App:
         self.busy = False
         self.donor_path, self.donor_data = settings.load_donor()
 
-        root.title(f'RT3S flasher {__version__}')
+        root.title(f'RT3S flasher {__version__} (M0SQQ)')
         root.minsize(560, 0)
         main = ttk.Frame(root, padding=12)
         main.grid(sticky='nsew')
@@ -63,6 +63,7 @@ class App:
         btns.grid(row=8, column=0, columnspan=3, sticky='e')
         self.radio_label = ttk.Label(btns, text='')
         self.radio_label.pack(side='left', padx=(0, 12))
+        ttk.Button(btns, text='O programie', command=self.about).pack(side='left', padx=(0, 4))
         self.flash_btn = ttk.Button(btns, text='Wgraj', command=self.flash)
         self.flash_btn.pack(side='left')
 
@@ -72,6 +73,9 @@ class App:
         self.refresh()
         self.poll_radio()
         self.root.after(100, self.pump)
+
+    def about(self):
+        messagebox.showinfo('O programie', f'RT3S flasher {__version__}\n\n{CREDITS}', parent=self.root)
 
     def _file_row(self, parent, row, label, var, command, clear=False):
         ttk.Label(parent, text=label).grid(row=row, column=0, sticky='w')

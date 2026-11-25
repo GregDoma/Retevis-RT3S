@@ -7,6 +7,7 @@ name = "rt3s-flasher"
 dynamic = ["version"]
 description = "Wgrywanie firmware OpenGD77 / SP7TQ do Retevis RT3S (MD-UV380) z Linuksa"
 requires-python = ">=3.10"
+authors = [{ name = "Greg M0SQQ" }]
 dependencies = ["pyusb>=1.2"]
 
 [project.scripts]

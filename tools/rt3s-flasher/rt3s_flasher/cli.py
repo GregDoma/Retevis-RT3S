@@ -4,7 +4,7 @@ import os
 import sys
 from pathlib import Path
 
-from . import __version__, core, dfu, job, settings
+from . import CREDITS, __version__, core, dfu, job, settings
 
 EPILOG = '''przykłady:
   rt3s-flasher                                  okno programu
@@ -12,6 +12,8 @@ EPILOG = '''przykłady:
   rt3s-flasher flash OpenGD77_MDUV380.bin -j Polish.gla
   rt3s-flasher flash OpenGD77_MDUV380.bin --dry-run   bez radia: tylko sprawdzenie plików
   rt3s-flasher list                             czy radio jest widoczne
+
+autor: Greg M0SQQ (GregDoma/Retevis-RT3S); rt3s-flasher --version pokazuje kredyty
 '''
 
 
@@ -114,7 +116,7 @@ def cmd_gui(args):
 def build_parser():
     ap = argparse.ArgumentParser(prog='rt3s-flasher', description=__doc__, epilog=EPILOG,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('--version', action='version', version=f'%(prog)s {__version__}')
+    ap.add_argument('--version', action='version', version=f'%(prog)s {__version__}\n{CREDITS}')
     sub = ap.add_subparsers(dest='cmd')
 
     f = sub.add_parser('flash', help='wgraj firmware do radia')
