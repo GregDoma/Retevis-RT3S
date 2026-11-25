@@ -51,7 +51,7 @@ CI na GitHubie (`.github/workflows/build.yml`) buduje wszystkie trzy warianty i 
 ## Wgrywanie
 
 Repo **nie zawiera kodeka AMBE**. Program wgrywający dokłada go przy flashowaniu z oryginalnego firmware producenta
-(firmware-dawca). Radio w trybie DFU: wyłącz, przytrzymaj SK1, włącz.
+(firmware-dawca). Przed wgraniem zrób kopię codeplugu. Tryb wgrywania: radio wyłączone, przytrzymaj PTT i górny przycisk boczny, włącz.
 
 ```sh
 cd MDUV380_firmware/tools
