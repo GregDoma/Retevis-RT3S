@@ -5,7 +5,14 @@
  * Interrupt side: the HR-C6000 RX interrupt hands every CRC valid data burst (header, rate 1/2,
  * rate 3/4) to dmrSmsIsrBurst(); a completed PDU waits for dmrSmsTick() (main loop), which
  * decodes it, files it in the inbox (SPI flash), logs it and notifies. Received cleartext only;
- * an encrypted PDU is dropped. Sending is not implemented.
+ * an encrypted PDU is dropped.
+ *
+ * Send (HAS_DMR_SMS_TX, TX path ported from dondch/OpenGD77-AES256, cleartext only):
+ * dmrSmsSend() checks the gates of a PTT press, files the message (outgoing, not yet sent),
+ * builds the PDU into the receive buffer (lent, dmrSmsRxHold) and keys a data call on the
+ * current DMR channel (its frequency, colour code and timeslot); the HR-C6000 timeslot
+ * interrupt takes the bursts from dmrSmsIsrTxNext() instead of the Voice LC headers and the
+ * voice frames; dmrSmsTick() ends the call and marks the message sent.
  *
  * Inbox: 32 slots of one flash page (256 bytes) in two 4 KB sectors at DMR_SMS_FLASH_ADDRESS,
  * a ring: entering a sector erases it, so the newest 16..32 messages are kept. Read / deleted
@@ -35,6 +42,9 @@
 #define DMR_SMS_FLAG_LIVE       0x01U  // cleared: deleted
 #define DMR_SMS_FLAG_UNREAD     0x02U  // cleared: read
 #define DMR_SMS_FLAG_GROUP      0x04U  // dst is a talkgroup
+#define DMR_SMS_FLAG_RECEIVED   0x08U  // cleared: a message we sent (src is our ID); older records have it set
+#define DMR_SMS_FLAG_UNSENT     0x10U  // a message we sent: cleared once it went out, set: it failed
+#define DMR_SMS_IS_OUTGOING(f)  (((f) & DMR_SMS_FLAG_RECEIVED) == 0U)
 
 typedef struct
 {
@@ -57,6 +67,34 @@ void dmrSmsMarkRead(uint32_t indexFromNewest);
 void dmrSmsDelete(uint32_t indexFromNewest);
 void dmrSmsDeleteAll(void);
 void dmrSmsPeerName(uint32_t id, char *buf, size_t size); // contact / DMR ID database callsign, else "ID n"
+
+#if defined(HAS_DMR_SMS_TX)
+typedef enum
+{
+	DMR_SMS_TX_OK = 0,        // keyed (dmrSmsSend) / went out (dmrSmsTxResult)
+	DMR_SMS_TX_SENDING,
+	DMR_SMS_TX_NOT_DMR,       // FM channel
+	DMR_SMS_TX_RX_ONLY,
+	DMR_SMS_TX_INHIBITED,
+	DMR_SMS_TX_OUT_OF_BAND,
+	DMR_SMS_TX_NO_ID,
+	DMR_SMS_TX_BUSY,          // transmitting, receiving, scanning, hotspot mode, a PDU coming in
+	DMR_SMS_TX_BAD_TEXT,
+	DMR_SMS_TX_NO_REPEATER,   // the repeater did not wake up
+	DMR_SMS_TX_TIMEOUT
+} dmrSmsTxResult_t;
+
+dmrSmsTxResult_t dmrSmsSend(const char *text, uint32_t dst, bool group);
+dmrSmsTxResult_t dmrSmsTxResult(void);                 // of the last dmrSmsSend: SENDING until it ended
+bool dmrSmsTxBusy(void);                               // a data call is keyed or ending
+const char *dmrSmsTxResultText(dmrSmsTxResult_t r);    // at most 16 characters
+
+// HR-C6000 timeslot interrupt
+bool dmrSmsIsrTxActive(void);
+// The next burst: slot type byte for reg 0x50 (0x30 CSBK, 0x60 data header, 0x70 rate 1/2) and
+// 12 info bytes. False when all went out: the call is then over (trxTransmissionEnabled cleared).
+bool dmrSmsIsrTxNext(uint8_t *slotType, uint8_t payload[12]);
+#endif
 
 // HR-C6000 interrupt
 void dmrSmsIsrBurst(int dataType, const uint8_t *payload);

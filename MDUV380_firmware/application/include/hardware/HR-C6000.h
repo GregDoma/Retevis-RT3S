@@ -109,6 +109,7 @@ void HRC6000SetDmrRxGain(int8_t gain);
 void HRC6000SetDmrAGCGain(int8_t gain);
 void HRC6000ClearIsWakingState(void);
 int HRC6000GetIsWakingState(void);
+void HRC6000ForceDMRIdleForTx(void); // Fork: DMR SMS send (functions/dmrSms.c, HAS_DMR_SMS_TX)
 void HRC6000ClearActiveDMRID(void);
 bool HRC6000CheckTalkGroupFilter(void);
 void HRC6000SetMicGainDMR(uint8_t gain);

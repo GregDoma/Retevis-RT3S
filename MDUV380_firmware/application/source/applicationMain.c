@@ -626,6 +626,18 @@ void applicationMainTask(void)
 			(void) txInhibitCheckAndWarn();
 		}
 
+#if defined(HAS_DMR_SMS_TX)
+		// Fork: no PTT while a DMR SMS data call is keyed (about 2 s)
+		if (dmrSmsTxBusy() && (buttons & BUTTON_PTT))
+		{
+			if (buttons == BUTTON_PTT)
+			{
+				button_event = EVENT_BUTTON_NONE;
+			}
+			buttons &= ~BUTTON_PTT;
+		}
+#endif
+
 		// hack to allow SK1 + Up / Down to be Left / Right
 #if ! (defined(PLATFORM_RT84_DM1701) || defined(PLATFORM_MD2017)) // top side button IS orange
 		if (buttons & BUTTON_SK1)
