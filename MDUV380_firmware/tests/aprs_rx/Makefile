@@ -1,10 +1,10 @@
-# Host tests for the RX audio decoders (APRS, DTMF, CW, SSTV), the APRS parser, net roster, battery estimate and sked timing (no hardware needed).
+# Host tests for the RX audio decoders (APRS, DTMF, CW, SSTV), the DMR SMS receive path, the APRS parser, net roster, battery estimate and sked timing (no hardware needed).
 #   make -C MDUV380_firmware/tests/aprs_rx
 APP    := ../../application
 CFLAGS := -O2 -Wall -Wno-misleading-indentation -I$(APP)/include
 
 .PHONY: all clean
-all: test_decoder test_parse test_tones test_sstv test_text test_sstv_store test_net test_batt test_sked test_dmr_rx_agc test_emcom_distance test_stqc
+all: test_decoder test_parse test_tones test_sstv test_text test_sstv_store test_net test_batt test_sked test_dmr_rx_agc test_emcom_distance test_stqc test_dmr_sms
 	./test_decoder
 	./test_parse
 	./test_tones
@@ -17,6 +17,7 @@ all: test_decoder test_parse test_tones test_sstv test_text test_sstv_store test
 	./test_dmr_rx_agc
 	./test_emcom_distance
 	./test_stqc
+	./test_dmr_sms
 
 test_decoder: test_decoder.c $(APP)/source/functions/aprsRxDecoder.c
 	$(CC) $(CFLAGS) -o $@ $^ -lm
@@ -54,5 +55,8 @@ test_emcom_distance: test_emcom_distance.c $(APP)/source/user_interface/emcomDis
 test_stqc: test_stqc.c $(APP)/source/functions/toneRxDecoders.c
 	$(CC) $(CFLAGS) -o $@ $^ -lm
 
+test_dmr_sms: test_dmr_sms.c $(APP)/source/functions/dmrSmsPdu.c
+	$(CC) $(CFLAGS) -DPLATFORM_MDUV380 -o $@ $^
+
 clean:
-	rm -f test_stqc test_decoder test_parse test_tones test_sstv test_text test_sstv_store test_net test_batt test_sked test_dmr_rx_agc test_emcom_distance
+	rm -f test_stqc test_dmr_sms test_decoder test_parse test_tones test_sstv test_text test_sstv_store test_net test_batt test_sked test_dmr_rx_agc test_emcom_distance
