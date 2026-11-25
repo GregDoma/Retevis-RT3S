@@ -1695,7 +1695,7 @@ static void drawFooter(emcomState_t st)
 	{
 		snprintf(buf, sizeof(buf), "ANY KEY: STOP");
 	}
-	text(2, (FOOTER_Y + 2), buf, FONT_SIZE_1, pal->barFg, false);
+	int16_t leftEnd = (int16_t)(2 + text(2, (FOOTER_Y + 2), buf, FONT_SIZE_1, pal->barFg, false)); // first free column after the clock
 
 	if (sosOn)
 	{
@@ -1754,11 +1754,18 @@ static void drawFooter(emcomState_t st)
 			r -= (text(r, (FOOTER_Y + 2), right, FONT_SIZE_1_BOLD, rightCol, true) + 4);
 		}
 	}
-	else if (batteryTimeLeftMinutes() != BATT_RT_UNKNOWN)
+
+	if (batteryTimeLeftMinutes() != BATT_RT_UNKNOWN)
 	{
-		// Fork: battery runtime estimate, when nothing more important is shown
+		// Fork: battery runtime estimate, next to the state indicator (RX, SCAN, locks...) whenever it fits
+		// between it and the clock (the BLK chip, when shown, keeps its place)
+		int16_t blkW = (blackoutActive() ? (int16_t)((3 * 6) + 4 + 2) : 0);
+
 		batteryTimeLeftString(buf, sizeof(buf));
-		r -= (text(r, (FOOTER_Y + 2), buf, FONT_SIZE_1, pal->barFg, true) + 4);
+		if ((r - blkW - (int16_t)(strlen(buf) * 6)) > (leftEnd + 3))
+		{
+			r -= (text(r, (FOOTER_Y + 2), buf, FONT_SIZE_1, pal->barFg, true) + 4);
+		}
 	}
 
 	if (blackoutActive())
