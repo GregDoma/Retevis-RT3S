@@ -1,4 +1,12 @@
-# SP7TEAM EMCOM firmware for the Retevis RT3S (OpenGD77 fork)
+# SP7TEAM EMCOM firmware for the Retevis RT3S (OpenGD77 fork) — M0SQQ build
+
+> **This repository** ([GregDoma/Retevis-RT3S](https://github.com/GregDoma/Retevis-RT3S))
+> carries the modifications by **Greg M0SQQ** on top of the SP7TQ fork
+> (Marcin SP7TQ) of [OpenGD77](https://www.opengd77.com/). The text below is
+> the SP7TQ README, kept with its credits; changes made here are listed in
+> [About this fork](#about-this-fork) and in [`CHANGELOG.md`](CHANGELOG.md).
+> Firmware built from this repository shows `M0SQQ` on the boot screen
+> version bar, on the firmware info screen and in the credits.
 
 [![Release](https://img.shields.io/github/v/release/sptq/opengd77-rt3s-experiments?include_prereleases&label=release)](https://github.com/sptq/opengd77-rt3s-experiments/releases)
 ![Radio](https://img.shields.io/badge/radio-Retevis%20RT3S%20%2F%20MD--UV380-2b6b3f)
@@ -80,7 +88,12 @@ issue with what works and what doesn't.
 
 ## About this fork
 
-Maintainer: **Marcin SP7TQ**. This repository started as a fork of
+Modifications in this repository: **Greg M0SQQ**
+([GregDoma/Retevis-RT3S](https://github.com/GregDoma/Retevis-RT3S)), based on
+the SP7TQ fork at R20260131-SP7TQ.5 (commit `a2471d3`) and merged with its
+later changes. Everything below in this section describes the SP7TQ fork.
+
+Maintainer of the SP7TQ fork: **Marcin SP7TQ**. This repository started as a fork of
 [mangelajo/opengd77-rt3s-experiments](https://github.com/mangelajo/opengd77-rt3s-experiments)
 by EA4IPW (OpenGD77 R20260131 source mirror, command-line build, VFO band
 scope / waterfall, release tooling). From R20260131-EA4IPW.3 on it is
@@ -134,6 +147,8 @@ See the `LICENSE`/`LICENSE.txt` files inside each subdirectory.
   the upstream README ([`UPSTREAM_README.md`](UPSTREAM_README.md))
   (Kai DG4KLU, Roger VK3KYY, Daniel F1RMB, Alex DL4LEX, Colin G4EML and
   many others).
+- Modifications in this repository: **Greg M0SQQ**
+  ([GregDoma/Retevis-RT3S](https://github.com/GregDoma/Retevis-RT3S)).
 - Fork maintainer: **Marcin SP7TQ** (RT3S features: APRS RX, GPS pages,
   VFO sweep improvements, fox and radiosonde hunting, quickkeys, Polish docs).
 - Original fork and build tooling: EA4IPW, on which this
@@ -180,6 +195,11 @@ to the upstream OpenGD77 snapshot it was built from.
   on (matches the upstream `R<date>` directories on opengd77.eu).
 - `<N>` — incrementing build number against that upstream base, starting
   at `1`.
+
+Builds from this repository (Greg M0SQQ) add a suffix to the SP7TQ release
+they are based on: `R<YYYYMMDD>-SP7TQ.<N>-M0SQQ.<M>`, e.g.
+`R20260131-SP7TQ.5-M0SQQ.1`, with `<M>` counting from `1` for each SP7TQ base.
+The CI workflow accepts this tag scheme too.
 
 Older tags from before the fork went independent keep their
 `R20260131-EA4IPW.<N>` names (the last one is `R20260131-EA4IPW.3`).

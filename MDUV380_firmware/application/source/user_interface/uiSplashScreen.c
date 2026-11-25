@@ -181,7 +181,11 @@ static void updateScreen(bool isFirstRun)
 		displayThemeApply(THEME_ITEM_BG_HEADER_TEXT, THEME_ITEM_BG_SPLASHSCREEN);
 		displayFillRect(0, (DISPLAY_SIZE_Y - 11), DISPLAY_SIZE_X, 11, false);
 		displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG_HEADER_TEXT);
+		#if defined(FORK_MOD_AUTHOR)
+		displayPrintCentered((DISPLAY_SIZE_Y - 9), "OpenGD77 " GITVERSION " " FORK_MOD_AUTHOR, FONT_SIZE_1);
+#else
 		displayPrintCentered((DISPLAY_SIZE_Y - 9), "OpenGD77 " GITVERSION, FONT_SIZE_1);
+#endif
 	}
 	else
 #endif
