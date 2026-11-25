@@ -68,6 +68,25 @@ def _english_table(fw):
     return -1
 
 
+def _table_name(fw, at):
+    return bytes(fw[at + 12:at + 12 + 16]).split(b'\0')[0].decode('latin-1')
+
+
+def builtin_languages(fw):
+    """Języki wbudowane w firmware: ['English'] dla zwykłego buildu OpenGD77 (drugie miejsce to
+    pusta tabela „User” w wersji 0, wypełniana z .gla), ['English', 'Polski'] dla buildu z polskim
+    wbudowanym (fork M0SQQ). None: nie znaleziono tabel językowych."""
+    fw = bytes(fw)
+    found = _english_table(fw)
+    if found <= 0:
+        return None
+    names = ['English']
+    slot = fw.find(b'GD77LANG', found + 12)
+    if slot > 0 and not (_table_name(fw, slot) == 'User' and _be32(fw, slot + 8) == 0):
+        names.append(_table_name(fw, slot))
+    return names
+
+
 def firmware_language_version(fw):
     """Wersja tabeli językowej, której oczekuje firmware (z tabeli angielskiej)."""
     found = _english_table(bytes(fw))
@@ -77,10 +96,14 @@ def firmware_language_version(fw):
 def merge_language(fw, gla):
     """Kopiuje .gla na miejsce drugiego języka w firmware (fw: bytearray, zmieniany w miejscu).
 
-    Zwraca 'merged', 'ignored' (firmware bez języków, np. JA), 'mismatch', 'badfile' lub 'noslot'.
+    Zwraca 'merged', 'ignored' (firmware bez języków, np. JA), 'builtin' (drugi język jest już
+    wbudowany, np. polski w forku M0SQQ: .gla by go nadpisał), 'mismatch', 'badfile' lub 'noslot'.
     """
     if fw.find(b'IGNRLANG') >= 0:
         return 'ignored'
+    builtin = builtin_languages(fw)
+    if builtin and len(builtin) > 1:
+        return 'builtin'
     lang_version = language_version(gla)
     if lang_version is None:
         return 'badfile'

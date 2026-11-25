@@ -8,7 +8,7 @@ Natywny program (okno + wiersz poleceń) do wgrywania firmware OpenGD77 / SP7TQ 
 `web/js`) i loader OpenGD77 (`MDUV380_firmware/tools/opengd77_stm32_firmware_loader.py`),
 ale bez przeglądarki i z komunikatami po polsku:
 
-- wkleja drugi język (`Polish.gla`) z kontrolą wersji tabeli językowej,
+- rozpoznaje języki wbudowane w firmware; plik `.gla` dokleja tylko do starszych buildów (zob. niżej),
 - wkleja kodek AMBE z oryginalnego firmware **MD-9600 V26.45** (plik dawcy, sprawdzany sumą SHA-256),
 - szyfruje obraz i zapisuje go przez DFU do bootloadera radia (`0483:df11`, „Digital Radio in USB mode”).
 
@@ -67,14 +67,14 @@ Bez instalacji (z katalogu `tools/rt3s-flasher`, gdy pyusb jest w systemie): `py
 Tryb aktualizacji: wyłącz radio, trzymając **PTT i boczny przycisk nad nim** włącz je. Ekran
 zostaje pusty, dioda miga. Podłącz kabel USB.
 
-Okno: `rt3s-flasher` (albo „RT3S flasher” w menu). Wybierz firmware `.bin`, ewentualnie
-`Polish.gla`, kliknij **Wgraj**. Program pokazuje przed zapisem, co wgra (język, DMR tak/nie).
+Okno: `rt3s-flasher` (albo „RT3S flasher” w menu). Wybierz firmware `.bin`, kliknij **Wgraj**.
+Program pokazuje przed zapisem, co wgra (języki, DMR tak/nie).
 
 Wiersz poleceń:
 
 ```
 rt3s-flasher list                                        # czy radio jest widoczne
-rt3s-flasher flash OpenGD77_MDUV380.bin -j Polish.gla    # wgranie (pyta o potwierdzenie)
+rt3s-flasher flash OpenGD77_MDUV380.bin                  # wgranie (pyta o potwierdzenie)
 rt3s-flasher flash OpenGD77_MDUV380.bin -n               # próba bez radia: tylko sprawdzenie plików
 rt3s-flasher flash OpenGD77_MDUV380.bin --save-image obraz.bin -n   # zaszyfrowany obraz do porównań
 rt3s-flasher donor                                       # pokaż plik dawcy
@@ -83,6 +83,16 @@ rt3s-flasher donor --forget                              # usuń zapamiętaną k
 
 Opcje `flash`: `-m MODEL` (domyślnie `MD-UV380` = RT3S; także `MD-2017`, `DM-1701` = RT-84,
 `MD-380`, `MD-9600`), `-d PLIK` (inny plik dawcy), `--no-dmr`, `-y` (bez pytania).
+
+## Języki
+
+W tym forku (Greg M0SQQ) angielski i polski są **wbudowane w firmware**, paczka `.gla` nie jest
+potrzebna: język wybiera się w radiu (*Opcje → Język*). Program rozpoznaje to po tabeli
+językowej i wtedy **pomija plik `.gla`** (zwykły build OpenGD77 ma w tym miejscu pustą tabelę
+„User”, którą `.gla` wypełnia; tu `.gla` nadpisałby wbudowany polski).
+
+Opcja `-j PLIK.gla` (w oknie: „Język .gla (stare buildy)”) zostaje tylko dla starszych buildów
+bez wbudowanego polskiego, z kontrolą wersji tabeli językowej.
 
 ## Gdy coś nie działa
 
@@ -93,7 +103,8 @@ Opcje `flash`: `-m MODEL` (domyślnie `MD-UV380` = RT3S; także `MD-2017`, `DM-1
 | Radio jest zajęte przez inny program | Zamknij CPS, kartę przeglądarki z flasherem WebUSB, inny loader. |
 | Brak biblioteki libusb-1.0 | Zainstaluj pakiet z listy wyżej. |
 | Radio przerwało zapis | Wyłącz radio, wejdź jeszcze raz w tryb aktualizacji, wgraj ponownie. |
-| Paczka językowa nie pasuje | Plik `.gla` musi pochodzić z tego samego wydania co firmware. |
+| Paczka językowa nie pasuje | Dotyczy tylko starszych buildów: plik `.gla` musi pochodzić z tego samego wydania co firmware. |
+| Plik .gla pominięty (nadpisałby go) | Firmware ma wbudowany polski, plik `.gla` jest zbędny. |
 
 ## Jak to działa
 

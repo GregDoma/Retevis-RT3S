@@ -9,7 +9,7 @@ from . import CREDITS, __version__, core, dfu, job, settings
 
 HOWTO = ('1. Wyłącz radio. Trzymając PTT i boczny przycisk nad nim, włącz je: ekran zostaje pusty, dioda miga.\n'
          '2. Podłącz kabel USB.\n'
-         '3. Wybierz plik firmware (i ewentualnie język), kliknij „Wgraj”.')
+         '3. Wybierz plik firmware, kliknij „Wgraj”. Polski jest wbudowany w firmware (.gla tylko dla starszych buildów).')
 
 
 class App:
@@ -34,7 +34,7 @@ class App:
         self.model = tk.StringVar(value=core.DEFAULT_PLATFORM)
 
         self._file_row(main, 1, 'Firmware (.bin):', self.firmware, self.pick_firmware)
-        self._file_row(main, 2, 'Drugi język (.gla):', self.lang, self.pick_lang, clear=True)
+        self._file_row(main, 2, 'Język .gla (stare buildy):', self.lang, self.pick_lang, clear=True)
 
         ttk.Label(main, text='Model:').grid(row=3, column=0, sticky='w')
         ttk.Combobox(main, textvariable=self.model, values=list(core.PLATFORMS), state='readonly',
@@ -91,10 +91,6 @@ class App:
         p = filedialog.askopenfilename(title='Firmware OpenGD77', filetypes=[('Firmware', '*.bin'), ('Wszystkie', '*')])
         if p:
             self.firmware.set(p)
-            if not self.lang.get():
-                guess = Path(p).with_name('Polish.gla')
-                if guess.is_file():
-                    self.lang.set(str(guess))
 
     def pick_lang(self):
         p = filedialog.askopenfilename(title='Paczka językowa', filetypes=[('Język OpenGD77', '*.gla'), ('Wszystkie', '*')])

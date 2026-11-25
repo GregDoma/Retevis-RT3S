@@ -121,6 +121,16 @@ class ImageTest(unittest.TestCase):
         fw[0x100:0x108] = b'IGNRLANG'
         self.assertEqual(core.build_image(bytes(fw), language=helpers.language()).language, 'ignored')
 
+    def test_builtin_language_is_not_overwritten(self):
+        fw = helpers.firmware(builtin='Polski')
+        self.assertEqual(core.builtin_languages(fw), ['English', 'Polski'])
+        img = core.build_image(fw, language=helpers.language())
+        self.assertEqual(img.language, 'builtin')
+        self.assertEqual(core.encrypt(img.data, 'MD-UV380'), fw)
+
+    def test_plain_build_has_empty_user_slot(self):
+        self.assertEqual(core.builtin_languages(helpers.firmware()), ['English'])
+
     def test_bad_language_file(self):
         self.assertEqual(core.build_image(helpers.firmware(), language=b'x' * 100).language, 'badfile')
 

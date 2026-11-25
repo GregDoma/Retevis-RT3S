@@ -19,6 +19,7 @@ LANG_MESSAGES = {
     'ignored': 'firmware nie ma tabel językowych (IGNRLANG), plik .gla pominięty',
     'badfile': 'to nie jest plik języka .gla (brak nagłówka GD77LANG), pominięty',
     'noslot': 'w firmware nie ma miejsca na drugi język, plik .gla pominięty',
+    'builtin': 'firmware ma już wbudowany drugi język, plik .gla pominięty (nadpisałby go)',
 }
 
 
@@ -45,8 +46,12 @@ def prepare(firmware, language=None, donor=None, donor_data=None, platform=core.
     p.info.append(f'model: {platform}')
     p.info.append(f'firmware: {firmware.name} ({len(fw)} B, SHA-256 {core.sha256_hex(fw)[:16]}…)')
     fw_lang = core.firmware_language_version(fw)
+    builtin = core.builtin_languages(fw)
+    if builtin and len(builtin) > 1:
+        p.info.append(f'języki wbudowane: {", ".join(builtin)} (plik .gla niepotrzebny)')
     if gla is None:
-        p.info.append('drugi język: brak (tylko angielski)')
+        if not (builtin and len(builtin) > 1):
+            p.info.append('drugi język: brak (tylko angielski)')
     elif image.language == 'merged':
         p.info.append(f'drugi język: {Path(language).stem}')
     elif image.language == 'mismatch':

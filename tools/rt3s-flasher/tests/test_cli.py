@@ -40,6 +40,17 @@ class CliTest(unittest.TestCase):
         self.assertIn('tylko na FM', out)
         self.assertIn('nic nie zostało wysłane', out)
 
+    def test_builtin_polish_skips_gla(self):
+        fw = self.dir / 'OpenGD77_MDUV380_PL.bin'
+        fw.write_bytes(helpers.firmware(builtin='Polski'))
+        code, out = self.run_cli('flash', str(fw), '-n')
+        self.assertEqual(code, 0, out)
+        self.assertIn('języki wbudowane: English, Polski', out)
+        self.assertNotIn('tylko angielski', out)
+        code, out = self.run_cli('flash', str(fw), '-j', str(self.gla), '-n')
+        self.assertEqual(code, 0, out)
+        self.assertIn('nadpisałby', out)
+
     def test_save_image(self):
         out_img = self.dir / 'img.bin'
         code, out = self.run_cli('flash', str(self.fw), '-n', '--save-image', str(out_img))

@@ -9,7 +9,7 @@ from . import CREDITS, __version__, core, dfu, job, settings
 EPILOG = '''przykłady:
   rt3s-flasher                                  okno programu
   rt3s-flasher donor PLIK_MD9600_V26.45.bin     zapamiętaj dawcę kodeka (raz)
-  rt3s-flasher flash OpenGD77_MDUV380.bin -j Polish.gla
+  rt3s-flasher flash OpenGD77_MDUV380.bin              wgraj (polski jest wbudowany)
   rt3s-flasher flash OpenGD77_MDUV380.bin --dry-run   bez radia: tylko sprawdzenie plików
   rt3s-flasher list                             czy radio jest widoczne
 
@@ -121,7 +121,7 @@ def build_parser():
 
     f = sub.add_parser('flash', help='wgraj firmware do radia')
     f.add_argument('firmware', help='plik firmware .bin (OpenGD77_MDUV380*.bin)')
-    f.add_argument('-j', '--lang', metavar='PLIK.gla', help='drugi język, np. Polish.gla')
+    f.add_argument('-j', '--lang', metavar='PLIK.gla', help='tylko starsze buildy bez wbudowanego polskiego: drugi język z pliku .gla')
     f.add_argument('-d', '--donor', metavar='PLIK', help='dawca kodeka (domyślnie zapamiętany plik)')
     f.add_argument('--no-dmr', action='store_true', help='bez kodeka AMBE (tylko FM)')
     f.add_argument('-m', '--model', default=core.DEFAULT_PLATFORM, choices=list(core.PLATFORMS),

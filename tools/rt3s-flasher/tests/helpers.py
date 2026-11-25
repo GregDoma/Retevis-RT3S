@@ -20,11 +20,17 @@ def rnd(n, seed):
     return random.Random(seed).randbytes(n)
 
 
-def firmware(size=core.CODEC_TARGET + core.CODEC_LENGTH + 0x3000, lang_version=LANG_VERSION, seed=1):
+def firmware(size=core.CODEC_TARGET + core.CODEC_LENGTH + 0x3000, lang_version=LANG_VERSION, seed=1, builtin=None):
+    """builtin=None: zwykły build (drugie miejsce = pusta tabela „User” w wersji 0);
+    builtin='Polski': build z wbudowanym polskim (fork M0SQQ)."""
     fw = bytearray(rnd(size, seed))
     # Pierwsza tabela (angielska) i miejsce na drugi język, jak w buildzie OpenGD77
     fw[ENGLISH_AT:ENGLISH_AT + 19] = b'GD77LANG' + lang_version.to_bytes(4, 'big') + b'English'
-    fw[SLOT_AT:SLOT_AT + 19] = b'GD77LANG' + lang_version.to_bytes(4, 'big') + b'English'
+    if builtin:
+        slot = b'GD77LANG' + lang_version.to_bytes(4, 'big') + builtin.encode() + b'\0'
+    else:
+        slot = b'GD77LANG' + bytes(4) + b'User\0'
+    fw[SLOT_AT:SLOT_AT + len(slot)] = slot
     # Losowe dane nie mogą przypadkiem zawierać znaczników
     for tag in (b'IGNRLANG',):
         assert fw.find(tag) < 0
