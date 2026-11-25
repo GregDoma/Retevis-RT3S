@@ -41,6 +41,7 @@
 #include "functions/rxPowerSaving.h"
 #include "functions/ticks.h"
 #include "interfaces/gps.h"
+#include "functions/dmrSms.h"
 #if defined(PLATFORM_MD9600) || defined(PLATFORM_MD380) || defined(PLATFORM_MDUV380) || defined(PLATFORM_RT84_DM1701) || defined(PLATFORM_MD2017)
 #include "hardware/radioHardwareInterface.h"
 #endif
@@ -1013,6 +1014,9 @@ static inline void hrc6000SysReceivedDataInt(void)
 
 	if (hrc6000CrcIsValid() && (rxSyncClass == SYNC_CLASS_DATA) && (rxDataType == 2))        //Terminator with LC
 	{
+#if defined(HAS_DMR_SMS)
+		dmrSmsIsrCallEnd(); // Fork: keep an incomplete SMS PDU for a merge with its repeat
+#endif
 		if ((currentRadioDevice->trxDMRModeRx == DMR_MODE_DMO) && hrc6000CallAcceptFilter())
 		{
 			slotState = DMR_STATE_RX_END;
@@ -1034,6 +1038,24 @@ static inline void hrc6000SysReceivedDataInt(void)
 			}
 		}
 	}
+
+#if defined(HAS_DMR_SMS)
+	// Fork: DMR SMS receive (ported from dondch/OpenGD77-AES256, cleartext only). The chip
+	// BPTC / trellis decodes and CRC checks each data sync burst and presents its info bytes at
+	// page 0x02 (as for the LC): 12 for a data header (6) or a rate 1/2 block (7), 18 for a
+	// rate 3/4 block (8). Reassembled in functions/dmrSmsPdu.c, decoded by dmrSmsTick() (main
+	// loop). Not our own transmission, not while relaying as a hotspot.
+	if ((hrc.transmissionEnabled == false) && (settingsUsbMode != USB_MODE_HOTSPOT) && (rxSyncClass == SYNC_CLASS_DATA) && hrc6000CrcIsValid() &&
+			((rxDataType == DMR_SMS_DT_DATA_HEADER) || (rxDataType == DMR_SMS_DT_RATE12_DATA) || (rxDataType == DMR_SMS_DT_RATE34_DATA)))
+	{
+		uint8_t dataBurst[18];
+
+		if (SPI0ReadPageRegByteArray(0x02, 0x00, dataBurst, ((rxDataType == DMR_SMS_DT_RATE34_DATA) ? 18 : LC_DATA_LENGTH)) == kStatus_Success)
+		{
+			dmrSmsIsrBurst(rxDataType, dataBurst);
+		}
+	}
+#endif
 
 	if (hrc6000CrcIsValid() && (slotState != DMR_STATE_IDLE) && (hrc.skipCount > 0) && (rxSyncClass != SYNC_CLASS_DATA) && ((rxDataType & 0x07) == 0x01))
 	{

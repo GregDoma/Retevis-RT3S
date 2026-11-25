@@ -58,6 +58,7 @@
 #include "functions/eventLog.h"
 #include "functions/netControl.h"
 #include "functions/sked.h"
+#include "functions/dmrSms.h"
 
 #if defined(USING_EXTERNAL_DEBUGGER)
 #include "SeggerRTT/RTT/SEGGER_RTT.h"
@@ -1442,6 +1443,9 @@ void applicationMainTask(void)
 #endif
 #if defined(HAS_EVENT_LOG)
 		eventLogTick(); // Fork: EMCOM event log (TX, FM RX, DMR calls)
+#endif
+#if defined(HAS_DMR_SMS)
+		dmrSmsTick(); // Fork: DMR SMS receive (PDU from the HR-C6000 interrupt -> inbox)
 #endif
 #if defined(HAS_NET_CONTROL)
 		netTick(); // Fork: EMCOM net control (check-ins, silence alarm)
