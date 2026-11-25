@@ -76,3 +76,52 @@ char currentLanguageGetSymbol(LanguageSymbol_t s)
 {
 	return currentLanguage->symbols[s];
 }
+
+// Fork: upper case conversion aware of the remapped font glyphs (HX8353E_charset.h),
+// so that titles converted to capitals keep the Polish (and other) diacritics,
+// e.g. 'ł' (\210) -> 'Ł' (\207). Characters without an upper case glyph are returned unchanged.
+char languageCharToUpper(char c)
+{
+	uint8_t u = (uint8_t)c;
+
+	if ((u >= 'a') && (u <= 'z'))
+	{
+		return (char)(u - ('a' - 'A'));
+	}
+
+#if ! defined(LANGUAGE_BUILD_JAPANESE)
+	switch (u)
+	{
+		case 0x80: return (char)0x7F; // č -> Č
+		case 0x82: return (char)0x81; // ć -> Ć
+		case 0x84: return (char)0x83; // ą -> Ą
+		case 0x86: return (char)0x85; // ę -> Ę
+		case 0x88: return (char)0x87; // ł -> Ł
+		case 0x8B: return (char)0x89; // ń -> Ń
+		case 0x8D: return (char)0x8C; // ś -> Ś
+		case 0x90: return (char)0x8F; // ź -> Ź
+		case 0x92: return (char)0x91; // ż -> Ż
+		case 0x96: return (char)0x95; // ş -> Ş
+		case 0x98: return (char)0x97; // ğ -> Ğ
+		case 0x9A: return (char)0x8A; // š -> Š
+		case 0x9B: return (char)0x99; // ř -> Ř
+		case 0x9D: return (char)0x9C; // ě -> Ě
+		case 0x9E: return (char)0x8E; // ž -> Ž
+		case 0xA1: return (char)0xA0; // ů -> Ů
+		case 0xA3: return (char)0xA2; // ő -> Ő
+		case 0xA5: return (char)0xA4; // ű -> Ű
+		case 0xA7: return (char)0xA6; // ň -> Ň
+		case 0xAA: return (char)0xA9; // ď -> Ď
+		default:
+			break;
+	}
+
+	// Latin-1 small letters (à..þ) -> capitals (À..Þ), except the free font positions (æ/Æ, ÷, þ/Þ)
+	if ((u >= 0xE0) && (u <= 0xFD) && (u != 0xE6) && (u != 0xF7))
+	{
+		return (char)(u - 0x20);
+	}
+#endif
+
+	return c;
+}

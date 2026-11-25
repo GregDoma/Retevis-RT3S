@@ -2151,7 +2151,7 @@ static uint32_t alertCard(uiAlertKind_t kind, const char *title, int16_t y, int1
 	for (; title[n] && (n < (sizeof(buf) - 1)); n++)
 	{
 		char ch = title[n];
-		buf[n] = (((ch >= 'a') && (ch <= 'z')) ? (char)(ch - ('a' - 'A')) : ch);
+		buf[n] = languageCharToUpper(ch);
 	}
 	buf[n] = 0;
 

@@ -147,7 +147,7 @@ static int16_t emChip(int16_t x, const char *text, themeItem_t colour)
 	for (; text[n] && (n < (sizeof(buf) - 1)); n++)
 	{
 		char c = text[n];
-		buf[n] = (((c >= 'a') && (c <= 'z')) ? (char)(c - ('a' - 'A')) : c);
+		buf[n] = languageCharToUpper(c);
 	}
 	buf[n] = 0;
 	w = (int16_t)((n * 6) + 4);

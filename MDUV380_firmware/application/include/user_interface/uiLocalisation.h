@@ -56,5 +56,6 @@ typedef enum
 
 uint8_t languagesGetCount(void);
 char currentLanguageGetSymbol(LanguageSymbol_t s);
+char languageCharToUpper(char c);
 
 #endif

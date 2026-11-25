@@ -802,7 +802,7 @@ void menuDisplayTitle(const char *title)
 		for (; title[n] && (n < SCREEN_LINE_BUFFER_SIZE); n++)
 		{
 			char c = title[n];
-			buf[n] = (((c >= 'a') && (c <= 'z')) ? (char)(c - ('a' - 'A')) : c);
+			buf[n] = languageCharToUpper(c);
 		}
 		buf[n] = 0;
 
