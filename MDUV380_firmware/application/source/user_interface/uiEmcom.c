@@ -45,6 +45,7 @@
 #endif
 #if defined(I2S_APRS_RX)
 #include "functions/aprsRx.h"
+#include "functions/dmrSms.h"
 #endif
 
 #if defined(HAS_EMCOM_UI)
@@ -665,11 +666,9 @@ static int volumeLevel(void)
 
 static bool volumeIndicatorVisible(void)
 {
-#if defined(HAS_SOFT_VOLUME)
-	return settingsIsOptionBitSet(BIT_VISUAL_VOLUME);
-#else
+	// The header always shows the volume. BIT_VISUAL_VOLUME is the upstream "volume pop-up on change"
+	// option (applicationMain.c updateVolumeGain), off by default, so it must not hide this indicator.
 	return true;
-#endif
 }
 
 static int visibleVolumeLevel(void)
@@ -1591,6 +1590,9 @@ static void drawEmcomRows(const emcomLayout_t *layout, const emcomPositionDispla
 
 #if defined(I2S_APRS_RX)
 	uint32_t unread = aprsRxMessageUnreadCount();
+#if defined(HAS_DMR_SMS)
+	uint32_t smsUnread = dmrSmsUnreadCount();
+#endif
 
 	if (aprsRxGetBackground())
 	{
@@ -1602,6 +1604,23 @@ static void drawEmcomRows(const emcomLayout_t *layout, const emcomPositionDispla
 		keyValue(2, y1, "APRS", "off", pal->mut);
 	}
 
+#if defined(HAS_DMR_SMS)
+	// unread DMR SMS in the same chip: "SMS 2" alone, "MSG 1+2" with APRS messages
+	if (smsUnread)
+	{
+		if (unread)
+		{
+			snprintf(buf, sizeof(buf), "MSG %u+%u", (unsigned)(unread > 9U ? 9U : unread), (unsigned)(smsUnread > 9U ? 9U : smsUnread));
+		}
+		else
+		{
+			snprintf(buf, sizeof(buf), "SMS %u", (unsigned)smsUnread);
+		}
+		fill(72, (y1 + EMCOM_CHIP_TOP_OFFSET), (int16_t)((strlen(buf) * 6) + 4), EMCOM_CHIP_HEIGHT, pal->info);
+		text(74, y1, buf, FONT_SIZE_1_BOLD, pal->bg, false);
+	}
+	else
+#endif
 	if (unread)
 	{
 		snprintf(buf, sizeof(buf), "MSG %u", (unsigned)unread);
@@ -1676,12 +1695,20 @@ static void drawFooter(emcomState_t st)
 		gmtime_r_Custom(&secs, &utc);
 		if ((nonVolatileSettings.timezone & 0x80) != 0)
 		{
+			// Options > Display > Clock: Local, or Local + Zulu
 			int32_t offset = (((nonVolatileSettings.timezone & 0x7F) - 64) * (15 * 60));
 			time_t_custom localSecs = (time_t_custom)((int64_t)secs + offset);
 
 			gmtime_r_Custom(&localSecs, &local);
-			snprintf(buf, sizeof(buf), "%02d:%02d/%02d:%02dZ %02d%s", local.tm_hour, local.tm_min,
-					utc.tm_hour, utc.tm_min, local.tm_mday, months[CLAMP(local.tm_mon, 0, 11)]);
+			if (settingsIsOptionBitSet(BIT_CLOCK_LOCAL_AND_ZULU))
+			{
+				snprintf(buf, sizeof(buf), "%02d:%02d/%02d:%02dZ %02d%s", local.tm_hour, local.tm_min,
+						utc.tm_hour, utc.tm_min, local.tm_mday, months[CLAMP(local.tm_mon, 0, 11)]);
+			}
+			else
+			{
+				snprintf(buf, sizeof(buf), "%02d:%02d %02d%s", local.tm_hour, local.tm_min, local.tm_mday, months[CLAMP(local.tm_mon, 0, 11)]);
+			}
 		}
 		else
 		{
@@ -1690,14 +1717,14 @@ static void drawFooter(emcomState_t st)
 	}
 	else
 	{
-		snprintf(buf, sizeof(buf), ((nonVolatileSettings.timezone & 0x80) != 0) ? "--:--/--:--Z" : "--:--Z");
+		snprintf(buf, sizeof(buf), (((nonVolatileSettings.timezone & 0x80) == 0) ? "--:--Z" : (settingsIsOptionBitSet(BIT_CLOCK_LOCAL_AND_ZULU) ? "--:--/--:--Z" : "--:--")));
 	}
 
 	if (st == ST_SCAN)
 	{
 		snprintf(buf, sizeof(buf), "ANY KEY: STOP");
 	}
-	text(2, (FOOTER_Y + 2), buf, FONT_SIZE_1, pal->barFg, false);
+	int16_t leftEnd = (int16_t)(2 + text(2, (FOOTER_Y + 2), buf, FONT_SIZE_1, pal->barFg, false)); // first free column after the clock
 
 	if (sosOn)
 	{
@@ -1756,11 +1783,18 @@ static void drawFooter(emcomState_t st)
 			r -= (text(r, (FOOTER_Y + 2), right, FONT_SIZE_1_BOLD, rightCol, true) + 4);
 		}
 	}
-	else if (batteryTimeLeftMinutes() != BATT_RT_UNKNOWN)
+
+	if (batteryTimeLeftMinutes() != BATT_RT_UNKNOWN)
 	{
-		// Fork: battery runtime estimate, when nothing more important is shown
+		// Fork: battery runtime estimate, next to the state indicator (RX, SCAN, locks...) whenever it fits
+		// between it and the clock (the BLK chip, when shown, keeps its place)
+		int16_t blkW = (blackoutActive() ? (int16_t)((3 * 6) + 4 + 2) : 0);
+
 		batteryTimeLeftString(buf, sizeof(buf));
-		r -= (text(r, (FOOTER_Y + 2), buf, FONT_SIZE_1, pal->barFg, true) + 4);
+		if ((r - blkW - (int16_t)(strlen(buf) * 6)) > (leftEnd + 3))
+		{
+			r -= (text(r, (FOOTER_Y + 2), buf, FONT_SIZE_1, pal->barFg, true) + 4);
+		}
 	}
 
 	if (blackoutActive())
@@ -1770,6 +1804,18 @@ static void drawFooter(emcomState_t st)
 	}
 }
 
+#if defined(I2S_APRS_RX)
+// What the MSG chip shows: APRS unread messages, DMR SMS unread in the high half
+static uint32_t emcomUnreadKey(void)
+{
+#if defined(HAS_DMR_SMS)
+	return (aprsRxMessageUnreadCount() | (dmrSmsUnreadCount() << 16));
+#else
+	return aprsRxMessageUnreadCount();
+#endif
+}
+#endif
+
 static void rememberDrawn(emcomState_t st, const emcomMainInfo_t *info, emcomPanel_t panel,
 		const emcomPositionDisplay_t *position, uint32_t renderedAt)
 {
@@ -1777,7 +1823,7 @@ static void rememberDrawn(emcomState_t st, const emcomMainInfo_t *info, emcomPan
 	drawn.volume = (int8_t)visibleVolumeLevel();
 	drawn.minute = (uiDataGlobal.dateTimeSecs / 60U);
 #if defined(I2S_APRS_RX)
-	drawn.unread = aprsRxMessageUnreadCount();
+	drawn.unread = emcomUnreadKey();
 	drawn.stations = aprsRxStationCount();
 #endif
 	drawn.gpsFix = gpsHasFix();
@@ -1948,7 +1994,7 @@ bool emcomNeedsFullRedraw(uint32_t now)
 	}
 
 #if defined(I2S_APRS_RX)
-	if ((aprsRxMessageUnreadCount() != drawn.unread) || (aprsRxStationCount() != drawn.stations))
+	if ((emcomUnreadKey() != drawn.unread) || (aprsRxStationCount() != drawn.stations))
 	{
 		return true;
 	}
@@ -2591,6 +2637,8 @@ static bool sosScreenAllowsTx(int menu)
 		case MENU_NET_CONTROL:
 		case MENU_WAYPOINTS:
 		case MENU_SKED:
+		case MENU_DECODERS:
+		case MENU_DMR_SMS:
 		case MENU_EVENT_LOG:
 #endif
 			return true;
