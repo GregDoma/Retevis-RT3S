@@ -245,9 +245,9 @@ static void displayBuildDetails(bool playVP)
 	displayPrintAt(8, 94, cpuTypeBuf , FONT_SIZE_2);
 	// Fork: RAM headroom, to size the FreeRTOS heap and task stacks: lowest free heap since boot,
 	// and the unused stack (bytes) of the main / HR-C6000 / beep tasks
-	sprintf(cpuTypeBuf, "Heap min :%u", (unsigned)xPortGetMinimumEverFreeHeapSize());
+	snprintf(cpuTypeBuf, sizeof(cpuTypeBuf), "Heap min:%u", (unsigned)xPortGetMinimumEverFreeHeapSize());
 	displayPrintAt(8, 104, cpuTypeBuf , FONT_SIZE_2);
-	sprintf(cpuTypeBuf, "Stk %u %u %u", (unsigned)(uxTaskGetStackHighWaterMark((TaskHandle_t)defaultTaskHandle) * 4U),
+	snprintf(cpuTypeBuf, sizeof(cpuTypeBuf), "S%u %u %u", (unsigned)(uxTaskGetStackHighWaterMark((TaskHandle_t)defaultTaskHandle) * 4U),
 			(unsigned)(uxTaskGetStackHighWaterMark(hrc6000Task.Handle) * 4U), (unsigned)(uxTaskGetStackHighWaterMark(beepTask.Handle) * 4U));
 	displayPrintAt(8, 112, cpuTypeBuf , FONT_SIZE_2);
 #endif
