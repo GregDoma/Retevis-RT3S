@@ -341,8 +341,13 @@ starts 64 KB later) and survives a power cycle.
 
 On the radio: newest first, type field in colour, the selected entry in
 full with its date in the footer; `0` then `GREEN` clears it (any other key
-cancels). On a computer:
+cancels). `#` pauses / resumes recording (the title shows `OFF`; the
+switch itself is logged as `log off` / `log on`, so the gap is visible). On a computer:
 `MDUV380_firmware/tools/opengd77_event_log.py --csv log.csv`.
+
+Flash wear: an entry is one page program; a 4 KB sector is erased once per
+2048 entries (once per pass of the ring). At the W25Q128's 100 000 erase
+cycles that is about 200 million entries.
 
 ### Field tools — *main menu → PACE / Position / Coverage / Radio check / Net control*
 
