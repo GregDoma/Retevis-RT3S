@@ -234,11 +234,10 @@ aligned:
 | EMCOM rows (TX) | time-out timer bar with the remaining time (the last 10 s hatched, the countdown in an inverse chip), TX tone / bandwidth or TG / CC / TS and contact, the keys usable while transmitting |
 | Footer | UTC time and date, `RX` / `TX` / `SCAN`, key / PTT lock, SOS, `TX OFF` when TX inhibit is on |
 
-The existing *Options → Display* header settings also apply to the EMCOM status
-bar: **Time in header** replaces the battery readout (unless a low-battery
-warning or forced battery display is active), and **Battery** selects percentage
-or voltage. **Visual volume** controls the EMCOM header volume indicator and the
-volume notification. The footer clock remains available in either case. When **UTC** is
+The EMCOM status bar always shows the battery (the clock is in the footer), so
+*Options → Display →* **Time in header** only applies to the classic screen.
+**Battery** selects percentage or voltage. **Visual volume** controls the
+volume notification. When **UTC** is
 set to **No**, the footer shows local time first and Zulu time second using
 the trailing `Z` marker on the Zulu time; with **UTC = Yes**, it shows Zulu
 time only.
@@ -646,7 +645,8 @@ APRS beacons and message replies.
 ### Volume indicator
 
 The header of the VFO / channel screens shows the volume knob position as
-4 bars left of the GPS label (`x` when muted). The pop-up bar shown while
+4 bars left of the GPS label (`x` when muted; on the EMCOM screen the unlit
+bars are drawn dim at full height). The pop-up bar shown while
 turning the knob is the upstream *Options → Display → Visual volume*
 option.
 
