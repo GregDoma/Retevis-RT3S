@@ -11,6 +11,7 @@ marked *(untested)* build and pass host tests but still need on-air checking.
 * **Fix: APRS messages from internet services** (issue #34): replies and acks from WXBOT, WTSAPP and other APRS-IS services come to RF through an IGate as third-party frames. They are now unwrapped, so the reply lands in the messages and the ack marks the sent message.
 * **Fix: APRS frame detail jumped to another frame** (issue #35) when new frames pushed it out of the 8-frame history. The detail view keeps its own copy now (`old` in the header).
 * **Fix: APRS RX kept listening after leaving its screen with a long RED** (issue #36), also the Decoders screen. Frames no longer arrive with background RX off.
+* **DMR SMS: `1` starts a new message**, the same key as on the APRS RX screen (issue #40). `#` still works.
 * **EMCOM status bar always shows the battery.** With *Options → Display → Time* on, the clock used to replace the battery readout, although the footer already shows the time; that option now only applies to the classic screen. Unlit volume bars are drawn dim at full height instead of as dots, so a low volume no longer looks like missing data.
 * **Squelch notification in exact 5 % steps** (issue #28, PR #30 by desertblade).
 
