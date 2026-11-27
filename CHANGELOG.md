@@ -22,6 +22,12 @@ Pełny opis w [CHANGELOG SP7TQ](https://github.com/sptq/opengd77-rt3s-experiment
   ramki (#35), wyłączenie nasłuchu po długim RED (#36), DMR SMS: `1` zaczyna nową wiadomość (#40), pasek EMCOM zawsze
   pokazuje baterię, powiadomienie squelch w krokach 5 % (PR #30 desertblade).
 
+### Autor modyfikacji na radiu (PR #6)
+
+- `Greg M0SQQ` w podziękowaniach (*Firmware info*, `DOWN`), `Mod: M0SQQ` na stronie szczegółów buildu,
+  `OpenGD77 <commit> M0SQQ` na pasku wersji ekranu startowego EMCOM (`FORK_MOD_AUTHOR` w `uiGlobals.h`).
+  Kredyty OpenGD77 i SP7TQ bez zmian. CI przyjmuje tagi `R<RRRRMMDD>-SP7TQ.<N>-M0SQQ.<M>`.
+
 ### Porządki w repo
 
 - Nowe `README.md` (po polsku): pochodzenie kodu i autorzy, budowanie trzech wariantów (RT3S, RT3S 10 W, DM-1701),

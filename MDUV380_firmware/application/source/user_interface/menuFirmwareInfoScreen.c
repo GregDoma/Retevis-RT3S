@@ -51,6 +51,7 @@ static const char *creditTexts[] =
 		"Dzmitry EW1ADG",
 #endif
 		"Marcin SP7TQ", // Fork: RT3S features (GPS pages, VFO sweep, APRS RX)
+		"Greg M0SQQ", // Fork: modifications of this build (GregDoma/Retevis-RT3S)
 		"Jason VK7ZJA (SK)"
 };
 static const int maxCredits = (sizeof(creditTexts) / sizeof(creditTexts[0]));
@@ -237,6 +238,11 @@ static void displayBuildDetails(bool playVP)
 	displayPrintAt(8, 84, cpuTypeBuf , FONT_SIZE_2);
 	sprintf(cpuTypeBuf, "CPU Flash:%dkb", cpuGetFlashSize());
 	displayPrintAt(8, 94, cpuTypeBuf , FONT_SIZE_2);
+#endif
+
+#if defined(FORK_MOD_AUTHOR)
+	// Fork: author of the modifications in this build (Greg M0SQQ)
+	displayPrintCentered(106, "Mod: " FORK_MOD_AUTHOR, FONT_SIZE_2);
 #endif
 
 	displayFillTriangle(63 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 1), 59 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 3), 67 + DISPLAY_H_OFFSET, (DISPLAY_SIZE_Y - 3), blink);
