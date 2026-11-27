@@ -92,15 +92,15 @@ static const char *rxStateText(const aprsRxStatus_t *rx, themeItem_t *colour)
 	if (trxGetMode() != RADIO_MODE_ANALOG)
 	{
 		*colour = THEME_ITEM_FG_RSSI_BAR_S9P;
-		return "FM ONLY";
+		return TR("FM ONLY");
 	}
 	if (rx->state == APRS_RX_STATE_NO_CLOCK)
 	{
 		*colour = THEME_ITEM_FG_TX_COUNTER;
-		return "NO CLK";
+		return TR("NO CLK");
 	}
 	*colour = THEME_ITEM_FG_RSSI_BAR_S9P;
-	return "PAUSE";
+	return TR("PAUSE");
 }
 
 // "145.800 ISS", "437.7963 ISS DOP": the frequency the screen listens on
@@ -218,23 +218,23 @@ static void drawIdle(const sstvRxStatus_t *st, const aprsRxStatus_t *rx)
 	if (trxGetMode() != RADIO_MODE_ANALOG)
 	{
 		displayThemeApply(THEME_ITEM_FG_RSSI_BAR_S9P, THEME_ITEM_BG);
-		displayPrintCentered(44, "FM only", FONT_SIZE_3);
+		displayPrintCentered(44, TR("FM only"), FONT_SIZE_3);
 		displayThemeApply(THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
-		displayPrintCentered(66, "Switch to an FM channel", FONT_SIZE_1);
-		displayPrintCentered(76, "or UP/DOWN: FM preset", FONT_SIZE_1);
+		displayPrintCentered(66, TR("Switch to an FM channel"), FONT_SIZE_1);
+		displayPrintCentered(76, TR("or UP/DOWN: FM preset"), FONT_SIZE_1);
 	}
 	else
 	{
 		displayThemeApply(THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
-		displayPrintCentered(36, "Waiting for", FONT_SIZE_3);
-		displayPrintCentered(54, "SSTV picture", FONT_SIZE_3);
+		displayPrintCentered(36, TR("Waiting for"), FONT_SIZE_3);
+		displayPrintCentered(54, TR("SSTV picture"), FONT_SIZE_3);
 		displayThemeApply(THEME_ITEM_FG_RX_FREQ, THEME_ITEM_BG);
 		freqText(line, sizeof(line));
 		displayPrintCentered(78, line, FONT_SIZE_1);
 		displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
 		displayPrintCentered(90, "ROBOT MARTIN SCOTTIE PD", FONT_SIZE_1);
 #if defined(HAS_SSTV_STORE)
-		snprintf(line, sizeof(line), "Saved %u/%u", (unsigned)sstvStoreCount(), (unsigned)SSTV_STORE_SLOTS);
+		snprintf(line, sizeof(line), TR("Saved %u/%u"), (unsigned)sstvStoreCount(), (unsigned)SSTV_STORE_SLOTS);
 		displayPrintCentered(102, line, FONT_SIZE_1);
 #endif
 	}
@@ -242,7 +242,7 @@ static void drawIdle(const sstvRxStatus_t *st, const aprsRxStatus_t *rx)
 	displayThemeApply(THEME_ITEM_BG_HEADER_TEXT, THEME_ITEM_BG);
 	displayFillRect(0, (DISPLAY_SIZE_Y - 11), DISPLAY_SIZE_X, 11, false);
 	displayThemeApply(THEME_ITEM_FG_HEADER_TEXT, THEME_ITEM_BG_HEADER_TEXT);
-	displayPrintCore(3, (DISPLAY_SIZE_Y - 9), (doppler ? "DOPPLER  0 CLEAR  RED EXIT" : "UP/DN QRG 0 CLEAR RED EXIT"), FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
+	displayPrintCore(3, (DISPLAY_SIZE_Y - 9), (doppler ? TR("DOPPLER  0 CLEAR  RED EXIT") : TR("UP/DN QRG 0 CLEAR RED EXIT")), FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
 	displayThemeResetToDefault();
 }
 
@@ -263,7 +263,7 @@ static void drawPictureBar(const sstvRxStatus_t *st, const aprsRxStatus_t *rx)
 
 	if ((st->state == SSTV_RX_DONE) && (rx->state == APRS_RX_STATE_LISTENING))
 	{
-		state = "DONE";
+		state = TR("DONE");
 		colour = THEME_ITEM_FG_RX_FREQ;
 	}
 
@@ -281,16 +281,16 @@ static void drawPictureBar(const sstvRxStatus_t *st, const aprsRxStatus_t *rx)
 #if defined(HAS_SSTV_STORE)
 	else if (sstvStoreBusy())
 	{
-		snprintf(line, sizeof(line), "SAVING");
+		snprintf(line, sizeof(line), TR("SAVING"));
 	}
 	else if (savedPicture)
 	{
-		snprintf(line, sizeof(line), "SAVED 0 NEW");
+		snprintf(line, sizeof(line), TR("SAVED 0 NEW"));
 	}
 #endif
 	else
 	{
-		snprintf(line, sizeof(line), "0 NEW");
+		snprintf(line, sizeof(line), TR("0 NEW"));
 	}
 	displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG_HEADER_TEXT);
 	displayPrintCore((DISPLAY_SIZE_X - 2 - (int16_t)(strlen(line) * 6)), ((SSTV_STATUS_H - FONT_SIZE_1_HEIGHT) / 2), line, FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
@@ -340,16 +340,16 @@ static void drawIdleEmcom(const sstvRxStatus_t *st, const aprsRxStatus_t *rx)
 	if (trxGetMode() != RADIO_MODE_ANALOG)
 	{
 		displayThemeApply(THEME_ITEM_FG_RSSI_BAR_S9P, THEME_ITEM_BG);
-		displayPrintCentered((y + 14), "FM only", FONT_SIZE_3);
+		displayPrintCentered((y + 14), TR("FM only"), FONT_SIZE_3);
 		displayThemeResetToDefault();
-		emcomUiText(4, (y + 38), "Switch to an FM channel", FONT_SIZE_1, THEME_ITEM_FG_DEFAULT, false);
-		emcomUiText(4, (y + 48), "or UP/DOWN: FM preset", FONT_SIZE_1, THEME_ITEM_FG_DEFAULT, false);
+		emcomUiText(4, (y + 38), TR("Switch to an FM channel"), FONT_SIZE_1, THEME_ITEM_FG_DEFAULT, false);
+		emcomUiText(4, (y + 48), TR("or UP/DOWN: FM preset"), FONT_SIZE_1, THEME_ITEM_FG_DEFAULT, false);
 	}
 	else
 	{
 		displayThemeApply(THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
-		displayPrintCentered((y + 6), "Waiting for", FONT_SIZE_3);
-		displayPrintCentered((y + 22), "SSTV picture", FONT_SIZE_3);
+		displayPrintCentered((y + 6), TR("Waiting for"), FONT_SIZE_3);
+		displayPrintCentered((y + 22), TR("SSTV picture"), FONT_SIZE_3);
 		emcomUiDivider(y + 42);
 		freqText(line, sizeof(line));
 		displayThemeApply(THEME_ITEM_FG_RX_FREQ, THEME_ITEM_BG);
@@ -366,7 +366,7 @@ static void drawIdleEmcom(const sstvRxStatus_t *st, const aprsRxStatus_t *rx)
 		displayThemeResetToDefault();
 	}
 
-	emcomUiKeyBar(doppler ? "DOPPLER  0 CLEAR  RED EXIT" : "UP/DN QRG 0 CLEAR RED EXIT");
+	emcomUiKeyBar(doppler ? TR("DOPPLER  0 CLEAR  RED EXIT") : TR("UP/DN QRG 0 CLEAR RED EXIT"));
 }
 
 // EMCOM style, picture shown: the one line bar above it only (state, mode, frequency or DOPPLER,
@@ -382,7 +382,7 @@ static void drawPictureBarEmcom(const sstvRxStatus_t *st, const aprsRxStatus_t *
 
 	if ((st->state == SSTV_RX_DONE) && (rx->state == APRS_RX_STATE_LISTENING))
 	{
-		state = "DONE";
+		state = TR("DONE");
 		colour = THEME_ITEM_FG_RX_FREQ;
 	}
 
@@ -405,18 +405,18 @@ static void drawPictureBarEmcom(const sstvRxStatus_t *st, const aprsRxStatus_t *
 #if defined(HAS_SSTV_STORE)
 	else if (sstvStoreBusy())
 	{
-		snprintf(right, sizeof(right), "SAVING");
+		snprintf(right, sizeof(right), TR("SAVING"));
 	}
 	else if (savedPicture)
 	{
-		snprintf(right, sizeof(right), "SAVED %u/%u", (unsigned)sstvStoreCount(), (unsigned)SSTV_STORE_SLOTS);
-		snprintf(middle, sizeof(middle), "0 NEW");
+		snprintf(right, sizeof(right), TR("SAVED %u/%u"), (unsigned)sstvStoreCount(), (unsigned)SSTV_STORE_SLOTS);
+		snprintf(middle, sizeof(middle), TR("0 NEW"));
 		middleColour = THEME_ITEM_FG_DECORATION;
 	}
 #endif
 	else
 	{
-		snprintf(right, sizeof(right), "0 NEW");
+		snprintf(right, sizeof(right), TR("0 NEW"));
 	}
 
 	displayThemeApply(THEME_ITEM_BG_HEADER_TEXT, THEME_ITEM_BG);

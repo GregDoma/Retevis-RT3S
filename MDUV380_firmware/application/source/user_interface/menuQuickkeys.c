@@ -85,6 +85,8 @@ static const uint16_t quickkeyChoices[] =
 	QUICKKEY_ACTIONVALUE(QUICKKEY_ACTION_MENU_NET_CONTROL),
 	QUICKKEY_ACTIONVALUE(QUICKKEY_ACTION_MENU_WAYPOINTS),
 	QUICKKEY_ACTIONVALUE(QUICKKEY_ACTION_MENU_SKED),
+	QUICKKEY_ACTIONVALUE(QUICKKEY_ACTION_MENU_DECODERS),
+	QUICKKEY_ACTIONVALUE(QUICKKEY_ACTION_MENU_DMR_SMS),
 	QUICKKEY_MENUVALUE_CHECKED(MENU_SSTV, 0, 0),
 #endif
 };
@@ -102,21 +104,21 @@ const char *quickkeyActionGetName(quickkeyAction_t action)
 	switch (action)
 	{
 		case QUICKKEY_ACTION_APRS_BEACON:
-			return "APRS beacon";
+			return TR("APRS beacon");
 		case QUICKKEY_ACTION_APRS_TOGGLE:
-			return "APRS on/off";
+			return TR("APRS on/off");
 		case QUICKKEY_ACTION_DAY_NIGHT:
-			return "Day/Night";
+			return TR("Day/Night");
 		case QUICKKEY_ACTION_BAND_SCOPE:
-			return "Band scope";
+			return TR("Band scope");
 		case QUICKKEY_ACTION_SWEEP_TUNE_PEAK:
-			return "Scope: to peak";
+			return TR("Scope: to peak");
 		case QUICKKEY_ACTION_APRS_RX_TOGGLE:
-			return "APRS RX on/off";
+			return TR("APRS RX on/off");
 		case QUICKKEY_ACTION_SOS:
-			return "SOS (press x2)";
+			return TR("SOS (press x2)");
 		case QUICKKEY_ACTION_BLACKOUT:
-			return "Blackout";
+			return TR("Blackout");
 #if defined(HAS_SSTV_MENU)
 		case QUICKKEY_ACTION_MENU_POSITION:
 			return currentLanguage->position;
@@ -125,11 +127,15 @@ const char *quickkeyActionGetName(quickkeyAction_t action)
 		case QUICKKEY_ACTION_MENU_RADIO_CHECK:
 			return currentLanguage->radio_check;
 		case QUICKKEY_ACTION_MENU_NET_CONTROL:
-			return "Net control";
+			return TR("Net control");
 		case QUICKKEY_ACTION_MENU_WAYPOINTS:
-			return "Waypoints";
+			return TR("Waypoints");
 		case QUICKKEY_ACTION_MENU_SKED:
 			return "Sked";
+		case QUICKKEY_ACTION_MENU_DECODERS:
+			return "Decoders";
+		case QUICKKEY_ACTION_MENU_DMR_SMS:
+			return "DMR SMS";
 #endif
 		default:
 			break;
@@ -150,6 +156,8 @@ static int quickkeyActionMenu(quickkeyAction_t action)
 		case QUICKKEY_ACTION_MENU_NET_CONTROL:  return MENU_NET_CONTROL;
 		case QUICKKEY_ACTION_MENU_WAYPOINTS:    return MENU_WAYPOINTS;
 		case QUICKKEY_ACTION_MENU_SKED:         return MENU_SKED;
+		case QUICKKEY_ACTION_MENU_DECODERS:     return MENU_DECODERS;
+		case QUICKKEY_ACTION_MENU_DMR_SMS:      return MENU_DMR_SMS;
 #endif
 		default:                                return -1;
 	}
@@ -254,6 +262,8 @@ bool quickkeyActionExecute(quickkeyAction_t action, bool isChannelMode)
 		case QUICKKEY_ACTION_MENU_NET_CONTROL:
 		case QUICKKEY_ACTION_MENU_WAYPOINTS:
 		case QUICKKEY_ACTION_MENU_SKED:
+		case QUICKKEY_ACTION_MENU_DECODERS:
+		case QUICKKEY_ACTION_MENU_DMR_SMS:
 			// called from the Channel / VFO screen only (applicationMain.c), as the menu quickkeys
 			menuSystemPushNewMenu(quickkeyActionMenu(action));
 			return true;

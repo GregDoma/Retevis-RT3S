@@ -137,6 +137,8 @@ typedef enum
 	BIT_SCAN_ON_BOOT_ENABLED        = (SETTINGS_BITS_BANK_0 | (1 << 7)),
 #if !defined(STM32F405xx)
 	BIT_POWEROFF_SUSPEND            = (SETTINGS_BITS_BANK_0 | (1 << 8)),
+#else
+	BIT_CLOCK_LOCAL_AND_ZULU        = (SETTINGS_BITS_BANK_0 | (1 << 8)), // Fork: with local time on, the EMCOM footer also shows Zulu (bit unused on STM32F405)
 #endif
 	BIT_SATELLITE_MANUAL_AUTO       = (SETTINGS_BITS_BANK_0 | (1 << 9)),
 	BIT_UI_EMCOM_CONTRAST           = (SETTINGS_BITS_BANK_0 | (1 << 10)), // Fork: EMCOM contrast style (was unused)
@@ -158,6 +160,8 @@ typedef enum
 #if defined(PLATFORM_MD2017)
 	BIT_TRACKBALL_ENABLED           = (SETTINGS_BITS_BANK_0 | (1 << 22)),
 	BIT_TRACKBALL_FAST_MOTION       = (SETTINGS_BITS_BANK_0 | (1 << 23)),
+#else
+	BIT_EVENT_LOG_OFF               = (SETTINGS_BITS_BANK_0 | (1 << 22)), // Fork: event log recording paused (bit unused without a trackball)
 #endif
 #if defined(PLATFORM_MDUV380) && !defined(PLATFORM_VARIANT_UV380_PLUS_10W)
 	BIT_FORCE_10W_RADIO             = (SETTINGS_BITS_BANK_0 | (1 << 24)),

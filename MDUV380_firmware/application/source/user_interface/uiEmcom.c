@@ -45,6 +45,7 @@
 #endif
 #if defined(I2S_APRS_RX)
 #include "functions/aprsRx.h"
+#include "functions/dmrSms.h"
 #endif
 
 #if defined(HAS_EMCOM_UI)
@@ -395,9 +396,9 @@ void emcomStyleSet(emcomStyle_t style)
 
 const char *emcomStyleName(emcomStyle_t style)
 {
-	static const char *const names[EMCOM_STYLE_COUNT] = { "Classic", "EMCOM", "EMCOM mono", "EMCOM contr" };
+	static const char *const names[EMCOM_STYLE_COUNT] = { TRN("Classic"), "EMCOM", "EMCOM mono", TRN("EMCOM contr") };
 
-	return names[((style < EMCOM_STYLE_COUNT) ? style : EMCOM_STYLE_EMCOM)];
+	return TR(names[((style < EMCOM_STYLE_COUNT) ? style : EMCOM_STYLE_EMCOM)]);
 }
 
 bool emcomStyleEnabled(void)
@@ -665,11 +666,9 @@ static int volumeLevel(void)
 
 static bool volumeIndicatorVisible(void)
 {
-#if defined(HAS_SOFT_VOLUME)
-	return settingsIsOptionBitSet(BIT_VISUAL_VOLUME);
-#else
+	// The header always shows the volume. BIT_VISUAL_VOLUME is the upstream "volume pop-up on change"
+	// option (applicationMain.c updateVolumeGain), off by default, so it must not hide this indicator.
 	return true;
-#endif
 }
 
 static int visibleVolumeLevel(void)
@@ -703,8 +702,9 @@ void emcomRenderStatusBar(bool forceBatteryDisplay)
 	bool isTx = (st == ST_TX);
 	bool digital = (trxGetMode() == RADIO_MODE_DIGITAL);
 	bool batteryIsLow = batteryIsLowWarning();
-	bool displayTime = (settingsIsOptionBitSet(BIT_DISPLAY_TIME_IN_HEADER) && (forceBatteryDisplay == false) && (batteryIsLow == false));
 	uint32_t barCol, fg;
+
+	UNUSED_PARAMETER(forceBatteryDisplay); // the battery is always shown here
 	int16_t x;
 
 	selectPalette();
@@ -721,7 +721,7 @@ void emcomRenderStatusBar(bool forceBatteryDisplay)
 		bool phase = (((ticksGetMillis() / 600U) & 1U) == 0U);
 
 		fill(0, 0, DISPLAY_SIZE_X, STATUS_H, (phase ? pal->tx : pal->bar));
-		text(((DISPLAY_SIZE_X - (13 * 6)) / 2), 2, "EMERGENCY SOS", FONT_SIZE_1_BOLD, (phase ? pal->txFg : pal->tx), false);
+		text(((DISPLAY_SIZE_X - (13 * 6)) / 2), 2, TR("EMERGENCY SOS"), FONT_SIZE_1_BOLD, (phase ? pal->txFg : pal->tx), false);
 		displayThemeResetToDefault();
 		return;
 	}
@@ -729,7 +729,7 @@ void emcomRenderStatusBar(bool forceBatteryDisplay)
 	// State chip: the mode when idle or receiving, else the state. RX is
 	// repeated in the footer with the TX and SCAN indicators.
 	const char *mode = (digital ? "DMR" : (trxGetBandwidthIs25kHz() ? "FM" : "FMN"));
-	const char *chip = ((st == ST_TX) ? "TX" : ((st == ST_SCAN) ? "SCAN" : mode));
+	const char *chip = ((st == ST_TX) ? "TX" : ((st == ST_SCAN) ? TR("SCAN") : mode));
 	uint32_t chipCol;
 	uint32_t chipTextCol;
 	bool colourStateChip = colourStateHeader;
@@ -792,22 +792,13 @@ void emcomRenderStatusBar(bool forceBatteryDisplay)
 		textRaw(x, 2, "a", (beaconing ? FONT_SIZE_1_BOLD : FONT_SIZE_1), (isTx ? fg : (beaconing ? (colourStateRxHeader ? fg : pal->rx) : pal->mut)), false);
 	}
 
-	// Right side: time or battery, volume, GPS. The Display menu controls whether
-	// time replaces the battery readout and whether that readout is percent or voltage.
+	// Right side: battery, volume, GPS. The battery is always shown: the clock is in the footer,
+	// so Options > Display > Time (time instead of the battery) only applies to the classic screen.
+	// The Display menu still selects percent or voltage.
 	int16_t r = (DISPLAY_SIZE_X - 2);
 	bool low = batteryIsLow;
 	uint32_t battCol = (low ? pal->tx : fg);
 
-	if (displayTime)
-	{
-		struct tm t;
-		time_t_custom secs = uiDataGlobal.dateTimeSecs;
-
-		gmtime_r_Custom(&secs, &t);
-		snprintf(buf, sizeof(buf), "%02d%c%02d", t.tm_hour, (((t.tm_sec % 2) == 0) ? ':' : ' '), t.tm_min);
-		r -= text(r, 2, buf, FONT_SIZE_1, fg, true) + 4;
-	}
-	else
 	{
 		int pct = getBatteryPercentage();
 
@@ -853,12 +844,15 @@ void emcomRenderStatusBar(bool forceBatteryDisplay)
 		}
 		else
 		{
+			// unlit bars keep their height in a dim colour: a row of dots read as "no data"
+			uint32_t unlit = (pal->cues ? pal->line : pal->mut);
+
 			for (int b = 0; b < 4; b++)
 			{
 				int16_t h = (int16_t)(2 * (b + 1));
 				int16_t bx = (int16_t)((r - 8) + (b * 2));
 
-				fill(bx, (b < vol) ? (9 - h) : 8, 1, ((b < vol) ? h : 1), fg);
+				fill(bx, (9 - h), 1, h, ((b < vol) ? fg : unlit));
 			}
 		}
 		r -= 12;
@@ -990,8 +984,8 @@ static void drawHero(const emcomMainInfo_t *info, emcomState_t st)
 	{
 		snprintf(buf, sizeof(buf), "%d", info->gotoChannel);
 		int16_t w = text(1, HERO_Y, buf, FONT_SIZE_4, pal->scan, false);
-		text((w + 6), NAME_Y, "GO TO CH", FONT_SIZE_3, pal->scan, false);
-		text((w + 6), FREQ_Y, "GRN OK  RED CANCEL", FONT_SIZE_1, pal->mut, false);
+		text((w + 6), NAME_Y, TR("GO TO CH"), FONT_SIZE_3, pal->scan, false);
+		text((w + 6), FREQ_Y, TR("GRN OK  RED CANCEL"), FONT_SIZE_1, pal->mut, false);
 		return;
 	}
 
@@ -1066,7 +1060,7 @@ static void drawZoneRow(const emcomMainInfo_t *info)
 
 	if (info->isVFO)
 	{
-		snprintf(buf, sizeof(buf), "VFO %c%s", info->vfoLetter, (info->freqEntry ? (info->entryTx ? "  ENTER TX" : "  ENTER RX") : (info->entryTx ? "  TX" : "")));
+		snprintf(buf, sizeof(buf), "VFO %c%s", info->vfoLetter, (info->freqEntry ? (info->entryTx ? TR("  ENTER TX") : TR("  ENTER RX")) : (info->entryTx ? "  TX" : "")));
 		text(2, ZONE_Y, buf, FONT_SIZE_1, ((info->freqEntry || info->entryTx) ? pal->scan : pal->mut), false);
 
 		int32_t offset = ((int32_t)currentChannelData->txFreq - (int32_t)currentChannelData->rxFreq) / 100; // kHz
@@ -1161,7 +1155,7 @@ static void drawParams(void)
 
 	if (currentChannelData->tot == 0)
 	{
-		snprintf(buf, sizeof(buf), "off");
+		snprintf(buf, sizeof(buf), TR("off"));
 	}
 	else
 	{
@@ -1314,7 +1308,7 @@ static void drawDistanceLine(const emcomPositionDisplay_t *position)
 		return;
 	}
 
-	keyValue(2, EMCOM_PANEL_Y3, "DIST", position->repeaterDistance,
+	keyValue(2, EMCOM_PANEL_Y3, TR("DIST"), position->repeaterDistance,
 			(strcmp(position->repeaterDistance, "--") == 0) ? pal->mut : pal->fg);
 }
 
@@ -1335,7 +1329,7 @@ static void drawRxPanel(bool showDistanceRow, const emcomPositionDisplay_t *posi
 	}
 	else
 	{
-		text(2, EMCOM_PANEL_Y2, "CARRIER", FONT_SIZE_1, pal->mut, false);
+		text(2, EMCOM_PANEL_Y2, TR("CARRIER"), FONT_SIZE_1, pal->mut, false);
 	}
 
 	if (showDistanceRow)
@@ -1367,7 +1361,7 @@ static void drawCallerPanel(const emcomLayout_t *layout)
 
 	if ((LinkHead->talkGroupOrPcId >> 24) == PC_CALL_FLAG)
 	{
-		text((DISPLAY_SIZE_X - 2), EMCOM_PANEL_Y1, "PRIVATE", FONT_SIZE_1_BOLD, pal->scan, true);
+		text((DISPLAY_SIZE_X - 2), EMCOM_PANEL_Y1, TR("PRIVATE"), FONT_SIZE_1_BOLD, pal->scan, true);
 	}
 	else
 	{
@@ -1474,7 +1468,7 @@ static void drawTxPanel(const emcomMainInfo_t *info, int elapsed)
 	mmss(elapsed, buf, sizeof(buf));
 	text(1, TX_TIMER_Y, buf, ((elapsed >= 3600) ? FONT_SIZE_3 : FONT_SIZE_4), pal->tx, false);
 
-	text((DISPLAY_SIZE_X - 2), (EMCOM_PANEL_Y1 - 1), "PWR", FONT_SIZE_1, pal->mut, true);
+	text((DISPLAY_SIZE_X - 2), (EMCOM_PANEL_Y1 - 1), TR("PWR"), FONT_SIZE_1, pal->mut, true);
 	snprintf(buf, sizeof(buf), "%s%s", getPowerLevel(powerLevel), getPowerLevelUnit(powerLevel));
 	text((DISPLAY_SIZE_X - 2), (EMCOM_PANEL_Y1 + 6), buf, FONT_SIZE_3, pal->fg, true);
 }
@@ -1493,7 +1487,7 @@ static void drawTxRows(const emcomLayout_t *layout, int remaining)
 	text(2, layout->rowY1, "TOT", FONT_SIZE_1, pal->mut, false);
 	if (remaining < 0)
 	{
-		text(barX, layout->rowY1, "off", FONT_SIZE_1, pal->mut, false);
+		text(barX, layout->rowY1, TR("off"), FONT_SIZE_1, pal->mut, false);
 	}
 	else
 	{
@@ -1591,26 +1585,46 @@ static void drawEmcomRows(const emcomLayout_t *layout, const emcomPositionDispla
 
 #if defined(I2S_APRS_RX)
 	uint32_t unread = aprsRxMessageUnreadCount();
+#if defined(HAS_DMR_SMS)
+	uint32_t smsUnread = dmrSmsUnreadCount();
+#endif
 
 	if (aprsRxGetBackground())
 	{
-		snprintf(buf, sizeof(buf), "%u stn", (unsigned)aprsRxStationCount());
+		snprintf(buf, sizeof(buf), TR("%u stn"), (unsigned)aprsRxStationCount());
 		keyValue(2, y1, "APRS", buf, pal->fg);
 	}
 	else
 	{
-		keyValue(2, y1, "APRS", "off", pal->mut);
+		keyValue(2, y1, "APRS", TR("off"), pal->mut);
 	}
 
+#if defined(HAS_DMR_SMS)
+	// unread DMR SMS in the same chip: "SMS 2" alone, "MSG 1+2" with APRS messages
+	if (smsUnread)
+	{
+		if (unread)
+		{
+			snprintf(buf, sizeof(buf), "MSG %u+%u", (unsigned)(unread > 9U ? 9U : unread), (unsigned)(smsUnread > 9U ? 9U : smsUnread));
+		}
+		else
+		{
+			snprintf(buf, sizeof(buf), "SMS %u", (unsigned)smsUnread);
+		}
+		fill(72, (y1 + EMCOM_CHIP_TOP_OFFSET), (int16_t)((strlen(buf) * 6) + 4), EMCOM_CHIP_HEIGHT, pal->info);
+		text(74, y1, buf, FONT_SIZE_1_BOLD, pal->bg, false);
+	}
+	else
+#endif
 	if (unread)
 	{
-		snprintf(buf, sizeof(buf), "MSG %u", (unsigned)unread);
+		snprintf(buf, sizeof(buf), TR("MSG %u"), (unsigned)unread);
 		fill(72, (y1 + EMCOM_CHIP_TOP_OFFSET), (int16_t)((strlen(buf) * 6) + 4), EMCOM_CHIP_HEIGHT, pal->info);
 		text(74, y1, buf, FONT_SIZE_1_BOLD, pal->bg, false);
 	}
 	else
 	{
-		keyValue(72, y1, "MSG", "0", pal->mut);
+		keyValue(72, y1, TR("MSG"), "0", pal->mut);
 	}
 #endif
 
@@ -1618,11 +1632,11 @@ static void drawEmcomRows(const emcomLayout_t *layout, const emcomPositionDispla
 	{
 		text((DISPLAY_SIZE_X - 2), y1, position->maidenhead, FONT_SIZE_1,
 				((position->source == EMCOM_POSITION_GPS) ? pal->rx : pal->fg), true);
-		keyValue(2, y2, "POS", position->positionText, pal->fg);
+		keyValue(2, y2, TR("POS"), position->positionText, pal->fg);
 	}
 	else
 	{
-		keyValue(2, y2, "POS", "no fix / location", pal->mut);
+		keyValue(2, y2, TR("POS"), TR("no fix / location"), pal->mut);
 	}
 
 	// Last heard: DMR station, else the last APRS station
@@ -1671,33 +1685,41 @@ static void drawFooter(emcomState_t st)
 		struct tm utc;
 		struct tm local;
 		time_t_custom secs = uiDataGlobal.dateTimeSecs;
-		static const char *months[] = { "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC" };
+		static const char *months[] = { TRN("JAN"), TRN("FEB"), TRN("MAR"), TRN("APR"), TRN("MAY"), TRN("JUN"), TRN("JUL"), TRN("AUG"), TRN("SEP"), TRN("OCT"), TRN("NOV"), TRN("DEC") };
 
 		gmtime_r_Custom(&secs, &utc);
 		if ((nonVolatileSettings.timezone & 0x80) != 0)
 		{
+			// Options > Display > Clock: Local, or Local + Zulu
 			int32_t offset = (((nonVolatileSettings.timezone & 0x7F) - 64) * (15 * 60));
 			time_t_custom localSecs = (time_t_custom)((int64_t)secs + offset);
 
 			gmtime_r_Custom(&localSecs, &local);
-			snprintf(buf, sizeof(buf), "%02d:%02d/%02d:%02dZ %02d%s", local.tm_hour, local.tm_min,
-					utc.tm_hour, utc.tm_min, local.tm_mday, months[CLAMP(local.tm_mon, 0, 11)]);
+			if (settingsIsOptionBitSet(BIT_CLOCK_LOCAL_AND_ZULU))
+			{
+				snprintf(buf, sizeof(buf), "%02d:%02d/%02d:%02dZ %02d%s", local.tm_hour, local.tm_min,
+						utc.tm_hour, utc.tm_min, local.tm_mday, TR(months[CLAMP(local.tm_mon, 0, 11)]));
+			}
+			else
+			{
+				snprintf(buf, sizeof(buf), "%02d:%02d %02d%s", local.tm_hour, local.tm_min, local.tm_mday, TR(months[CLAMP(local.tm_mon, 0, 11)]));
+			}
 		}
 		else
 		{
-			snprintf(buf, sizeof(buf), "%02d:%02dZ %02d%s", utc.tm_hour, utc.tm_min, utc.tm_mday, months[CLAMP(utc.tm_mon, 0, 11)]);
+			snprintf(buf, sizeof(buf), "%02d:%02dZ %02d%s", utc.tm_hour, utc.tm_min, utc.tm_mday, TR(months[CLAMP(utc.tm_mon, 0, 11)]));
 		}
 	}
 	else
 	{
-		snprintf(buf, sizeof(buf), ((nonVolatileSettings.timezone & 0x80) != 0) ? "--:--/--:--Z" : "--:--Z");
+		snprintf(buf, sizeof(buf), (((nonVolatileSettings.timezone & 0x80) == 0) ? "--:--Z" : (settingsIsOptionBitSet(BIT_CLOCK_LOCAL_AND_ZULU) ? "--:--/--:--Z" : "--:--")));
 	}
 
 	if (st == ST_SCAN)
 	{
-		snprintf(buf, sizeof(buf), "ANY KEY: STOP");
+		snprintf(buf, sizeof(buf), TR("ANY KEY: STOP"));
 	}
-	text(2, (FOOTER_Y + 2), buf, FONT_SIZE_1, pal->barFg, false);
+	int16_t leftEnd = (int16_t)(2 + text(2, (FOOTER_Y + 2), buf, FONT_SIZE_1, pal->barFg, false)); // first free column after the clock
 
 	if (sosOn)
 	{
@@ -1707,23 +1729,23 @@ static void drawFooter(emcomState_t st)
 	}
 	else if (st == ST_SCAN)
 	{
-		right = "SCAN";
+		right = TR("SCAN");
 		rightCol = pal->scan;
 	}
 	else if (settingsIsOptionBitSet(BIT_TX_INHIBIT))
 	{
-		right = "TX OFF";
+		right = TR("TX OFF");
 		rightCol = pal->tx;
 		alert = true;
 	}
 	else if (keypadLocked && PTTLocked)
 	{
-		right = "LOCK";
+		right = TR("LOCK");
 		rightCol = pal->scan;
 	}
 	else if (keypadLocked)
 	{
-		right = "KEYL";
+		right = TR("KEYL");
 		rightCol = pal->scan;
 	}
 	else if (PTTLocked)
@@ -1756,11 +1778,18 @@ static void drawFooter(emcomState_t st)
 			r -= (text(r, (FOOTER_Y + 2), right, FONT_SIZE_1_BOLD, rightCol, true) + 4);
 		}
 	}
-	else if (batteryTimeLeftMinutes() != BATT_RT_UNKNOWN)
+
+	if (batteryTimeLeftMinutes() != BATT_RT_UNKNOWN)
 	{
-		// Fork: battery runtime estimate, when nothing more important is shown
+		// Fork: battery runtime estimate, next to the state indicator (RX, SCAN, locks...) whenever it fits
+		// between it and the clock (the BLK chip, when shown, keeps its place)
+		int16_t blkW = (blackoutActive() ? (int16_t)((3 * 6) + 4 + 2) : 0);
+
 		batteryTimeLeftString(buf, sizeof(buf));
-		r -= (text(r, (FOOTER_Y + 2), buf, FONT_SIZE_1, pal->barFg, true) + 4);
+		if ((r - blkW - (int16_t)(strlen(buf) * 6)) > (leftEnd + 3))
+		{
+			r -= (text(r, (FOOTER_Y + 2), buf, FONT_SIZE_1, pal->barFg, true) + 4);
+		}
 	}
 
 	if (blackoutActive())
@@ -1770,6 +1799,18 @@ static void drawFooter(emcomState_t st)
 	}
 }
 
+#if defined(I2S_APRS_RX)
+// What the MSG chip shows: APRS unread messages, DMR SMS unread in the high half
+static uint32_t emcomUnreadKey(void)
+{
+#if defined(HAS_DMR_SMS)
+	return (aprsRxMessageUnreadCount() | (dmrSmsUnreadCount() << 16));
+#else
+	return aprsRxMessageUnreadCount();
+#endif
+}
+#endif
+
 static void rememberDrawn(emcomState_t st, const emcomMainInfo_t *info, emcomPanel_t panel,
 		const emcomPositionDisplay_t *position, uint32_t renderedAt)
 {
@@ -1777,7 +1818,7 @@ static void rememberDrawn(emcomState_t st, const emcomMainInfo_t *info, emcomPan
 	drawn.volume = (int8_t)visibleVolumeLevel();
 	drawn.minute = (uiDataGlobal.dateTimeSecs / 60U);
 #if defined(I2S_APRS_RX)
-	drawn.unread = aprsRxMessageUnreadCount();
+	drawn.unread = emcomUnreadKey();
 	drawn.stations = aprsRxStationCount();
 #endif
 	drawn.gpsFix = gpsHasFix();
@@ -1948,7 +1989,7 @@ bool emcomNeedsFullRedraw(uint32_t now)
 	}
 
 #if defined(I2S_APRS_RX)
-	if ((aprsRxMessageUnreadCount() != drawn.unread) || (aprsRxStationCount() != drawn.stations))
+	if ((emcomUnreadKey() != drawn.unread) || (aprsRxStationCount() != drawn.stations))
 	{
 		return true;
 	}
@@ -2137,7 +2178,7 @@ static int16_t alertBand(int16_t h)
 // Card frame + title strip (kind colour, title in capitals in the background colour); returns the colour
 static uint32_t alertCard(uiAlertKind_t kind, const char *title, int16_t y, int16_t h)
 {
-	static const char *const words[] = { "INFO", "INFO", "WARNING", "ERROR", "CONFIRM" };
+	static const char *const words[] = { TRN("INFO"), TRN("INFO"), TRN("WARNING"), TRN("ERROR"), TRN("CONFIRM") };
 	uint32_t c = alertColour(kind);
 	char buf[26];
 	size_t n = 0;
@@ -2146,12 +2187,12 @@ static uint32_t alertCard(uiAlertKind_t kind, const char *title, int16_t y, int1
 
 	if (title == NULL)
 	{
-		title = words[((kind <= UI_ALERT_QUESTION) ? kind : UI_ALERT_INFO)];
+		title = TR(words[((kind <= UI_ALERT_QUESTION) ? kind : UI_ALERT_INFO)]);
 	}
 	for (; title[n] && (n < (sizeof(buf) - 1)); n++)
 	{
 		char ch = title[n];
-		buf[n] = (((ch >= 'a') && (ch <= 'z')) ? (char)(ch - ('a' - 'A')) : ch);
+		buf[n] = languageCharToUpper(ch);
 	}
 	buf[n] = 0;
 
@@ -2465,7 +2506,8 @@ void emcomUiConfirmBar(const char *question)
 	emcomUiKeyBar("");
 	x = (int16_t)(2 + emcomUiChip(2, (EMCOM_UI_KEYBAR_Y + 2), question, THEME_ITEM_FG_TX_COUNTER, EMCOM_CHIP_SOLID, false) + 5);
 	displayThemeApply(THEME_ITEM_FG_HEADER_TEXT, THEME_ITEM_BG_HEADER_TEXT);
-	displayPrintCore(x, (EMCOM_UI_KEYBAR_Y + 2), (((x + (15 * 6)) <= DISPLAY_SIZE_X) ? "GRN YES  ANY NO" : "GRN YES ANY NO"),
+	const char *keysLong = TR("GRN YES  ANY NO"); // fork (M0SQQ): width of the translated text
+	displayPrintCore(x, (EMCOM_UI_KEYBAR_Y + 2), (((x + (int16_t)(strlen(keysLong) * 6)) <= DISPLAY_SIZE_X) ? keysLong : TR("GRN YES ANY NO")),
 			(emcomUiLarge() ? FONT_SIZE_1_BOLD : FONT_SIZE_1), TEXT_ALIGN_LEFT, false);
 	displayThemeResetToDefault();
 }
@@ -2490,7 +2532,7 @@ void emcomSosRequest(void)
 	}
 
 	pendingSince = now;
-	uiNotificationShowKind(UI_ALERT_QUESTION, NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 3000U, (sosOn ? "Again: SOS OFF" : "Again: SOS ON"), false);
+	uiNotificationShowKind(UI_ALERT_QUESTION, NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 3000U, (sosOn ? TR("Again: SOS OFF") : TR("Again: SOS ON")), false);
 	soundSetMelody(MELODY_KEY_BEEP);
 }
 
@@ -2502,7 +2544,7 @@ void emcomSosToggle(void)
 	sosPauseShown = false;
 	drawn.valid = false;
 
-	uiNotificationShowKind((sosOn ? UI_ALERT_WARNING : UI_ALERT_INFO), NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 2000U, (sosOn ? "SOS: ON" : "SOS: OFF"), false);
+	uiNotificationShowKind((sosOn ? UI_ALERT_WARNING : UI_ALERT_INFO), NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 2000U, (sosOn ? TR("SOS: ON") : TR("SOS: OFF")), false);
 #if defined(HAS_EVENT_LOG)
 	eventLogAdd(EVENT_LOG_SOS, "%s", (sosOn ? "SOS ON" : "SOS OFF"));
 #endif
@@ -2556,7 +2598,7 @@ static void sosSend(void)
 		case APRS_INFO_TX_NO_CONFIG:
 		case APRS_INFO_TX_NOT_ALLOWED:
 			uiNotificationShowKind(UI_ALERT_ERROR, NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 2500U,
-					((res == APRS_INFO_TX_NO_CONFIG) ? "SOS: no APRS config" : "SOS: TX not allowed"), true);
+					((res == APRS_INFO_TX_NO_CONFIG) ? TR("SOS: no APRS config") : TR("SOS: TX not allowed")), true);
 			sosNextMs = (ticksGetMillis() + SOS_INTERVAL_MS);
 			break;
 		case APRS_INFO_TX_CHANNEL_BUSY:
@@ -2591,6 +2633,8 @@ static bool sosScreenAllowsTx(int menu)
 		case MENU_NET_CONTROL:
 		case MENU_WAYPOINTS:
 		case MENU_SKED:
+		case MENU_DECODERS:
+		case MENU_DMR_SMS:
 		case MENU_EVENT_LOG:
 #endif
 			return true;
@@ -2624,7 +2668,7 @@ void emcomSosTick(void)
 				(menu != UI_SPLASH_SCREEN) && (menu != MENU_CALIBRATION) && (menu != UI_TX_SCREEN))
 		{
 			sosPauseShown = true;
-			uiNotificationShowKind(UI_ALERT_WARNING, NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 2000U, "SOS PAUSED", false);
+			uiNotificationShowKind(UI_ALERT_WARNING, NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 2000U, TR("SOS PAUSED"), false);
 		}
 		return;
 	}

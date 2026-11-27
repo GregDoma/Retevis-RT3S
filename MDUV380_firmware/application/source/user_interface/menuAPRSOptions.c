@@ -243,7 +243,7 @@ static void textModeDraw(void)
 	displayThemeApply(THEME_ITEM_BG_HEADER_TEXT, THEME_ITEM_BG);
 	displayFillRect(0, fy, DISPLAY_SIZE_X, REPLY_FOOTER_H, false);
 	displayThemeApply(THEME_ITEM_FG_HEADER_TEXT, THEME_ITEM_BG_HEADER_TEXT);
-	displayPrintCore(3, (fy + 1), "GRN EDIT 0 DFLT RED BACK", FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
+	displayPrintCore(3, (fy + 1), TR("GRN EDIT 0 DFLT RED BACK"), FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
 
 	displayThemeResetToDefault();
 	displayRender();

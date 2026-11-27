@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=RT3S flasher
+Comment=Wgrywanie firmware OpenGD77 do Retevis RT3S (M0SQQ)
+Exec=rt3s-flasher gui
+Icon=drive-removable-media
+Terminal=false
+Categories=HamRadio;Utility;

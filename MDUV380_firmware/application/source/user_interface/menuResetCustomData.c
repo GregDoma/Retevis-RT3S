@@ -57,11 +57,10 @@ static void updateScreen(void)
 
 	// Layout mirrors the simple two-line confirmation pattern used by other
 	// destructive screens: a "what it does" reminder above the "how to confirm"
-	// hint. Literal English — not worth a per-language string for a recovery
-	// action a typical user invokes at most once.
-	displayPrintCentered(20, "Wipe themes,",         FONT_SIZE_3);
-	displayPrintCentered(36, "boot img, beep, TLE",  FONT_SIZE_1);
-	displayPrintCentered(54, "SK2 + GREEN to OK",    FONT_SIZE_3);
+	// hint. Fork (M0SQQ): translated with TR(), see tools/translations/pl.tsv.
+	displayPrintCentered(20, TR("Wipe themes,"),         FONT_SIZE_3);
+	displayPrintCentered(36, TR("boot img, beep, TLE"),  FONT_SIZE_1);
+	displayPrintCentered(54, TR("SK2 + GREEN to OK"),    FONT_SIZE_3);
 
 	displayRender();
 }
@@ -97,7 +96,7 @@ static void handleEvent(uiEvent_t *ev)
 				bool ok = codeplugResetOpenGD77CustomDataArea();
 
 				uiNotificationShow(NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 2500,
-						(ok ? "Storage reset" : "Reset failed"), false);
+						(ok ? TR("Storage reset") : TR("Reset failed")), false);
 
 				menuSystemPopPreviousMenu();
 				return;

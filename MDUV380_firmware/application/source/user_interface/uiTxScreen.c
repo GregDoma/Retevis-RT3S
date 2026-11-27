@@ -716,7 +716,7 @@ void menuTxScreenHandleTxTermination(uiEvent_t *ev, txTerminationReason_t reason
 #if defined(HAS_EMCOM_UI)
 				else
 				{
-					emcomDrawAlert(UI_ALERT_ERROR, "TX blocked", currentLanguage->rx_only, NULL, true);
+					emcomDrawAlert(UI_ALERT_ERROR, TR("TX blocked"), currentLanguage->rx_only, NULL, true);
 				}
 #endif
 #endif
@@ -732,7 +732,7 @@ void menuTxScreenHandleTxTermination(uiEvent_t *ev, txTerminationReason_t reason
 #if defined(HAS_EMCOM_UI)
 				else
 				{
-					emcomDrawAlert(UI_ALERT_ERROR, "TX blocked", currentLanguage->out_of_band, NULL, true);
+					emcomDrawAlert(UI_ALERT_ERROR, TR("TX blocked"), currentLanguage->out_of_band, NULL, true);
 				}
 #endif
 #endif
@@ -751,7 +751,7 @@ void menuTxScreenHandleTxTermination(uiEvent_t *ev, txTerminationReason_t reason
 #if defined(HAS_EMCOM_UI)
 			else
 			{
-				emcomDrawAlert(UI_ALERT_WARNING, "TX stopped", currentLanguage->timeout, NULL, true);
+				emcomDrawAlert(UI_ALERT_WARNING, TR("TX stopped"), currentLanguage->timeout, NULL, true);
 			}
 #endif
 #endif

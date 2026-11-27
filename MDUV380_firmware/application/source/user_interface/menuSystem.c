@@ -104,6 +104,8 @@ menuDataGlobal_t menuDataGlobal =
 				NULL,// Net control
 				NULL,// Waypoints
 				NULL,// Sked
+				NULL,// Decoders
+				NULL,// DMR SMS
 #endif
 				// *** Add new menus to be accessed using quickkey (ID: 0..31) above this line ***
 				NULL,// MessageBox
@@ -176,6 +178,8 @@ static menuFunctionData_t menuFunctions[] =
 		{ menuNetControl,           NULL, NULL, 0 },
 		{ menuWaypoints,            NULL, NULL, 0 },
 		{ menuSked,                 NULL, NULL, 0 },
+		{ menuDecoders,             NULL, NULL, 0 },
+		{ menuDmrSms,               NULL, NULL, 0 },
 #endif
 		// *** Add new menus to be accessed using quickkey (ID: 0..31) above this line ***
 		{ uiMessageBox,             NULL, NULL, 0 },
@@ -689,6 +693,8 @@ const menuItemNewData_t mainMenuItems[] =
 	{ 288, MENU_RADIO_CHECK     },// stringOffset 288 = .radio_check field (fork)
 	{ MENU_STRING_NET_CONTROL, MENU_NET_CONTROL },// fork: fixed English name, see menuItemName()
 	{ 283, MENU_APRS_RX         },// stringOffset 283 = .aprs_rx field (fork)
+	{ MENU_STRING_DECODERS, MENU_DECODERS },// fork: fixed English name, see menuItemName()
+	{ MENU_STRING_DMR_SMS, MENU_DMR_SMS },// fork: fixed English name, see menuItemName()
 #endif
 #if defined(HAS_GPS)
 	{ 195, MENU_GPS		        },
@@ -755,7 +761,11 @@ const char *menuItemName(const menuItemNewData_t *item)
 	switch (item->stringOffset)
 	{
 		case MENU_STRING_NET_CONTROL:
-			return "Net control";
+			return TR("Net control");
+		case MENU_STRING_DECODERS:
+			return TR("Decoders");
+		case MENU_STRING_DMR_SMS:
+			return "DMR SMS";
 		default:
 			return NULL;
 	}
@@ -802,7 +812,7 @@ void menuDisplayTitle(const char *title)
 		for (; title[n] && (n < SCREEN_LINE_BUFFER_SIZE); n++)
 		{
 			char c = title[n];
-			buf[n] = (((c >= 'a') && (c <= 'z')) ? (char)(c - ('a' - 'A')) : c);
+			buf[n] = languageCharToUpper(c);
 		}
 		buf[n] = 0;
 

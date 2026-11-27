@@ -148,6 +148,23 @@ bool aprsRxGetOwnCall(char *buf, uint32_t size);         // false: no APRS confi
 uint32_t aprsRxToneText(bool cw, char *out, uint32_t size, uint32_t *serial);
 void aprsRxToneTextClear(void);
 
+// STQC selcalls (receive only): newest first. addrLen / cmdLen 0: that part was not received
+#define APRS_RX_STQC_CALLS  5U
+typedef struct
+{
+	uint32_t ms;       // ticksGetMillis() when received
+	uint16_t addr;
+	uint16_t cmd;
+	uint8_t  addrLen;
+	uint8_t  cmdLen;
+} aprsRxStqcCall_t;
+uint32_t aprsRxStqcCount(void);
+const aprsRxStqcCall_t *aprsRxStqcGet(uint32_t index);
+uint32_t aprsRxStqcSerial(void);   // changes when a call is added or the list cleared
+void aprsRxStqcClear(void);
+// "A1231 C4567", "A1231", "C4567"
+void aprsRxStqcFormat(const aprsRxStqcCall_t *call, char *buf, uint32_t size);
+
 // SSTV: while on, the RX audio goes to the SSTV decoder only (it borrows the APRS decoder memory)
 void aprsRxSetSstv(bool on, sstvRxPixelCallback_t pixelCallback);
 bool aprsRxGetSstv(void);
@@ -158,6 +175,9 @@ bool aprsRxParse(const aprsRxFrame_t *frame, aprsRxParsed_t *parsed);
 uint32_t aprsRxFormatTnc2(const aprsRxFrame_t *frame, char *out, uint32_t outSize);
 bool aprsRxParsePosition(const aprsRxParsed_t *parsed, aprsRxPosition_t *pos);
 bool aprsRxParseMessage(const aprsRxParsed_t *parsed, aprsRxMessage_t *msg);
+// Third-party frame ("}SRC>DST,PATH:info", sent by IGates): src / dst / info become the inner ones.
+// false: a third-party frame with a broken header. Other frames are left as they are (true).
+bool aprsRxUnwrapThirdParty(aprsRxParsed_t *parsed);
 double aprsRxDistanceKm(double lat1, double lon1, double lat2, double lon2);
 double aprsRxBearingDeg(double lat1, double lon1, double lat2, double lon2);
 void aprsRxFormatDistance(double km, char *buf, uint32_t size); // "850m", "12.3km", "123km"

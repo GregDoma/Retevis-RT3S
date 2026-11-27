@@ -40,8 +40,7 @@ DEFS := \
 # SEGGER RTT debug output (SWD debugger); release builds leave it out (no RTT RAM)
 # DEFS += -DUSING_EXTERNAL_DEBUGGER
 
-# Optional language pack (uncomment one to bake a default language)
-# DEFS += -DLANGUAGE_BUILD_JAPANESE
+# Fork (M0SQQ): languages are English + Polish only, both built into the firmware
 
 # GITVERSION matches what STM32CubeIDE injects in .cproject
 GITVERSION := $(shell git -C $(CURDIR) rev-parse --short HEAD 2>/dev/null || echo UNKNOWN)
@@ -81,8 +80,6 @@ LDFLAGS  := $(MCU_FLAGS) -T$(LDSCRIPT) --specs=nosys.specs --specs=nano.specs \
 SRC_ROOTS := SeggerRTT application Core Middlewares Drivers USB_DEVICE
 
 C_SRCS := $(shell find $(SRC_ROOTS) -name '*.c')
-# Exclusion from .cproject
-C_SRCS := $(filter-out application/include/user_interface/languages/src/languages_builder.c,$(C_SRCS))
 
 S_SRCS := $(shell find $(SRC_ROOTS) -name '*.s' -o -name '*.S')
 

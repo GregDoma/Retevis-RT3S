@@ -109,13 +109,13 @@ static const char *keysText(void)
 {
 	if (netIsRunning() == false)
 	{
-		return "GRN START  RED EXIT";
+		return TR("GRN START  RED EXIT");
 	}
 	if (netGetRoster()->count == 0U)
 	{
-		return "* FM  # QUIET  0 END";
+		return TR("* FM  # QUIET  0 END");
 	}
-	return (selectedIsFm() ? "GRN HEARD * FM # Q 0 END" : "GRN QSO  * FM  # Q  0 END");
+	return (selectedIsFm() ? TR("GRN HEARD * FM # Q 0 END") : TR("GRN QSO  * FM  # Q  0 END"));
 }
 
 #if defined(HAS_EMCOM_UI)
@@ -126,7 +126,7 @@ static const char *keysText(void)
 
 static void statusChip(int16_t y, bool quiet, bool sel)
 {
-	const char *word = (quiet ? "QUIET" : "IN");
+	const char *word = (quiet ? TR("QUIET") : "IN");
 	int16_t w = (int16_t)((strlen(word) * 6) + 4);
 	int16_t x = (int16_t)(CHIP_RIGHT - w);
 	themeItem_t c = (sel ? THEME_ITEM_BG : (quiet ? THEME_ITEM_FG_RSSI_BAR_S9P : THEME_ITEM_FG_RSSI_BAR));
@@ -165,11 +165,11 @@ static void updateScreenEmcom(void)
 	{
 		snprintf(buf, sizeof(buf), "%u", (unsigned)(running ? r->count : 0U));
 	}
-	emcomUiTitle("NET CONTROL", (running ? buf : NULL));
+	emcomUiTitle(TR("NET CONTROL"), (running ? buf : NULL));
 
 	// status strip: state, running time, quiet limit, channel
 	emcomUiStrip();
-	int16_t x = (int16_t)(2 + emcomUiChip(2, (EMCOM_UI_STRIP_Y + 2), (running ? "RUN" : "OFF"),
+	int16_t x = (int16_t)(2 + emcomUiChip(2, (EMCOM_UI_STRIP_Y + 2), (running ? TR("RUN") : TR("OFF")),
 			(running ? THEME_ITEM_FG_RSSI_BAR : THEME_ITEM_FG_DECORATION), (running ? EMCOM_CHIP_SOLID : EMCOM_CHIP_OUTLINE), false) + 4);
 	if (running)
 	{
@@ -192,25 +192,25 @@ static void updateScreenEmcom(void)
 	if (running == false)
 	{
 		displayThemeApply(THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
-		displayPrintCentered((y + 10), "NO NET", FONT_SIZE_3);
+		displayPrintCentered((y + 10), TR("NO NET"), FONT_SIZE_3);
 		displayThemeResetToDefault();
-		emcomUiText(4, (y + 34), "GREEN starts a net.", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, false);
-		emcomUiText(4, (y + 44), "DMR / APRS stations", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, false);
-		emcomUiText(4, (y + 54), "heard check in.", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, false);
+		emcomUiText(4, (y + 34), TR("GREEN starts a net."), FONT_SIZE_1, THEME_ITEM_FG_DECORATION, false);
+		emcomUiText(4, (y + 44), TR("DMR / APRS stations"), FONT_SIZE_1, THEME_ITEM_FG_DECORATION, false);
+		emcomUiText(4, (y + 54), TR("heard check in."), FONT_SIZE_1, THEME_ITEM_FG_DECORATION, false);
 		if (r->count > 0U)
 		{
-			snprintf(buf, sizeof(buf), "Last net: %u stations", (unsigned)r->count);
+			snprintf(buf, sizeof(buf), TR("Last net: %u stations"), (unsigned)r->count);
 			emcomUiText(4, (y + 70), buf, FONT_SIZE_1, THEME_ITEM_FG_DEFAULT, false);
 		}
 	}
 	else if (r->count == 0U)
 	{
 		displayThemeApply(THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
-		displayPrintCentered((y + 10), "LISTENING", FONT_SIZE_3);
+		displayPrintCentered((y + 10), TR("LISTENING"), FONT_SIZE_3);
 		displayThemeResetToDefault();
-		emcomUiText(4, (y + 34), "Stations heard on DMR", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, false);
-		emcomUiText(4, (y + 44), "or APRS check in.", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, false);
-		emcomUiText(4, (y + 58), "* adds an FM station.", FONT_SIZE_1, THEME_ITEM_FG_DECORATION, false);
+		emcomUiText(4, (y + 34), TR("Stations heard on DMR"), FONT_SIZE_1, THEME_ITEM_FG_DECORATION, false);
+		emcomUiText(4, (y + 44), TR("or APRS check in."), FONT_SIZE_1, THEME_ITEM_FG_DECORATION, false);
+		emcomUiText(4, (y + 58), TR("* adds an FM station."), FONT_SIZE_1, THEME_ITEM_FG_DECORATION, false);
 	}
 	else
 	{
@@ -251,7 +251,7 @@ static void updateScreenEmcom(void)
 
 	if (ui.confirmEnd)
 	{
-		emcomUiConfirmBar("END NET?");
+		emcomUiConfirmBar(TR("END NET?"));
 	}
 	else
 	{
@@ -288,12 +288,12 @@ static void updateScreen(void)
 #endif
 
 	displayClearBuf();
-	menuDisplayTitle("NET CONTROL");
+	menuDisplayTitle(TR("NET CONTROL"));
 
 	// state in the title bar
 	displayThemeApply((running ? THEME_ITEM_FG_RSSI_BAR : THEME_ITEM_FG_DECORATION), THEME_ITEM_BG_MENU_NAME);
 	displayFillRect((DISPLAY_SIZE_X - 22), 2, 20, 10, false);
-	displayPrintCore((DISPLAY_SIZE_X - 21), 3, (running ? "RUN" : "OFF"), FONT_SIZE_1_BOLD, TEXT_ALIGN_LEFT, true);
+	displayPrintCore((DISPLAY_SIZE_X - 21), 3, (running ? TR("RUN") : TR("OFF")), FONT_SIZE_1_BOLD, TEXT_ALIGN_LEFT, true);
 
 	// running time, quiet limit, channel
 	netChannelName(name, sizeof(name));
@@ -318,22 +318,22 @@ static void updateScreen(void)
 
 	if (running == false)
 	{
-		text(4, (y + 20), "No net running.", FONT_SIZE_1, THEME_ITEM_FG_DEFAULT);
-		text(4, (y + 32), "GREEN starts a net:", FONT_SIZE_1, THEME_ITEM_FG_DECORATION);
-		text(4, (y + 42), "DMR / APRS stations", FONT_SIZE_1, THEME_ITEM_FG_DECORATION);
-		text(4, (y + 52), "heard check in.", FONT_SIZE_1, THEME_ITEM_FG_DECORATION);
+		text(4, (y + 20), TR("No net running."), FONT_SIZE_1, THEME_ITEM_FG_DEFAULT);
+		text(4, (y + 32), TR("GREEN starts a net:"), FONT_SIZE_1, THEME_ITEM_FG_DECORATION);
+		text(4, (y + 42), TR("DMR / APRS stations"), FONT_SIZE_1, THEME_ITEM_FG_DECORATION);
+		text(4, (y + 52), TR("heard check in."), FONT_SIZE_1, THEME_ITEM_FG_DECORATION);
 		if (r->count > 0U)
 		{
-			snprintf(buf, sizeof(buf), "Last net: %u stations", (unsigned)r->count);
+			snprintf(buf, sizeof(buf), TR("Last net: %u stations"), (unsigned)r->count);
 			text(4, (y + 68), buf, FONT_SIZE_1, THEME_ITEM_FG_DEFAULT);
 		}
 	}
 	else if (r->count == 0U)
 	{
-		text(4, (y + 20), "Listening...", FONT_SIZE_1, THEME_ITEM_FG_DEFAULT);
-		text(4, (y + 32), "Stations heard on DMR", FONT_SIZE_1, THEME_ITEM_FG_DECORATION);
-		text(4, (y + 42), "or APRS check in.", FONT_SIZE_1, THEME_ITEM_FG_DECORATION);
-		text(4, (y + 56), "* adds an FM station.", FONT_SIZE_1, THEME_ITEM_FG_DECORATION);
+		text(4, (y + 20), TR("Listening..."), FONT_SIZE_1, THEME_ITEM_FG_DEFAULT);
+		text(4, (y + 32), TR("Stations heard on DMR"), FONT_SIZE_1, THEME_ITEM_FG_DECORATION);
+		text(4, (y + 42), TR("or APRS check in."), FONT_SIZE_1, THEME_ITEM_FG_DECORATION);
+		text(4, (y + 56), TR("* adds an FM station."), FONT_SIZE_1, THEME_ITEM_FG_DECORATION);
 	}
 	else
 	{
@@ -366,7 +366,7 @@ static void updateScreen(void)
 			netAgeText(age, sizeof(age), (uint16_t)((nowS >= e->lastS) ? (nowS - e->lastS) : 0U));
 			snprintf(buf, sizeof(buf), "%-9s %s %3s", call, t, age);
 			text(2, ry, buf, FONT_SIZE_1, THEME_ITEM_FG_MENU_ITEM);
-			text((DISPLAY_SIZE_X - 3 - (quiet ? 30 : 12)), ry, (quiet ? "QUIET" : "IN"), FONT_SIZE_1_BOLD,
+			text((DISPLAY_SIZE_X - 3 - (quiet ? 30 : 12)), ry, (quiet ? TR("QUIET") : "IN"), FONT_SIZE_1_BOLD,
 					(quiet ? THEME_ITEM_FG_TX_COUNTER : THEME_ITEM_FG_RSSI_BAR));
 		}
 	}
@@ -378,9 +378,9 @@ static void updateScreen(void)
 	if (ui.confirmEnd)
 	{
 		displayThemeApply(THEME_ITEM_FG_TX_COUNTER, THEME_ITEM_BG_HEADER_TEXT);
-		displayPrintCore(3, (fy + 2), "END NET?", FONT_SIZE_1_BOLD, TEXT_ALIGN_LEFT, false);
+		displayPrintCore(3, (fy + 2), TR("END NET?"), FONT_SIZE_1_BOLD, TEXT_ALIGN_LEFT, false);
 		displayThemeApply(THEME_ITEM_FG_HEADER_TEXT, THEME_ITEM_BG_HEADER_TEXT);
-		displayPrintCore(69, (fy + 2), "GREEN = yes", FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
+		displayPrintCore(69, (fy + 2), TR("GREEN = yes"), FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
 	}
 	else
 	{
@@ -489,7 +489,7 @@ static void handleKeys(uiEvent_t *ev)
 		else
 		{
 			soundSetMelody(MELODY_NACK_BEEP);
-			uiNotificationShowKind(UI_ALERT_WARNING, NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 1500U, "Roster full", true);
+			uiNotificationShowKind(UI_ALERT_WARNING, NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 1500U, TR("Roster full"), true);
 		}
 	}
 	else if (KEYCHECK_SHORTUP(ev->keys, KEY_HASH))

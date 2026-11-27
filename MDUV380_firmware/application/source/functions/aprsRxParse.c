@@ -12,6 +12,12 @@
 #include <stdio.h>
 #include <math.h>
 #include "functions/aprsRx.h"
+#if defined(STM32F405xx) // Fork (M0SQQ): firmware build, Polish texts (TR); the host tests keep the English texts
+#include "user_interface/uiLocalisation.h"
+#else
+#define TR(s) (s)
+#define TRN(s) (s)
+#endif
 
 #define DEG2RAD(x)   ((x) * (M_PI / 180.0))
 #define RAD2DEG(x)   ((x) * (180.0 / M_PI))
@@ -113,6 +119,57 @@ bool aprsRxParse(const aprsRxFrame_t *frame, aprsRxParsed_t *parsed)
 	return true;
 }
 
+// Third-party traffic (APRS 1.0.1 chapter 17): info = "}SRC>DST,PATH:inner info".
+// IGates send internet traffic to RF this way, e.g. the replies and acks of WXBOT / WTSAPP.
+bool aprsRxUnwrapThirdParty(aprsRxParsed_t *parsed)
+{
+	for (uint32_t level = 0U; (level < 3U) && (parsed->infoLen > 0U) && (parsed->info[0] == '}'); level++)
+	{
+		const char *h = (const char *)&parsed->info[1];
+		uint32_t len = (parsed->infoLen - 1U);
+		uint32_t gt = 0U;
+		uint32_t colon = 0U;
+
+		while ((gt < len) && (h[gt] != '>') && (h[gt] != ':'))
+		{
+			gt++;
+		}
+		while ((colon < len) && (h[colon] != ':'))
+		{
+			colon++;
+		}
+		if ((gt == 0U) || (gt >= APRS_RX_CALL_LEN) || (gt >= len) || (h[gt] != '>') || (colon >= len))
+		{
+			return false;
+		}
+
+		uint32_t dstLen = 0U;
+		while (((gt + 1U + dstLen) < colon) && (h[gt + 1U + dstLen] != ','))
+		{
+			dstLen++;
+		}
+		if ((dstLen == 0U) || (dstLen >= APRS_RX_CALL_LEN))
+		{
+			return false;
+		}
+
+		memcpy(parsed->src, h, gt);
+		parsed->src[gt] = 0;
+		memcpy(parsed->dst, &h[gt + 1U], dstLen);
+		parsed->dst[dstLen] = 0;
+		for (uint32_t i = 0U; i < 6U; i++)
+		{
+			parsed->dstRaw[i] = ((i < dstLen) ? h[gt + 1U + i] : ' ');
+		}
+		parsed->dstRaw[6] = 0;
+
+		parsed->info = (const uint8_t *)&h[colon + 1U];
+		parsed->infoLen = (uint16_t)(len - colon - 1U);
+	}
+
+	return ((parsed->infoLen == 0U) || (parsed->info[0] != '}'));
+}
+
 uint32_t aprsRxFormatTnc2(const aprsRxFrame_t *frame, char *out, uint32_t outSize)
 {
 	aprsRxParsed_t p;
@@ -125,7 +182,7 @@ uint32_t aprsRxFormatTnc2(const aprsRxFrame_t *frame, char *out, uint32_t outSiz
 
 	if (aprsRxParse(frame, &p) == false)
 	{
-		n = (uint32_t)snprintf(out, outSize, "(bad AX.25 header)");
+		n = (uint32_t)snprintf(out, outSize, TR("(bad AX.25 header)"));
 		return ((n < outSize) ? n : (outSize - 1U));
 	}
 

@@ -1,0 +1,5 @@
+# Retevis RT3S / TYT MD-UV380 / RT-84 w trybie aktualizacji (bootloader STM32 DFU, „Digital Radio in USB mode”).
+# Dostęp dla użytkownika zalogowanego lokalnie (uaccess, systemd-logind).
+# Instalacja: sudo ./install.sh --udev   (albo ręcznie: kopia do /etc/udev/rules.d/ i udevadm control --reload-rules)
+# Uwaga: 0483:df11 to ogólny identyfikator DFU STMicroelectronics, reguła obejmuje każde takie urządzenie.
+SUBSYSTEM=="usb", ATTR{idVendor}=="0483", ATTR{idProduct}=="df11", MODE="0660", TAG+="uaccess"

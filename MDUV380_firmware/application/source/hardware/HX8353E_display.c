@@ -30,11 +30,7 @@
 #include <hardware/HX8353E.h>
 #include <stdlib.h>
 //vk3kyy #include "io/display.h"
-#if defined(LANGUAGE_BUILD_JAPANESE)
-#include "hardware/HX8353E_charset_JA.h"
-#else
 #include <hardware/HX8353E_charset.h>
-#endif
 #include "functions/settings.h"
 #include "user_interface/uiLocalisation.h"
 #include "user_interface/menuSystem.h"
