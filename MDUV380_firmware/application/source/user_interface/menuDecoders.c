@@ -93,8 +93,8 @@ static void decHint(const char *line1, const char *line2)
 {
 	if (trxGetMode() != RADIO_MODE_ANALOG)
 	{
-		line1 = "FM only";
-		line2 = "Switch to an FM channel";
+		line1 = TR("FM only");
+		line2 = TR("Switch to an FM channel");
 	}
 
 	displayThemeApply(((trxGetMode() != RADIO_MODE_ANALOG) ? THEME_ITEM_FG_RSSI_BAR_S9P : THEME_ITEM_FG_DEFAULT), THEME_ITEM_BG);
@@ -123,18 +123,18 @@ static void decDrawToneText(bool cw)
 		}
 		else
 		{
-			snprintf(line, sizeof(line), "# VIEW  0 CLR  RED EXIT");
+			snprintf(line, sizeof(line), TR("# VIEW  0 CLR  RED EXIT"));
 		}
-		decFooter(line, (cwRxIsKeyed() ? "KEY" : NULL), THEME_ITEM_FG_RSSI_BAR);
+		decFooter(line, (cwRxIsKeyed() ? TR("KEY") : NULL), THEME_ITEM_FG_RSSI_BAR);
 	}
 	else
 	{
-		decFooter("# VIEW  0 CLR  RED EXIT", NULL, THEME_ITEM_FG_DEFAULT);
+		decFooter(TR("# VIEW  0 CLR  RED EXIT"), NULL, THEME_ITEM_FG_DEFAULT);
 	}
 
 	if (len == 0)
 	{
-		decHint((cw ? "Waiting for CW" : "Waiting for DTMF"), "FM RX audio");
+		decHint((cw ? TR("Waiting for CW") : TR("Waiting for DTMF")), TR("FM RX audio"));
 		return;
 	}
 
@@ -175,10 +175,10 @@ static void decDrawStqc(void)
 	uint32_t count = aprsRxStqcCount();
 	uint32_t now = ticksGetMillis();
 
-	decFooter("# VIEW  0 CLR  RED EXIT", NULL, THEME_ITEM_FG_DEFAULT);
+	decFooter(TR("# VIEW  0 CLR  RED EXIT"), NULL, THEME_ITEM_FG_DEFAULT);
 	if (count == 0)
 	{
-		decHint("Waiting for STQC", "selcall, receive only");
+		decHint(TR("Waiting for STQC"), TR("selcall, receive only"));
 		return;
 	}
 
@@ -214,7 +214,7 @@ static void decDrawStqc(void)
 
 static void decDraw(void)
 {
-	static const char *titles[] = { "DTMF decoder", "CW decoder", "STQC selcall" };
+	static const char *titles[] = { TRN("DTMF decoder"), TRN("CW decoder"), TRN("STQC selcall") };
 	char line[DEC_CHARS + 1];
 	aprsRxStatus_t st;
 	int16_t sy = DEC_STATUS_Y;
@@ -223,7 +223,7 @@ static void decDraw(void)
 	aprsRxGetStatus(&st);
 
 	displayClearBuf();
-	menuDisplayTitle(titles[decView]);
+	menuDisplayTitle(TR(titles[decView]));
 
 	// Status strip: state chip, audio level, dBm
 	displayThemeApply(THEME_ITEM_BG_HEADER_TEXT, THEME_ITEM_BG);
@@ -239,7 +239,7 @@ static void decDraw(void)
 	}
 	else
 	{
-		decChip(x, sy, ((trxGetMode() != RADIO_MODE_ANALOG) ? "FM ONLY" : "PAUSE"), THEME_ITEM_FG_RSSI_BAR_S9P);
+		decChip(x, sy, ((trxGetMode() != RADIO_MODE_ANALOG) ? TR("FM ONLY") : TR("PAUSE")), THEME_ITEM_FG_RSSI_BAR_S9P);
 	}
 
 	snprintf(line, sizeof(line), "%ddBm", trxGetRSSIdBm(RADIO_DEVICE_PRIMARY));

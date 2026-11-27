@@ -27,6 +27,7 @@
 #include "user_interface/menuSystem.h"
 #if defined(HAS_GPS)
 #include "interfaces/gps.h"
+#include "user_interface/uiLocalisation.h" // Fork (M0SQQ): TR()
 #endif
 
 #if defined(I2S_APRS_RX)
@@ -430,7 +431,7 @@ void aprsRxToggleBackground(void)
 {
 	aprsRxSetBackground(!backgroundOn);
 	settingsSetOptionBit(BIT_APRS_RX_BACKGROUND, backgroundOn);
-	uiNotificationShow(NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 1500U, (backgroundOn ? "APRS RX: on" : "APRS RX: off"), false);
+	uiNotificationShow(NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 1500U, (backgroundOn ? TR("APRS RX: on") : TR("APRS RX: off")), false);
 }
 
 uint32_t aprsRxGetGeneration(void)
@@ -736,7 +737,7 @@ static void showTxError(aprsInfoTxResult_t res)
 	{
 		txErrorShown = true;
 		uiNotificationShowKind(UI_ALERT_ERROR, NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 2500U,
-				((res == APRS_INFO_TX_NO_CONFIG) ? "APRS: no ch. config" : "APRS: TX not allowed"), true);
+				((res == APRS_INFO_TX_NO_CONFIG) ? TR("APRS: no ch. config") : TR("APRS: TX not allowed")), true);
 		soundSetMelody(MELODY_ERROR_BEEP);
 	}
 }
@@ -899,7 +900,7 @@ static void messagesTxTick(uint32_t now)
 	if (m->tries >= MSG_MAX_TRIES)
 	{
 		m->kind = APRS_MSG_OUT_FAILED;
-		uiNotificationShowKind(UI_ALERT_WARNING, NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, NOTIFICATION_MS, "APRS msg: no ACK", false);
+		uiNotificationShowKind(UI_ALERT_WARNING, NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, NOTIFICATION_MS, TR("APRS msg: no ACK"), false);
 		soundSetMelody(MELODY_NACK_BEEP);
 		return;
 	}

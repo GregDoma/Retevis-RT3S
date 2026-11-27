@@ -12,6 +12,12 @@
 #include <stdio.h>
 #include <math.h>
 #include "functions/aprsRx.h"
+#if defined(STM32F405xx) // Fork (M0SQQ): firmware build, Polish texts (TR); the host tests keep the English texts
+#include "user_interface/uiLocalisation.h"
+#else
+#define TR(s) (s)
+#define TRN(s) (s)
+#endif
 
 #define DEG2RAD(x)   ((x) * (M_PI / 180.0))
 #define RAD2DEG(x)   ((x) * (180.0 / M_PI))
@@ -176,7 +182,7 @@ uint32_t aprsRxFormatTnc2(const aprsRxFrame_t *frame, char *out, uint32_t outSiz
 
 	if (aprsRxParse(frame, &p) == false)
 	{
-		n = (uint32_t)snprintf(out, outSize, "(bad AX.25 header)");
+		n = (uint32_t)snprintf(out, outSize, TR("(bad AX.25 header)"));
 		return ((n < outSize) ? n : (outSize - 1U));
 	}
 

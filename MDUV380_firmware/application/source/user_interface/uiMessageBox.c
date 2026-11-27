@@ -444,13 +444,13 @@ static void emcomMessageBox(void)
 	switch (uiDataGlobal.MessageBox.buttons)
 	{
 		case MESSAGEBOX_BUTTONS_OK:
-			keys = "GRN OK";
+			keys = TR("GRN OK");
 			break;
 		case MESSAGEBOX_BUTTONS_YESNO:
-			keys = "GRN YES     RED NO";
+			keys = TR("GRN YES     RED NO");
 			break;
 		case MESSAGEBOX_BUTTONS_DISMISS:
-			keys = "RED CLOSE";
+			keys = TR("RED CLOSE");
 			break;
 		default:
 			break;

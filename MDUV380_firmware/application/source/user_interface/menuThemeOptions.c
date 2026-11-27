@@ -467,7 +467,7 @@ static void handleBrowserEvent(uiEvent_t *ev)
 				bool saved = displayThemeSaveToFlash(currentThemeDaytime);
 
 				uiNotificationShow(NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 2000,
-						(saved ? "Theme saved" : "Save failed"), false);
+						(saved ? TR("Theme saved") : TR("Save failed")), false);
 			}
 
 			displayThemeResetToDefault();
@@ -485,7 +485,7 @@ static void handleBrowserEvent(uiEvent_t *ev)
 			// Fork: EMCOM colours (dark by day, red at night); GREEN applies, SK2 + GREEN saves
 			emcomThemePreset((currentThemeDaytime == NIGHT), userThemeData);
 			isDirty = true;
-			uiNotificationShow(NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 2500, "EMCOM colours", false);
+			uiNotificationShow(NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 2500, TR("EMCOM colours"), false);
 		}
 #endif
 		else if (KEYCHECK_SHORTUP(ev->keys, KEY_HASH))

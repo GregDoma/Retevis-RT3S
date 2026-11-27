@@ -324,7 +324,7 @@ static void updateScreen(bool isFirstRun)
 
 #if defined(HAS_EMCOM_UI)
 				case DISPLAY_EMCOM_STYLE:
-					leftSide = "Screen";
+					leftSide = TR("Screen");
 					rightSideConst = emcomStyleName(emcomStyleGet());
 					break;
 #endif
@@ -351,10 +351,10 @@ static void updateScreen(bool isFirstRun)
 #if defined(HAS_EMCOM_UI)
 					{
 						// Fork: Zulu (UTC) / Local / Local + Zulu (the EMCOM footer shows both)
-						static const char *clockNames[] = { "Zulu", "Local", "Loc+Zulu" };
+						static const char *clockNames[] = { TRN("Zulu"), TRN("Local"), TRN("Loc+Zulu") };
 
-						leftSide = "Clock";
-						rightSideConst = clockNames[clockMode()];
+						leftSide = TR("Clock");
+						rightSideConst = TR(clockNames[clockMode()]);
 					}
 #else
 					leftSide = currentLanguage->UTC;
@@ -363,7 +363,7 @@ static void updateScreen(bool isFirstRun)
 					break;
 #if defined(HAS_EMCOM_UI)
 				case DISPLAY_SET_TIME:
-					leftSide = "Set time";
+					leftSide = TR("Set time");
 					rightSideConst = ">";
 					break;
 #endif

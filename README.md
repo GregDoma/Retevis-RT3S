@@ -63,6 +63,13 @@ python3 opengd77_stm32_firmware_loader.py -m MD-UV380 -f ../build/OpenGD77_MDUV3
 python3 opengd77_stm32_firmware_loader.py -m DM-1701  -f ../build/OpenGD77_RT84_DM1701_DM1701.bin
 ```
 
+## Języki
+
+Firmware ma wbudowane tylko dwa języki: angielski i polski (wybór w *Options → Language*). Pakiety `.gla` nie są potrzebne
+i nie należy wgrywać starego `Polish.gla` opcją `-L` (zastąpiłby wbudowany polski). Teksty ekranów SP7TQ są tłumaczone przez
+`TR("...")`; tłumaczenia są w `tools/translations/pl.tsv`, a `tools/translations/gen_translations.py` sprawdza je
+(znaki czcionki, konwersje printf, pokrycie każdego `TR()`/`TRN()`) i generuje `uiTranslationsPL.c`.
+
 ## Narzędzia PC
 
 W `MDUV380_firmware/tools/`: zrzut ekranu przez USB (`opengd77_screenshot.py`), odczyt dziennika zdarzeń

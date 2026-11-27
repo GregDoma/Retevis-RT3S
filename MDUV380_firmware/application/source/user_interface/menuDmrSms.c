@@ -119,7 +119,7 @@ static void timeString(uint32_t t, char *buf, size_t size)
 
 	if (t == 0U)
 	{
-		snprintf(buf, size, "no clock");
+		snprintf(buf, size, TR("no clock"));
 		return;
 	}
 	gmtime_r_Custom(&secs, &tmv);
@@ -210,10 +210,10 @@ static bool emcom(void)
 static void drawEmpty(int16_t y)
 {
 	displayThemeApply(THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
-	displayPrintCentered((y + 16), "No messages", FONT_SIZE_3);
+	displayPrintCentered((y + 16), TR("No messages"), FONT_SIZE_3);
 	displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
-	displayPrintCentered((y + 40), "Private DMR SMS to your", FONT_SIZE_1);
-	displayPrintCentered((y + 50), "ID and group SMS show here", FONT_SIZE_1);
+	displayPrintCentered((y + 40), TR("Private DMR SMS to your"), FONT_SIZE_1);
+	displayPrintCentered((y + 50), TR("ID and group SMS show here"), FONT_SIZE_1);
 	displayThemeResetToDefault();
 }
 
@@ -315,7 +315,7 @@ static void drawList(void)
 		}
 		else
 		{
-			emcomUiChip(2, (EMCOM_UI_STRIP_Y + 2), "EMPTY", THEME_ITEM_FG_DECORATION, EMCOM_CHIP_OUTLINE, false);
+			emcomUiChip(2, (EMCOM_UI_STRIP_Y + 2), TR("EMPTY"), THEME_ITEM_FG_DECORATION, EMCOM_CHIP_OUTLINE, false);
 		}
 	}
 	else
@@ -332,9 +332,9 @@ static void drawList(void)
 		selectedSeq = 0U;
 		drawEmpty(listY);
 #if defined(HAS_DMR_SMS_TX)
-		footer("1 NEW  RED EXIT", "1 new message", "RED back");
+		footer(TR("1 NEW  RED EXIT"), TR("1 new message"), TR("RED back"));
 #else
-		footer("RED EXIT", "", "RED back");
+		footer(TR("RED EXIT"), "", TR("RED back"));
 #endif
 		displayRender();
 		return;
@@ -392,14 +392,14 @@ static void drawList(void)
 	{
 		if (confirmAll)
 		{
-			emcomUiConfirmBar("DELETE ALL?");
+			emcomUiConfirmBar(TR("DELETE ALL?"));
 		}
 		else
 		{
 #if defined(HAS_DMR_SMS_TX)
-			emcomUiKeyBar("GRN READ  1 NEW  0 DEL");
+			emcomUiKeyBar(TR("GRN READ  1 NEW  0 DEL"));
 #else
-			emcomUiKeyBar("GRN READ  0 DEL  RED EXIT");
+			emcomUiKeyBar(TR("GRN READ  0 DEL  RED EXIT"));
 #endif
 		}
 		displayRender();
@@ -409,14 +409,14 @@ static void drawList(void)
 
 	if (confirmAll)
 	{
-		classicFooter("DELETE ALL MESSAGES?", "GREEN yes, other key no", THEME_ITEM_FG_TX_COUNTER);
+		classicFooter(TR("DELETE ALL MESSAGES?"), TR("GREEN yes, other key no"), THEME_ITEM_FG_TX_COUNTER);
 	}
 	else
 	{
 #if defined(HAS_DMR_SMS_TX)
-		classicFooter("GREEN read # new 0 del", "long 0 delete all", THEME_ITEM_FG_HEADER_TEXT);
+		classicFooter(TR("GREEN read # new 0 del"), TR("long 0 delete all"), THEME_ITEM_FG_HEADER_TEXT);
 #else
-		classicFooter("GREEN read  0 delete", "long 0 delete all", THEME_ITEM_FG_HEADER_TEXT);
+		classicFooter(TR("GREEN read  0 delete"), TR("long 0 delete all"), THEME_ITEM_FG_HEADER_TEXT);
 #endif
 	}
 	displayRender();
@@ -463,7 +463,7 @@ static void drawMessage(void)
 		emcomUiText(3, (EMCOM_UI_STRIP_Y + 2), buf, FONT_SIZE_1, THEME_ITEM_FG_HEADER_TEXT, false);
 		if (outgoing && (m.flags & DMR_SMS_FLAG_UNSENT))
 		{
-			snprintf(buf, sizeof(buf), "NOT SENT");
+			snprintf(buf, sizeof(buf), TR("NOT SENT"));
 		}
 		else
 		{
@@ -504,9 +504,9 @@ static void drawMessage(void)
 	if (em)
 	{
 #if defined(HAS_DMR_SMS_TX)
-		emcomUiKeyBar("GRN REPLY 0 DEL RED BACK");
+		emcomUiKeyBar(TR("GRN REPLY 0 DEL RED BACK"));
 #else
-		emcomUiKeyBar("UP/DN  0 DEL  RED BACK");
+		emcomUiKeyBar(TR("UP/DN  0 DEL  RED BACK"));
 #endif
 		displayRender();
 		return;
@@ -514,9 +514,9 @@ static void drawMessage(void)
 #endif
 	snprintf(buf, sizeof(buf), "%u/%u", (unsigned)(selected + 1U), (unsigned)dmrSmsCount());
 #if defined(HAS_DMR_SMS_TX)
-	classicFooter(buf, "GREEN reply 0 del RED back", THEME_ITEM_FG_HEADER_TEXT);
+	classicFooter(buf, TR("GREEN reply 0 del RED back"), THEME_ITEM_FG_HEADER_TEXT);
 #else
-	classicFooter(buf, "UP/DN next  0 delete  RED back", THEME_ITEM_FG_HEADER_TEXT);
+	classicFooter(buf, TR("UP/DN next  0 delete  RED back"), THEME_ITEM_FG_HEADER_TEXT);
 #endif
 	displayRender();
 }
@@ -567,7 +567,7 @@ static void recipientString(char *buf, size_t size)
 static void drawTo(void)
 {
 	char buf[SCREEN_LINE_BUFFER_SIZE];
-	int16_t y = composeFrame("SMS to", (toGroup ? "GROUP (TG)" : "PRIVATE ID"), (toGroup ? THEME_ITEM_FG_RX_FREQ : THEME_ITEM_FG_RSSI_BAR));
+	int16_t y = composeFrame(TR("SMS to"), (toGroup ? TR("GROUP (TG)") : TR("PRIVATE ID")), (toGroup ? THEME_ITEM_FG_RX_FREQ : THEME_ITEM_FG_RSSI_BAR));
 
 	if (toId > 0U)
 	{
@@ -588,14 +588,14 @@ static void drawTo(void)
 	}
 	else if (toId > 0U)
 	{
-		displayPrintCentered((uint16_t)(y + 24), "talkgroup", FONT_SIZE_1);
+		displayPrintCentered((uint16_t)(y + 24), TR("talkgroup"), FONT_SIZE_1);
 	}
 	displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
 	displayPrintCentered((uint16_t)(y + 36), "BM: 262993 WX  262994 RPT", FONT_SIZE_1);
 	displayPrintCentered((uint16_t)(y + 45), "262995 SMSC (INBOX)", FONT_SIZE_1);
 	displayThemeResetToDefault();
 
-	footer("GRN OK *P/G #CH RED BACK", "GREEN next  * priv/group", "# channel contact RED back");
+	footer(TR("GRN OK *P/G #CH RED BACK"), TR("GREEN next  * priv/group"), TR("# channel contact RED back"));
 	displayRender();
 }
 
@@ -623,7 +623,7 @@ static void drawPick(void)
 	bool em = emcom();
 
 	recipientString(buf, sizeof(buf));
-	int16_t y = composeFrame("SMS text", buf, THEME_ITEM_FG_RX_FREQ);
+	int16_t y = composeFrame(TR("SMS text"), buf, THEME_ITEM_FG_RX_FREQ);
 	int16_t rowH = (em ? EM_ROW_H : ROW_H);
 	int16_t bottom = (em ? (EMCOM_UI_KEYBAR_Y - 1) : (DISPLAY_SIZE_Y - FOOTER_H));
 	uint32_t rows = (uint32_t)((bottom - y) / rowH);
@@ -638,7 +638,7 @@ static void drawPick(void)
 		pickText(i, text);
 		if (i == 0U)
 		{
-			snprintf(buf, sizeof(buf), "%s%.20s", "> ", ((text[0] != 0) ? text : "Type a message..."));
+			snprintf(buf, sizeof(buf), "%s%.20s", "> ", ((text[0] != 0) ? text : TR("Type a message...")));
 		}
 		else
 		{
@@ -659,7 +659,7 @@ static void drawPick(void)
 		displayThemeResetToDefault();
 	}
 
-	footer("GRN SEND >EDIT *TO RED", "GREEN send  RIGHT edit", "* recipient  RED back");
+	footer(TR("GRN SEND >EDIT *TO RED"), TR("GREEN send  RIGHT edit"), TR("* recipient  RED back"));
 	displayRender();
 }
 
@@ -672,22 +672,22 @@ static void drawSend(void)
 
 	if (r == DMR_SMS_TX_SENDING)
 	{
-		big = "SENDING...";
+		big = TR("SENDING...");
 		colour = THEME_ITEM_FG_TX_COUNTER;
 	}
 	else if (r == DMR_SMS_TX_OK)
 	{
-		big = "SENT";
+		big = TR("SENT");
 		colour = THEME_ITEM_FG_RSSI_BAR;
 	}
 	else if ((r == DMR_SMS_TX_NO_REPEATER) || (r == DMR_SMS_TX_TIMEOUT))
 	{
-		big = "FAILED";
+		big = TR("FAILED");
 		colour = THEME_ITEM_FG_TX_COUNTER;
 	}
 	else
 	{
-		big = (((r == DMR_SMS_TX_BUSY) || (r == DMR_SMS_TX_BAD_TEXT)) ? "NOT SENT" : "NOT ALLOWED");
+		big = (((r == DMR_SMS_TX_BUSY) || (r == DMR_SMS_TX_BAD_TEXT)) ? TR("NOT SENT") : TR("NOT ALLOWED"));
 		colour = THEME_ITEM_FG_TX_COUNTER;
 	}
 
@@ -699,17 +699,17 @@ static void drawSend(void)
 	if ((r != DMR_SMS_TX_SENDING) && (r != DMR_SMS_TX_OK))
 	{
 		displayThemeApply(THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
-		displayPrintCentered((uint16_t)(y + 32), dmrSmsTxResultText(r), FONT_SIZE_1);
+		displayPrintCentered((uint16_t)(y + 32), TR(dmrSmsTxResultText(r)), FONT_SIZE_1);
 	}
 	displayThemeResetToDefault();
 
 	if (r == DMR_SMS_TX_SENDING)
 	{
-		footer("TRANSMITTING", "transmitting", "on the current channel");
+		footer(TR("TRANSMITTING"), TR("transmitting"), TR("on the current channel"));
 	}
 	else
 	{
-		footer("ANY KEY", "any key", "");
+		footer(TR("ANY KEY"), TR("any key"), "");
 	}
 	displayRender();
 }

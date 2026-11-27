@@ -22,6 +22,15 @@ Pełny opis w [CHANGELOG SP7TQ](https://github.com/sptq/opengd77-rt3s-experiment
   ramki (#35), wyłączenie nasłuchu po długim RED (#36), DMR SMS: `1` zaczyna nową wiadomość (#40), pasek EMCOM zawsze
   pokazuje baterię, powiadomienie squelch w krokach 5 % (PR #30 desertblade).
 
+### Języki: tylko angielski i polski (PR #3)
+
+- Usunięte pozostałe języki, pakiety `.gla`, `languages_builder` i build japoński. Polski wbudowany, wybór w *Options → Language*.
+- Tłumaczenie ekranów SP7TQ na polski przez `TR("...")` (tabela `tools/translations/pl.tsv`, generator
+  `gen_translations.py`, tabela za kodekiem AMBE, 0 B RAM). Wpisy dziennika zdarzeń, teksty APRS i skróty (TX, RX, CC, TS,
+  TG, DMR, UTC) zostają po angielsku.
+- Poprawki `polish.h` (67 pozycji); pasek tytułu EMCOM, chipy i tytuły alertów pokazują wielkie polskie litery.
+- Nowe ekrany SP7TQ.6–.8 (DMR SMS, Dekodery, zegar, pauza dziennika) dotłumaczone przy łączeniu z SP7TQ.8.
+
 ### Autor modyfikacji na radiu (PR #6)
 
 - `Greg M0SQQ` w podziękowaniach (*Firmware info*, `DOWN`), `Mod: M0SQQ` na stronie szczegółów buildu,

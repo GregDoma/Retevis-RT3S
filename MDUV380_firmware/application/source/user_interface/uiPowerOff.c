@@ -81,7 +81,7 @@ static void updateScreen(void)
 		displayThemeApply(THEME_ITEM_FG_SPLASHSCREEN, THEME_ITEM_BG);
 		displayPrintCentered(68, "SP7TEAM", FONT_SIZE_3);
 		displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
-		displayPrintCentered(87, "THANKS FOR LISTENING", FONT_SIZE_1);
+		displayPrintCentered(87, TR("THANKS FOR LISTENING"), FONT_SIZE_1);
 
 		displayThemeApply(THEME_ITEM_BG_HEADER_TEXT, THEME_ITEM_BG);
 		displayFillRect(0, (DISPLAY_SIZE_Y - 18), DISPLAY_SIZE_X, 18, false);

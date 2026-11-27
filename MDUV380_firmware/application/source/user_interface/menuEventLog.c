@@ -55,7 +55,7 @@ static void timeString(uint32_t t, char *buf, size_t size, bool withDate)
 {
 	if (t == 0U)
 	{
-		snprintf(buf, size, (withDate ? "no clock" : "--:--"));
+		snprintf(buf, size, (withDate ? TR("no clock") : "--:--"));
 		return;
 	}
 
@@ -108,16 +108,16 @@ static void updateScreenEmcom(void)
 	displayClearBuf();
 	if (count == 0U)
 	{
-		emcomUiTitle(currentLanguage->event_log, (eventLogIsEnabled() ? "0" : "OFF"));
+		emcomUiTitle(currentLanguage->event_log, (eventLogIsEnabled() ? "0" : TR("OFF")));
 		emcomUiStrip();
-		emcomUiChip(2, (EMCOM_UI_STRIP_Y + 2), (eventLogIsEnabled() ? "EMPTY" : "REC OFF"), THEME_ITEM_FG_DECORATION, EMCOM_CHIP_OUTLINE, false);
+		emcomUiChip(2, (EMCOM_UI_STRIP_Y + 2), (eventLogIsEnabled() ? TR("EMPTY") : TR("REC OFF")), THEME_ITEM_FG_DECORATION, EMCOM_CHIP_OUTLINE, false);
 		displayThemeApply(THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
-		displayPrintCentered((EMCOM_UI_BODY_Y + 16), "Log empty", FONT_SIZE_3);
+		displayPrintCentered((EMCOM_UI_BODY_Y + 16), TR("Log empty"), FONT_SIZE_3);
 		displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
-		displayPrintCentered((EMCOM_UI_BODY_Y + 40), "TX, RX, DMR, APRS, MSG,", FONT_SIZE_1);
-		displayPrintCentered((EMCOM_UI_BODY_Y + 50), "DTMF, SOS, SSTV events", FONT_SIZE_1);
+		displayPrintCentered((EMCOM_UI_BODY_Y + 40), TR("TX, RX, DMR, APRS, MSG,"), FONT_SIZE_1);
+		displayPrintCentered((EMCOM_UI_BODY_Y + 50), TR("DTMF, SOS, SSTV events"), FONT_SIZE_1);
 		displayThemeResetToDefault();
-		emcomUiKeyBar("# REC ON/OFF  RED EXIT");
+		emcomUiKeyBar(TR("# REC ON/OFF  RED EXIT"));
 		displayRender();
 		return;
 	}
@@ -127,7 +127,7 @@ static void updateScreenEmcom(void)
 		selected = (count - 1U);
 	}
 
-	snprintf(buf, sizeof(buf), "%s%u/%u", (eventLogIsEnabled() ? "" : "OFF "), (unsigned)(selected + 1U), (unsigned)count);
+	snprintf(buf, sizeof(buf), "%s%u/%u", (eventLogIsEnabled() ? "" : TR("OFF ")), (unsigned)(selected + 1U), (unsigned)count);
 	emcomUiTitle(currentLanguage->event_log, buf);
 
 	// the selected entry: full text big (contrast) or small, above the key bar
@@ -181,11 +181,11 @@ static void updateScreenEmcom(void)
 
 	if (confirmClear)
 	{
-		emcomUiConfirmBar("CLEAR LOG?");
+		emcomUiConfirmBar(TR("CLEAR LOG?"));
 	}
 	else
 	{
-		emcomUiKeyBar("0 CLEAR  # REC  RED EXIT");
+		emcomUiKeyBar(TR("0 CLEAR  # REC  RED EXIT"));
 	}
 	displayRender();
 }
@@ -208,17 +208,17 @@ static void updateScreen(void)
 	displayClearBuf();
 	menuDisplayTitle(currentLanguage->event_log);
 
-	snprintf(buf, sizeof(buf), "%s%u", (eventLogIsEnabled() ? "" : "OFF "), (unsigned)count);
+	snprintf(buf, sizeof(buf), "%s%u", (eventLogIsEnabled() ? "" : TR("OFF ")), (unsigned)count);
 	displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG_MENU_NAME);
 	displayPrintCore((DISPLAY_SIZE_X - 3 - (int16_t)(strlen(buf) * 6)), 4, buf, FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
 
 	if (count == 0U)
 	{
 		displayThemeApply(THEME_ITEM_FG_DEFAULT, THEME_ITEM_BG);
-		displayPrintCentered((LIST_Y + 24), "Log empty", FONT_SIZE_3);
+		displayPrintCentered((LIST_Y + 24), TR("Log empty"), FONT_SIZE_3);
 		displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
-		displayPrintCentered((LIST_Y + 48), "TX, RX, DMR, APRS, MSG,", FONT_SIZE_1);
-		displayPrintCentered((LIST_Y + 58), "DTMF, SOS, SSTV events", FONT_SIZE_1);
+		displayPrintCentered((LIST_Y + 48), TR("TX, RX, DMR, APRS, MSG,"), FONT_SIZE_1);
+		displayPrintCentered((LIST_Y + 58), TR("DTMF, SOS, SSTV events"), FONT_SIZE_1);
 		displayThemeResetToDefault();
 		displayRender();
 		return;
@@ -271,9 +271,9 @@ static void updateScreen(void)
 	if (confirmClear)
 	{
 		displayThemeApply(THEME_ITEM_FG_TX_COUNTER, THEME_ITEM_BG_HEADER_TEXT);
-		displayPrintCore(3, (fy + 1), "CLEAR THE WHOLE LOG?", FONT_SIZE_1_BOLD, TEXT_ALIGN_LEFT, false);
+		displayPrintCore(3, (fy + 1), TR("CLEAR THE WHOLE LOG?"), FONT_SIZE_1_BOLD, TEXT_ALIGN_LEFT, false);
 		displayThemeApply(THEME_ITEM_FG_HEADER_TEXT, THEME_ITEM_BG_HEADER_TEXT);
-		displayPrintCore(3, (fy + 11), "GREEN yes, other key no", FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
+		displayPrintCore(3, (fy + 11), TR("GREEN yes, other key no"), FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
 	}
 	else if (eventLogGet(selected, &rec))
 	{
@@ -347,7 +347,7 @@ menuStatus_t menuEventLog(uiEvent_t *ev, bool isFirstRun)
 			{
 				eventLogSetEnabled(eventLogIsEnabled() == false); // issue #32
 				uiNotificationShow(NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 1500U,
-						(eventLogIsEnabled() ? "Event log: on" : "Event log: off"), false);
+						(eventLogIsEnabled() ? TR("Event log: on") : TR("Event log: off")), false);
 				soundSetMelody(MELODY_ACK_BEEP);
 				updateScreen();
 			}

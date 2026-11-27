@@ -18,6 +18,7 @@
 #include "functions/eventLog.h"
 #include "user_interface/uiGlobals.h"
 #include "user_interface/uiUtilities.h"
+#include "user_interface/uiLocalisation.h" // Fork (M0SQQ): TRN() marks the TX result texts (translated with TR() on the screen)
 #include "user_interface/menuSystem.h"
 #if defined(HAS_DMR_SMS_TX)
 #include "hardware/HR-C6000.h"
@@ -692,10 +693,10 @@ bool dmrSmsTxBusy(void)
 
 const char *dmrSmsTxResultText(dmrSmsTxResult_t r)
 {
-	static const char *texts[] = { "SENT", "SENDING", "NOT A DMR CH", "RX ONLY CHANNEL", "TX INHIBITED", "OUT OF BAND",
-			"NO DMR ID", "CHANNEL BUSY", "NO TEXT / DEST", "NO REPEATER", "NOT SENT" };
+	static const char *texts[] = { TRN("SENT"), TRN("SENDING"), TRN("NOT A DMR CH"), TRN("RX ONLY CHANNEL"), TRN("TX INHIBITED"), TRN("OUT OF BAND"),
+			TRN("NO DMR ID"), TRN("CHANNEL BUSY"), TRN("NO TEXT / DEST"), TRN("NO REPEATER"), TRN("NOT SENT") };
 
-	return (((unsigned)r < (sizeof(texts) / sizeof(texts[0]))) ? texts[r] : "FAILED");
+	return (((unsigned)r < (sizeof(texts) / sizeof(texts[0]))) ? texts[r] : TRN("FAILED"));
 }
 
 // --- HR-C6000 timeslot interrupt ---

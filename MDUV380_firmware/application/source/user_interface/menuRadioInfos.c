@@ -251,7 +251,7 @@ static void timeKeyBar(bool date)
 	displayThemeApply(THEME_ITEM_BG_HEADER_TEXT, THEME_ITEM_BG);
 	displayFillRect(0, y, DISPLAY_SIZE_X, (DISPLAY_SIZE_Y - y), false);
 	displayThemeApply(THEME_ITEM_FG_HEADER_TEXT, THEME_ITEM_BG_HEADER_TEXT);
-	displayPrintCore(2, (y + 2), ((keypadInputDigitsLength == 0) ? (date ? "0-9 YYYYMMDD  UP/DN PAGE" : "0-9 HHMMSS  UP/DN PAGE") :
+	displayPrintCore(2, (y + 2), ((keypadInputDigitsLength == 0) ? (date ? TR("0-9 YYYYMMDD  UP/DN PAGE") : TR("0-9 HHMMSS  UP/DN PAGE")) :
 			"GREEN SAVE RED CLEAR < DEL"), FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
 }
 
@@ -264,13 +264,13 @@ static void locationKeyBar(bool oneLine)
 
 	if (keypadInputDigitsLength == 0)
 	{
-		lines[0] = (oneLine ? "0-9 TYPE  SK2+GRN GPS ON" : "0-9 TYPE DD.DDDD DDD.DDDD");
-		lines[1] = "SK2+GRN GPS ON  RED EXIT";
+		lines[0] = (oneLine ? TR("0-9 TYPE  SK2+GRN GPS ON") : TR("0-9 TYPE DD.DDDD DDD.DDDD"));
+		lines[1] = TR("SK2+GRN GPS ON  RED EXIT");
 	}
 	else
 	{
-		lines[0] = (oneLine ? "GREEN SAVE RED CLEAR < DEL" : "UP N  DN S  SK2+UP/DN E/W");
-		lines[1] = "GREEN SAVE RED CLEAR < DEL";
+		lines[0] = (oneLine ? TR("GREEN SAVE RED CLEAR < DEL") : "UP N  DN S  SK2+UP/DN E/W");
+		lines[1] = TR("GREEN SAVE RED CLEAR < DEL");
 	}
 
 	displayThemeApply(THEME_ITEM_BG_HEADER_TEXT, THEME_ITEM_BG);
@@ -448,7 +448,7 @@ static void updateScreen(uiEvent_t *ev, bool forceRedraw)
 						displayThemeResetToDefault();
 						displayPrintCore(((x - ((int)strlen(e) * 8)) >> 1), estY, e, FONT_SIZE_3, TEXT_ALIGN_LEFT, false);
 						displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);
-						displayPrintCore(((x - (9 * 6)) >> 1), (estY + FONT_SIZE_3_HEIGHT + 2), "time left", FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
+						displayPrintCore(((x - (9 * 6)) >> 1), (estY + FONT_SIZE_3_HEIGHT + 2), TR("time left"), FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
 					}
 
 					displayThemeApply(THEME_ITEM_FG_DECORATION, THEME_ITEM_BG);

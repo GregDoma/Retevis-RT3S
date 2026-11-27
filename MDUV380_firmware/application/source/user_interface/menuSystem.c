@@ -761,9 +761,9 @@ const char *menuItemName(const menuItemNewData_t *item)
 	switch (item->stringOffset)
 	{
 		case MENU_STRING_NET_CONTROL:
-			return "Net control";
+			return TR("Net control");
 		case MENU_STRING_DECODERS:
-			return "Decoders";
+			return TR("Decoders");
 		case MENU_STRING_DMR_SMS:
 			return "DMR SMS";
 		default:
@@ -812,7 +812,7 @@ void menuDisplayTitle(const char *title)
 		for (; title[n] && (n < SCREEN_LINE_BUFFER_SIZE); n++)
 		{
 			char c = title[n];
-			buf[n] = (((c >= 'a') && (c <= 'z')) ? (char)(c - ('a' - 'A')) : c);
+			buf[n] = languageCharToUpper(c);
 		}
 		buf[n] = 0;
 

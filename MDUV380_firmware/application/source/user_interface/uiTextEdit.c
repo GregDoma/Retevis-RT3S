@@ -9,6 +9,7 @@
 #include "user_interface/uiUtilities.h"
 #include "functions/aprsText.h"
 #include "io/keyboard.h"
+#include "user_interface/uiLocalisation.h" // Fork (M0SQQ): TR()
 
 #if !defined(PLATFORM_GD77S)
 
@@ -266,7 +267,7 @@ void uiTextEditDraw(const char *title, const char *label)
 	displayThemeApply(THEME_ITEM_BG_HEADER_TEXT, THEME_ITEM_BG);
 	displayFillRect(0, fy, DISPLAY_SIZE_X, EDIT_FOOTER_H, false);
 	displayThemeApply(THEME_ITEM_FG_HEADER_TEXT, THEME_ITEM_BG_HEADER_TEXT);
-	displayPrintCore(3, (fy + 1), "GRN OK  # DEL  RED BACK", FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
+	displayPrintCore(3, (fy + 1), TR("GRN OK  # DEL  RED BACK"), FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
 
 	displayThemeResetToDefault();
 	displayRender();

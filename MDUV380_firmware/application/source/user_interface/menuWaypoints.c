@@ -137,7 +137,7 @@ static void drawRow(int i, int16_t y, bool fix, double lat, double lon, int *use
 	{
 		snprintf(buf, sizeof(buf), "%d", (i + 1));
 		emcomUiText(2, (y + 1), buf, FONT_SIZE_1, muted, false);
-		emcomUiText(NAME_X, (y + 1), "-- empty", FONT_SIZE_1, muted, false);
+		emcomUiText(NAME_X, (y + 1), TR("-- empty"), FONT_SIZE_1, muted, false);
 		return;
 	}
 
@@ -169,7 +169,7 @@ static void drawRow(int i, int16_t y, bool fix, double lat, double lon, int *use
 	}
 	else
 	{
-		emcomUiText(COMPASS_R + 15, (y + 1), "HERE", FONT_SIZE_1, (sel ? THEME_ITEM_BG : THEME_ITEM_FG_RSSI_BAR), true);
+		emcomUiText(COMPASS_R + 15, (y + 1), TR("HERE"), FONT_SIZE_1, (sel ? THEME_ITEM_BG : THEME_ITEM_FG_RSSI_BAR), true);
 	}
 }
 
@@ -177,11 +177,11 @@ static void keyText(char *buf, size_t size, bool selUsed)
 {
 	if (ui.mode == WP_MODE_CONFIRM_DELETE)
 	{
-		snprintf(buf, size, "DELETE %d?", (selected() + 1));
+		snprintf(buf, size, TR("DELETE %d?"), (selected() + 1));
 	}
 	else
 	{
-		snprintf(buf, size, "%s", (selUsed ? "GRN GO  RGT NAME  0 DEL" : "* SAVE HERE  # LAT/LON"));
+		snprintf(buf, size, "%s", (selUsed ? TR("GRN GO  RGT NAME  0 DEL") : TR("* SAVE HERE  # LAT/LON")));
 	}
 }
 
@@ -200,8 +200,8 @@ static void updateScreen(void)
 
 	if (ui.mode == WP_MODE_RENAME)
 	{
-		snprintf(buf, sizeof(buf), "SLOT %d", (selected() + 1));
-		uiTextEditDraw("WAYPOINT NAME", buf);
+		snprintf(buf, sizeof(buf), TR("SLOT %d"), (selected() + 1));
+		uiTextEditDraw(TR("WAYPOINT NAME"), buf);
 		displayRender();
 		return;
 	}
@@ -210,11 +210,11 @@ static void updateScreen(void)
 	{
 		if (emcom)
 		{
-			emcomUiTitle("NEW WAYPOINT", NULL);
+			emcomUiTitle(TR("NEW WAYPOINT"), NULL);
 		}
 		else
 		{
-			menuDisplayTitle("New waypoint");
+			menuDisplayTitle(TR("New waypoint"));
 		}
 		gpsWaypointEditDraw();
 		displayRender();
@@ -224,11 +224,11 @@ static void updateScreen(void)
 	if (emcom)
 	{
 		snprintf(buf, sizeof(buf), "%d/%d", (selected() + 1), FIELD_WAYPOINT_SLOTS);
-		emcomUiTitle("WAYPOINTS", buf);
+		emcomUiTitle(TR("WAYPOINTS"), buf);
 	}
 	else
 	{
-		menuDisplayTitle("Waypoints");
+		menuDisplayTitle(TR("Waypoints"));
 	}
 
 	int16_t y0 = (emcom ? EMCOM_UI_BODY_Y : CL_LIST_Y);
@@ -242,9 +242,9 @@ static void updateScreen(void)
 	{
 		// status strip: fix state, slots used
 		emcomUiStrip();
-		emcomUiChip(2, (EMCOM_UI_STRIP_Y + 2), (fix ? "FIX" : "NO FIX"), (fix ? THEME_ITEM_FG_RSSI_BAR : THEME_ITEM_FG_RSSI_BAR_S9P),
+		emcomUiChip(2, (EMCOM_UI_STRIP_Y + 2), (fix ? "FIX" : TR("NO FIX")), (fix ? THEME_ITEM_FG_RSSI_BAR : THEME_ITEM_FG_RSSI_BAR_S9P),
 				(fix ? EMCOM_CHIP_SOLID : EMCOM_CHIP_OUTLINE), false);
-		snprintf(buf, sizeof(buf), "%d/%d SAVED", used, FIELD_WAYPOINT_SLOTS);
+		snprintf(buf, sizeof(buf), TR("%d/%d SAVED"), used, FIELD_WAYPOINT_SLOTS);
 		emcomUiText((DISPLAY_SIZE_X - 3), (EMCOM_UI_STRIP_Y + 2), buf, FONT_SIZE_1, THEME_ITEM_FG_DECORATION, true);
 
 		keyText(buf, sizeof(buf), selUsed);
@@ -269,7 +269,7 @@ static void updateScreen(void)
 			displayThemeApply(THEME_ITEM_FG_TX_COUNTER, THEME_ITEM_BG_HEADER_TEXT);
 			displayPrintCore(3, (fy + 2), buf, FONT_SIZE_1_BOLD, TEXT_ALIGN_LEFT, false);
 			displayThemeApply(THEME_ITEM_FG_HEADER_TEXT, THEME_ITEM_BG_HEADER_TEXT);
-			displayPrintCore(75, (fy + 2), "GREEN = yes", FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
+			displayPrintCore(75, (fy + 2), TR("GREEN = yes"), FONT_SIZE_1, TEXT_ALIGN_LEFT, false);
 		}
 		else
 		{
@@ -289,12 +289,12 @@ static void saved(int slot)
 	if (slot < 0)
 	{
 		soundSetMelody(MELODY_ERROR_BEEP);
-		uiNotificationShowKind(UI_ALERT_WARNING, NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 2000U, "All 8 used\n0 deletes one", false);
+		uiNotificationShowKind(UI_ALERT_WARNING, NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 2000U, TR("All 8 used\n0 deletes one"), false);
 		return;
 	}
 
 	menuDataGlobal.currentItemIndex = slot;
-	snprintf(buf, sizeof(buf), "Saved WP%d", (slot + 1));
+	snprintf(buf, sizeof(buf), TR("Saved WP%d"), (slot + 1));
 	soundSetMelody(MELODY_ACK_BEEP);
 	uiNotificationShowKind(UI_ALERT_INFO, NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 1500U, buf, false);
 }
@@ -392,7 +392,7 @@ static void handleList(uiEvent_t *ev)
 
 			gpsWaypointSet((wp.lat / 1e6), (wp.lon / 1e6));
 			fieldWaypointName(&wp, name);
-			snprintf(buf, sizeof(buf), "Target %s", name);
+			snprintf(buf, sizeof(buf), TR("Target %s"), name);
 			soundSetMelody(MELODY_ACK_BEEP);
 			uiNotificationShowKind(UI_ALERT_INFO, NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 1500U, buf, false);
 			menuSystemPopPreviousMenu();
@@ -412,7 +412,7 @@ static void handleList(uiEvent_t *ev)
 		else
 		{
 			soundSetMelody(MELODY_ERROR_BEEP);
-			uiNotificationShowKind(UI_ALERT_WARNING, NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 1500U, "No GPS fix", false);
+			uiNotificationShowKind(UI_ALERT_WARNING, NOTIFICATION_TYPE_MESSAGE, NOTIFICATION_ID_MESSAGE, 1500U, TR("No GPS fix"), false);
 		}
 		updateScreen();
 	}
