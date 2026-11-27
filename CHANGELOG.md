@@ -5,7 +5,7 @@ This is an independent fork maintained by **Marcin SP7TQ**, based on the
 upstream [OpenGD77](https://www.opengd77.com/) R20260131 source. Features
 marked *(untested)* build and pass host tests but still need on-air checking.
 
-## Unreleased
+## R20260131-SP7TQ.8 — 2026-11-27
 
 * **Event log recording can be paused** (issue #32): `#` on the Event log screen switches recording off and on (kept in the settings, the title shows `OFF`). The switch is logged as `log off` / `log on`.
 * **Fix: APRS messages from internet services** (issue #34): replies and acks from WXBOT, WTSAPP and other APRS-IS services come to RF through an IGate as third-party frames. They are now unwrapped, so the reply lands in the messages and the ack marks the sent message.
